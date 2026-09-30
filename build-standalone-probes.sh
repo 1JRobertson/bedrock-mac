@@ -22,10 +22,15 @@ done
 
 mkdir -p "$OUTPUT"
 cd "$WINE_BUILD"
-for PROBE in standalone-graphics-probe runtime-auth-probe store-callback-probe; do
+for PROBE in standalone-graphics-probe runtime-auth-probe store-callback-probe runtime-privilege-probe xuser-claims-test; do
+  PROBE_SOURCE="$ROOT/$PROBE.c"
+  if [ "$PROBE" = xuser-claims-test ]; then
+    PROBE_SOURCE="$ROOT/tests/xuser-claims.c"
+  fi
   ./tools/winegcc/winegcc -o "$OUTPUT/$PROBE.exe" --wine-objdir . \
     --cc-cmd="$CLANG -D__STDC__" -b x86_64-windows \
-    "$ROOT/$PROBE.c" -Iinclude -I"$WINE_SOURCE/include" \
+    "$PROBE_SOURCE" -Iinclude -I"$WINE_SOURCE/include" \
+    -I"$WINE_SOURCE/dlls/xgameruntime/GDKComponent/System" \
     -I"$WINE_SOURCE/include/msvcrt" -D__WINESRC__ -nostdlib \
     -Wl,-entry:mainCRTStartup dlls/kernel32/x86_64-windows/libkernel32.a \
     dlls/user32/x86_64-windows/libuser32.a \

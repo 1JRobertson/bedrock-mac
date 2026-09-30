@@ -237,7 +237,7 @@ def status(game):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=('check', 'prepare', 'probe', 'launch'))
-    parser.add_argument('probe', nargs='?', choices=('graphics', 'account', 'store'))
+    parser.add_argument('probe', nargs='?', choices=('graphics', 'account', 'store', 'privileges', 'claims'))
     parser.add_argument('--game-dir', type=Path, default=ROOT / 'game')
     parser.add_argument('--market', default='CA', help='Two-letter Store country code (default CA)')
     args = parser.parse_args()
@@ -249,7 +249,7 @@ def main():
         status(game)
         return 0
     if args.command == 'probe' and not args.probe:
-        parser.error('probe requires graphics, account, or store')
+        parser.error('probe requires graphics, account, store, privileges, or claims')
     if args.command == 'launch' and game_running():
         print('Minecraft is already running. Close it before testing the standalone launcher.')
         return 0
@@ -266,11 +266,12 @@ def main():
             return 0
         if args.command == 'probe':
             names = {'graphics': 'standalone-graphics-probe.exe', 'account': 'runtime-auth-probe.exe',
-                     'store': 'store-callback-probe.exe'}
+                     'store': 'store-callback-probe.exe', 'privileges': 'runtime-privilege-probe.exe',
+                     'claims': 'xuser-claims-test.exe'}
             location = ROOT / 'runtime/standalone/probes'
             require(location / names[args.probe])
             exe = 'R:\\runtime\\standalone\\probes\\' + names[args.probe]
-            manager = account(game, args.market) if args.probe != 'graphics' else contextlib.nullcontext()
+            manager = account(game, args.market) if args.probe not in ('graphics', 'claims') else contextlib.nullcontext()
             with manager:
                 wine_run([exe], game, timeout=90)
             return 0

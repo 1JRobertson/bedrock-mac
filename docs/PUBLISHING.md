@@ -56,8 +56,10 @@ example sources before its locked Cargo build. The obsolete separate
 
 `build-standalone-wine.sh` creates its own build copy of the prepared WineGDK tree
 and applies `patches/standalone-wine-dxmt-abi.patch`,
-`patches/standalone-wine-idl-list.patch`, and
-`patches/standalone-wine-storage-linkage.patch` there. These additional patches
+`patches/standalone-wine-idl-list.patch`,
+`patches/standalone-wine-storage-linkage.patch`, and
+`patches/standalone-wine-user-privileges.patch`, followed by
+`patches/standalone-wine-xuser-realms.patch` there. These additional patches
 are not applied to the shared baseline checkout by the source bootstrap.
 `build-standalone-graphics.sh` retrieves pinned upstream DXMT binaries and notices;
 see [the dependency provenance](../THIRD_PARTY.md#standalone-runtime-dependency-provenance).

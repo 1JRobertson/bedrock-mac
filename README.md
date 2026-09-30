@@ -21,8 +21,11 @@ or D3DMetal files mapped. Minecraft 1.26.5203.0 uses Direct3D 11 at feature leve
 
 Hardware rendering and presentation, cryptography, certificate-verified HTTPS,
 Xbox account lookup, Store callbacks, and native GameInput installation pass.
-A non-empty standalone world save exists. Reopening that save, multiplayer,
-and fresh-account installation through the new standalone helper remain untested.
+A non-empty standalone world save exists. An online connection to the Lifeboat
+featured server was verified, including entry into its lobby with other players.
+Realms authentication and the joined-Realm list also work; entering an active
+Realm remains untested. Reopening the local save, PS5 friend sessions, and
+fresh-account installation through the new standalone helper remain untested.
 This gameplay test reused the existing authenticated unified account helper.
 
 Build prerequisites on Apple Silicon: macOS 15 or later, Rosetta, Apple Command
@@ -49,6 +52,7 @@ python3 standalone.py prepare
 python3 standalone.py probe graphics
 python3 standalone.py probe account
 python3 standalone.py probe store
+python3 standalone.py probe privileges
 python3 standalone.py launch
 ```
 
@@ -78,6 +82,27 @@ python3 standalone-setup.py --check
 
 For source licensing, upstream credit, and a reviewed export, see
 [THIRD_PARTY.md](THIRD_PARTY.md) and [docs/PUBLISHING.md](docs/PUBLISHING.md).
+
+## Online permission checks
+
+The initial runtime returned `E_NOTIMPL` for every multiplayer-permission check,
+which produced Minecraft's **Fox / Prerequisites-4** error before connecting.
+`standalone-wine-user-privileges.patch` reads authenticated Xbox `prv` and `agg`
+claims, checks exact privilege IDs and expiration, and preserves those claims
+when a different service needs its own token. Missing, malformed, or expired
+claims never grant access. Account restrictions remain enforced.
+
+`python3 standalone.py probe privileges` checks the current account's real
+permissions and Xbox/PlayFab/Realms token generation without printing credentials.
+The parser tests in `tests/xuser-claims.c` cover grants, denials, malformed
+claims, exact ID matching, and UTC expiration; all 31 checks pass. Rebuild probes
+with `./build-standalone-probes.sh`, then run `python3 standalone.py probe claims`.
+
+Realms uses a separate XSTS audience. `standalone-wine-xuser-realms.patch` maps
+its three known HTTPS API hosts to `https://pocket.realms.minecraft.net/` so
+the runtime requests a token for the correct service. The 19 routing tests
+reject lookalike and unrelated hosts. Run all 50 offline claim and routing
+checks with `bash tests/run-xuser-tests.sh`; see [tests/XUSER.md](tests/XUSER.md).
 
 ## Earlier CrossOver configuration
 

@@ -23,7 +23,11 @@ modifies the reference WineGDK implementation and retains LGPL 2.1 or later.
 Xodus under GPLv3. `patches/standalone-wine-dxmt-abi.patch` changes Wine's macOS
 driver, `patches/standalone-wine-idl-list.patch` fixes a duplicate install entry,
 and `patches/standalone-wine-storage-linkage.patch` fixes C/C++ linkage in
-the storage module; all three retain LGPL 2.1 or later.
+the storage module. `patches/standalone-wine-user-privileges.patch` implements
+account privilege and age-group checks using authenticated Xbox display claims.
+`patches/standalone-wine-xuser-realms.patch` maps the exact Realms API hosts to
+their original XSTS audience, cross-checked against BedrockOnLinux's runtime.
+All five Wine patches retain LGPL 2.1 or later.
 Build scripts and the pinned Cargo lockfile use the same upstream dependencies;
 each dependency retains its own license and notices.
 

@@ -62,5 +62,6 @@ An initial `E_FAIL` came from Wine's own D3D11 DLL shadowing DXMT, resolved by t
 installation overlay above. The subsequent Minecraft test confirmed the D3D11
 fallback and working gameplay. Inspection of the live game process found the
 standalone Wine and DXMT Metal library loaded, with no CrossOver or D3DMetal
-files mapped. Multiplayer, save reopening, and broader gameplay coverage remain
-untested.
+files mapped. A later test entered the Lifeboat online lobby with other players.
+PS5 friend sessions, active Realm gameplay, save reopening, and broader gameplay
+coverage remain untested.
