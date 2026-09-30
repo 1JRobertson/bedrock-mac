@@ -3,6 +3,7 @@
 import argparse
 import contextlib
 import datetime
+import errno
 import fcntl
 import hashlib
 import json
@@ -10,6 +11,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import socket
 import stat
 import subprocess
 import sys
@@ -58,7 +60,7 @@ def account_pid():
                 actual = ROOT / actual
             if actual.resolve() == expected.resolve():
                 return pid
-        except (OSError, ValueError, KeyError, subprocess.CalledProcessError):
+        except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError):
             continue
     return None
 
@@ -75,10 +77,50 @@ def account_ready():
     return True
 
 
+def recover_account_socket():
+    """Recover only a dead, recorded helper's private, non-listening socket."""
+    if account_pid():
+        return
+    recorded_dead = False
+    for state, expected in ((STATE, HELPER), (ROOT / 'runtime/helper-session.json', OLD_HELPER)):
+        try:
+            data = json.loads(state.read_text())
+            pid = int(data['pid'])
+            if pid <= 1 or data['executable'] != str(expected):
+                continue
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                recorded_dead = True
+            else:
+                return
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    if not recorded_dead:
+        return
+    try:
+        before = SOCKET.lstat()
+    except FileNotFoundError:
+        return
+    if not stat.S_ISSOCK(before.st_mode) or before.st_uid != os.getuid() or before.st_mode & 0o077:
+        return
+    with socket.socket(socket.AF_UNIX) as connection:
+        connection.settimeout(1)
+        if connection.connect_ex(str(SOCKET)) != errno.ECONNREFUSED:
+            return
+    try:
+        after = SOCKET.lstat()
+        if (before.st_dev, before.st_ino) == (after.st_dev, after.st_ino):
+            SOCKET.unlink()
+    except FileNotFoundError:
+        pass
+
+
 @contextlib.contextmanager
 def account(game, market='CA'):
     process = None
     try:
+        recover_account_socket()
         if not account_ready() and not account_pid():
             require(HELPER)
             print('Starting the account helper. Complete Microsoft sign-in if a window opens.', flush=True)
@@ -91,9 +133,12 @@ def account(game, market='CA'):
                     cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
             STATE.write_text(json.dumps({'pid': process.pid, 'executable': str(HELPER)}) + '\n')
             STATE.chmod(0o600)
+        deadline = time.monotonic() + 300
         while not account_ready():
             if (process and process.poll() is not None) or not account_pid():
                 raise RuntimeError('Account helper stopped; see logs/standalone/account.log.')
+            if time.monotonic() >= deadline:
+                raise RuntimeError('Microsoft sign-in did not finish within five minutes. Launch again to retry.')
             time.sleep(0.25)
         yield
     finally:
@@ -104,9 +149,14 @@ def account(game, market='CA'):
                     process.wait(timeout=8)
                 except subprocess.TimeoutExpired:
                     process.terminate()
-                    process.wait(timeout=8)
+                    try:
+                        process.wait(timeout=8)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=8)
+            recover_account_socket()
             try:
-                if json.loads(STATE.read_text()).get('pid') == process.pid:
+                if not os.path.lexists(SOCKET) and json.loads(STATE.read_text()).get('pid') == process.pid:
                     STATE.unlink()
             except (OSError, ValueError):
                 pass
@@ -167,6 +217,9 @@ def prerequisites(game):
                      'x86_64-unix/winemetal.so'):
         installed = WINE / 'lib/wine' / relative
         require(installed)
+        if relative == 'x86_64-unix/winemetal.so' and (WINE / 'dxmt-unix-bridge.json').exists():
+            verify_unix_bridge()
+            continue
         if sha256(installed) != sha256(DXMT / relative):
             raise RuntimeError('Reinstall DXMT with build-standalone-graphics.sh --wine-runtime ' + str(WINE))
     if sha256(ROOT / 'runtime/xgameruntime.dll.threading') != THREADING_HASH:
@@ -174,6 +227,28 @@ def prerequisites(game):
     with (game / 'Minecraft.Windows.exe').open('rb') as f:
         if f.read(2) != b'MZ':
             raise RuntimeError('Prepare the game with standalone-setup.py first.')
+
+
+def verify_unix_bridge():
+    """Check both halves of the optional locally rebuilt DXMT bridge."""
+    try:
+        metadata = json.loads((WINE / 'dxmt-unix-bridge.json').read_text())
+        files = metadata['files']
+        if metadata['version'] != 'v0.80' or metadata['source_commit'] != '589adb780354b461645b29999cefaf533594ee99':
+            raise ValueError('unexpected DXMT source')
+        if set(files) != {'winemetal.so', 'winemetal-upstream.so'}:
+            raise ValueError('unexpected bridge file list')
+        if files['winemetal-upstream.so'] != sha256(DXMT / 'x86_64-unix/winemetal.so'):
+            raise ValueError('upstream graphics library changed')
+        if metadata['patch_sha256'] != sha256(ROOT / 'patches/standalone-dxmt-memory-lifetime.patch'):
+            raise ValueError('bridge patch changed')
+        if metadata['trace_source_sha256'] != sha256(ROOT / 'standalone-dxmt-display-trace.c'):
+            raise ValueError('bridge source changed')
+        for name, expected in files.items():
+            if sha256(WINE / 'lib/wine/x86_64-unix' / name) != expected:
+                raise ValueError('installed bridge library changed')
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise RuntimeError('The rebuilt DXMT bridge failed verification. Rebuild and stage it again, or reinstall standard DXMT.') from error
 
 
 def prepare(game):

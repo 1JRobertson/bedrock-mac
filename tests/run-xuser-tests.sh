@@ -18,7 +18,7 @@ if [[ ! -x "$BUILD/tools/winegcc/winegcc" || ! -x "$WINE" ]]; then
 fi
 cd "$BUILD"
 trap '"$WINE_SERVER" -k >/dev/null 2>&1 || true' EXIT
-for TEST in claims realms; do
+for TEST in claims realms refresh; do
     ./tools/winegcc/winegcc -o "xuser-$TEST-test.exe" --wine-objdir . \
         --cc-cmd="$PE_CC -D__STDC__" -b x86_64-windows \
         "$ROOT/tests/xuser-$TEST.c" \

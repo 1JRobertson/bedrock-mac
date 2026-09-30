@@ -26,6 +26,8 @@ Sign in using the Microsoft account that owns Minecraft: Java & Bedrock for PC. 
 
 One helper executable performs login, licensed download, executable preparation, and the Xbox service. Its credentials remain in macOS Keychain under `Minecraft Bedrock Standalone`; it does not reuse the experimental helper's Keychain entries. Rebuilding that executable can cause macOS to request Keychain access again. No account tokens or content keys are written to project files.
 
+Finish building before signing in, then keep using that same helper binary. An incomplete or expired user session reopens sign-in on the next launch; cancelling sign-in returns an error. A denied Keychain read preserves the saved identity and fails rather than repeatedly provisioning another one. Existing device credentials are refreshed when their token expires. Migrating from the experimental helper requires exiting its game and stopping that helper first, then signing in once to the new namespace; credentials are not copied between executables.
+
 The launcher may start the service with:
 
 ```sh
@@ -33,6 +35,8 @@ XODUS_LOG=off RUST_LOG=off ./sources/xodus/target/release/examples/standalone_he
 ```
 
 Use the same binary for download and service. Each `--serve` start reacquires the signed-in account's real Microsoft content license for the installed package before opening the Xbox IPC service. A copied prepared executable does not replace account ownership. `--download GAME_DIR --serve-after` performs both in one process. Stop the service with Ctrl-C after exiting the game. An account lock prevents two standalone helpers from accessing the same saved session concurrently.
+
+The helper preserves any existing Xbox socket and refuses to replace it. Use the launcher for recovery of a recorded dead helper's socket; an unknown or listening socket remains untouched.
 
 `--threading` obtains Microsoft's [GDK April 2026 Update 4](https://github.com/microsoft/GDK/releases/tag/April-2026-Update-4-v2604.4.7897) archive. It verifies Microsoft's published archive digest, reads the exact Gaming Services x64 package member, and verifies the DLL before placing it in `runtime/xgameruntime.dll.threading`. An existing file with a different digest is preserved and rejected.
 
@@ -43,7 +47,17 @@ Use the same binary for download and service. Each `--serve` start reacquires th
 
 The helper uses Xodus commit `0670e25aeb0e0e9f800f8f2f4968ae3b681842a7` with the source patches and dependency lockfile in `patches/`. The game download uses Microsoft's package metadata and owner license, downloads into a private temporary directory, checks paths and file sizes, prepares encrypted executables using that license, and promotes the directory only after preparation succeeds.
 
-Verified locally: helper compilation, offline installation checks, nested Microsoft DLL extraction, path traversal rejection, preservation of conflicting DLLs and symlinks, and refusal to access a second account session while the existing Xbox helper is running. A fresh-account download through this new helper has not yet been exercised. Wine, graphics, prefix installation, and gameplay validation are handled separately from this setup script.
+An interrupted source clone leaves no incomplete final checkout. A complete GDK partial download is verified and recovered without another request. Installation promotion refuses to replace a destination created while setup was running.
+
+Verified locally: helper compilation, offline installation checks, nested Microsoft DLL extraction, session expiry/cancellation decisions, preservation on denied credential access, safe socket handling, and interrupted-setup recovery. The offline tests use disposable fixtures and do not access Keychain or launch Minecraft:
+
+```sh
+python3 -m unittest discover -s tests -p test_standalone_setup.py -v
+cargo +1.98.0 test --manifest-path sources/xodus/Cargo.toml --release --locked \
+  -p xodus-cli --example standalone_helper
+```
+
+A fresh-account login/download and authenticated restart through this new helper have not yet been exercised. Wine, graphics, prefix installation, and gameplay validation are handled separately from this setup script.
 
 ## Native GameInput installation
 

@@ -24,9 +24,26 @@ Xbox account lookup, Store callbacks, and native GameInput installation pass.
 A non-empty standalone world save exists. An online connection to the Lifeboat
 featured server was verified, including entry into its lobby with other players.
 Realms authentication and the joined-Realm list also work; entering an active
-Realm remains untested. Reopening the local save, PS5 friend sessions, and
-fresh-account installation through the new standalone helper remain untested.
-This gameplay test reused the existing authenticated unified account helper.
+Realm remains untested. Reopening the local save, keyboard movement, saving,
+and normal application exit were verified on September 30. PS5 friend sessions
+and a complete fresh-machine installation remain untested. The new standalone
+helper passed first Microsoft sign-in, owner-license verification, Xbox/PlayFab/
+Realms token checks, and an authenticated restart without another sign-in. The
+earlier gameplay tests reused the original unified helper. The normal launcher
+was then retested with the new helper, refreshed-auth runtime, and corrected
+graphics bridge together: Lifeboat login, lobby rendering, movement, and normal
+disconnect passed. The Video settings fullscreen toggle, input while fullscreen,
+and return to the original window size also passed.
+Controller hardware, audible sound, Marketplace purchases, and extended online
+sessions have not been validated.
+
+An overnight session froze after about nine hours with roughly 20 GB of native
+small-object allocations. Two native DXMT memory leaks were subsequently fixed:
+temporary display-query objects and unreleased ColorSync profiles/tags. In a
+five-minute Minecraft comparison, small native allocation growth fell from about
+7.4 MB to 0.36 MB. Local-world rendering and saving passed with the corrected
+bridge. These short tests do not establish that the overnight freeze is resolved;
+all-day stability remains unverified.
 
 Build prerequisites on Apple Silicon: macOS 15 or later, Rosetta, Apple Command
 Line Tools, Git, Python 3.9+, Rust toolchain `1.98.0`, and Homebrew `llvm`, `bison`,
@@ -75,6 +92,23 @@ After rebuilding Wine, rerun the graphics installer: Wine's installed builtin
 DLLs take precedence over `WINEDLLPATH`, so DXMT must also be installed there.
 The launcher verifies the five installed DXMT files against the staged copies.
 
+The optional native graphics-memory fix can be built with Command Line Tools,
+without rebuilding the upstream shader compiler. Close Minecraft, then run:
+
+```sh
+./build-standalone-dxmt-unix.sh
+./build-standalone-dxmt-unix.sh --validate
+./build-standalone-dxmt-unix.sh --stage-existing-runtime "$PWD/runtime/standalone/wine"
+```
+
+For checkouts prepared before DXMT was added to the source bootstrap, first run
+`python3 bootstrap-sources.py --project dxmt` if `sources/dxmt` is absent.
+
+Validation runs GPU readback, texture, and discard tests in an isolated runtime.
+Staging requires those tests to match the exact built files and backs up the
+original library. The launcher verifies both installed graphics libraries.
+See [standalone-graphics-notes.md](standalone-graphics-notes.md) for details.
+
 ```sh
 python3 standalone.py check
 python3 standalone-setup.py --check
@@ -102,7 +136,19 @@ Realms uses a separate XSTS audience. `standalone-wine-xuser-realms.patch` maps
 its three known HTTPS API hosts to `https://pocket.realms.minecraft.net/` so
 the runtime requests a token for the correct service. The 19 routing tests
 reject lookalike and unrelated hosts. Run all 50 offline claim and routing
-checks with `bash tests/run-xuser-tests.sh`; see [tests/XUSER.md](tests/XUSER.md).
+checks, plus 18 token-cache lifetime checks, with
+`bash tests/run-xuser-tests.sh`; see [tests/XUSER.md](tests/XUSER.md).
+
+`standalone-wine-xuser-token-refresh.patch` renews expiring Xbox tokens and
+policy claims, honors `ForceRefresh`, and repairs the UTF-16 request context.
+An isolated live test verified cache reuse, forced renewal, expiry of XSTS and
+parent tokens, policy renewal, and UTF-16 requests against Microsoft's services.
+It expires only the probe's own cached timestamps and never fabricates claims.
+
+The launcher recovers a crashed account helper's private socket only when its
+recorded process has exited and the socket refuses connections. Unrecognized
+or listening endpoints are preserved. Incomplete sign-in times out after five
+minutes and can be retried by launching again.
 
 ## Earlier CrossOver configuration
 

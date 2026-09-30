@@ -22,6 +22,11 @@ PROJECTS = {
         "commit": "b5d23b074cfd5e28e79acceaaefaf41a26ce6272",
         "patches": ("winegdk-macos-local.patch", "minecraft-store-callback.patch"),
     },
+    "dxmt": {
+        "url": "https://github.com/3Shain/dxmt.git",
+        "commit": "589adb780354b461645b29999cefaf533594ee99",
+        "patches": (),
+    },
 }
 
 

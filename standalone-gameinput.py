@@ -231,7 +231,9 @@ def native_directory(prefix):
 
 def files_valid(prefix):
     directory = native_directory(prefix)
-    return {name: (directory / name).is_file() and digest((directory / name).read_bytes()) == sha
+    if not directory.resolve().is_relative_to(prefix.resolve()):
+        return {name: False for name in FILES}
+    return {name: not (directory / name).is_symlink() and (directory / name).is_file() and digest((directory / name).read_bytes()) == sha
             for name, (_, sha, _) in FILES.items()}
 
 
