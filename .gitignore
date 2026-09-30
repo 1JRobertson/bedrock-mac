@@ -1,0 +1,9 @@
+/sources/
+/downloads/
+/runtime/
+/logs/
+/bottles/
+/build/
+/game/
+/exports/
+__pycache__/

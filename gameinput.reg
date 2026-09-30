@@ -1,0 +1,9 @@
+Windows Registry Editor Version 5.00
+
+; GameInputRedist.msi installs the files and service. Its RedistDir value
+; was missing under CrossOver; Minecraft uses it to locate the native DLL.
+[HKEY_LOCAL_MACHINE\Software\Microsoft\GameInput]
+"RedistDir"="C:\\Program Files\\Microsoft GameInput\\x64"
+
+[HKEY_LOCAL_MACHINE\Software\Wow6432Node\Microsoft\GameInput]
+"RedistDir"="C:\\Program Files\\Microsoft GameInput\\x64"
