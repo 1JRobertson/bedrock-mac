@@ -29,13 +29,17 @@ THREADING_HASH = 'aa611155057ebd01cf315ad702a4b5725aa9d5e6fad87732c956fe0a1e5fcf
 OVERRIDES = 'xgameruntime,windows.web,twinapi.appcore,windows.ui.core.textinput,wintypes=b;d3d11,dxgi,d3d10core,winemetal=b;d3d12,d3d12core,mscoree,mshtml='
 
 
-def environment():
+def environment(*, network_diagnostics=False):
     # Keep the selected runtime independent of a shell's existing Wine/CrossOver session.
     env = {k: v for k, v in os.environ.items()
            if not k.startswith(('CX_', 'WINE', 'DYLD_'))}
     env.update(WINEPREFIX=str(PREFIX), WINEARCH='win64', WINEDEBUG='-all',
                WINEDLLPATH=str(DXMT), WINEDLLOVERRIDES=OVERRIDES,
                LC_ALL='en_US.UTF-8')
+    if network_diagnostics:
+        # XUser's observer records HTTP host/status only, never headers or bodies.
+        env['WINEDEBUG'] = '-all,+timestamp,+xuser,+wsdiag,fixme+gdkc,err+seh'
+        env['WINEGDK_HTTP_STATUS_TRACE'] = '1'
     return env
 
 
@@ -167,10 +171,10 @@ def require(path):
         raise RuntimeError('Missing required file: ' + str(path))
 
 
-def wine_run(args, game, *, log=None, timeout=None):
+def wine_run(args, game, *, log=None, timeout=None, network_diagnostics=False):
     require(WINE / 'bin/wine')
     return subprocess.run([str(WINE / 'bin/wine'), *map(str, args)],
-        cwd=game, env=environment(), stdout=log, stderr=subprocess.STDOUT,
+        cwd=game, env=environment(network_diagnostics=network_diagnostics), stdout=log, stderr=subprocess.STDOUT,
         timeout=timeout, check=True)
 
 
@@ -315,6 +319,8 @@ def main():
     parser.add_argument('probe', nargs='?', choices=('graphics', 'account', 'store', 'privileges', 'claims'))
     parser.add_argument('--game-dir', type=Path, default=ROOT / 'game')
     parser.add_argument('--market', default='CA', help='Two-letter Store country code (default CA)')
+    parser.add_argument('--network-diagnostics', action='store_true',
+                        help='Log authentication results and HTTP host/status without credentials')
     args = parser.parse_args()
     if len(args.market) != 2 or not args.market.isascii() or not args.market.isalpha() or not args.market.isupper():
         parser.error('--market must be a two-letter uppercase country code')
@@ -354,7 +360,7 @@ def main():
         log_path = ROOT / 'logs/standalone' / ('minecraft-' + stamp + '.log')
         print('Starting standalone Minecraft. Log: ' + str(log_path), flush=True)
         with account(game, args.market), log_path.open('wb') as log:
-            wine_run(['G:\\Minecraft.Windows.exe'], game, log=log)
+            wine_run(['G:\\Minecraft.Windows.exe'], game, log=log, network_diagnostics=args.network_diagnostics)
     return 0
 
 

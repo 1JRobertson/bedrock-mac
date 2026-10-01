@@ -38,3 +38,11 @@ expired XSTS renewal, silent parent-token renewal, and policy/age renewal throug
 the public APIs. All replacement tokens and permissions come from the services;
 the system clock and game process are untouched. It prints booleans and status
 codes only. Logs stay under `build/standalone-wine/refresh-probes`.
+
+`bash tests/run-xuser-rta-live.sh` checks an authenticated RTA WebSocket and
+subscribes to the normal MPSD `/connections/` resource in the isolated candidate
+runtime. A real `ConnectionId` response is required; a normal WebSocket close
+is a failure. The socket closes immediately after the check. This reproduced
+the original user-only authentication failure (close code 1000), and passed
+after forwarding the helper's real device RPS token and obtaining signed Xbox
+device/title tokens. It does not establish that a game world loaded.

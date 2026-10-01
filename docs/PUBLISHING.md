@@ -62,6 +62,7 @@ and applies `patches/standalone-wine-dxmt-abi.patch`,
 `patches/standalone-wine-user-privileges.patch`, followed by
 `patches/standalone-wine-xuser-realms.patch` and
 `patches/standalone-wine-xuser-token-refresh.patch` there. These additional patches
+include `patches/standalone-wine-xuser-z-device-auth.patch` for PS5 friend joining and
 are not applied to the shared baseline checkout by the source bootstrap.
 `build-standalone-graphics.sh` retrieves pinned upstream DXMT binaries and notices;
 see [the dependency provenance](../THIRD_PARTY.md#standalone-runtime-dependency-provenance).

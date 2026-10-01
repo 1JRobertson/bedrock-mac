@@ -14,6 +14,15 @@ spec.loader.exec_module(standalone)
 
 
 class IsolationTests(unittest.TestCase):
+    def test_network_diagnostics_are_explicit_and_do_not_enable_http_payload_tracing(self):
+        with patch.dict(os.environ, {'WINEDEBUG': '+all', 'WINEGDK_HTTP_STATUS_TRACE': '1'}):
+            normal = standalone.environment()
+            diagnostic = standalone.environment(network_diagnostics=True)
+        self.assertEqual(normal['WINEDEBUG'], '-all')
+        self.assertNotIn('WINEGDK_HTTP_STATUS_TRACE', normal)
+        self.assertEqual(diagnostic['WINEGDK_HTTP_STATUS_TRACE'], '1')
+        self.assertEqual(diagnostic['WINEDEBUG'], '-all,+timestamp,+xuser,+wsdiag,fixme+gdkc,err+seh')
+
     def test_inherited_runtime_cannot_select_crossover_or_old_prefix(self):
         with patch.dict(os.environ, {'CX_BOTTLE': 'Bedrock-Mac', 'WINEPREFIX': '/old/prefix',
                                      'WINEDLLPATH': '/CrossOver/lib', 'DYLD_LIBRARY_PATH': '/CrossOver/lib'}):
