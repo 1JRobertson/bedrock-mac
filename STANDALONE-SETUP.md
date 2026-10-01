@@ -1,5 +1,12 @@
 # Standalone setup
 
+For the automatic install-and-play path, double-click **Start.command**. See
+[Start playing](README.md#start-playing). The commands below are for individual
+setup stages and troubleshooting. Start uses two build workers by default and
+records completed build steps in `runtime/standalone/start-state.json`. Receipts
+include input and output hashes; failed steps are not marked complete. Build logs
+stay in `logs/standalone/setup/`. Re-running Start keeps existing worlds and credentials.
+
 This setup obtains each user's Windows Bedrock game through their own Microsoft account. It does not use CrossOver or distribute Minecraft, Microsoft runtime binaries, credentials, or licenses.
 
 From this directory:
@@ -57,7 +64,14 @@ cargo +1.98.0 test --manifest-path sources/xodus/Cargo.toml --release --locked \
   -p xodus-cli --example standalone_helper
 ```
 
-A fresh-account login/download and authenticated restart through this new helper have not yet been exercised. Wine, graphics, prefix installation, and gameplay validation are handled separately from this setup script.
+On September 30, 2026, the new helper passed first Microsoft sign-in,
+owner-license verification, Xbox/PlayFab/Realms token checks, and an
+authenticated restart without another sign-in. The normal standalone launcher
+also passed Lifeboat gameplay, and the user subsequently confirmed multiplayer
+with an Xbox player. See the [gameplay results](README.md#september-30-gameplay-session).
+A complete fresh-machine installation and fresh game download through this
+helper remain untested. Wine, graphics, prefix installation, and gameplay
+validation are handled separately from this setup script.
 
 ## Native GameInput installation
 
