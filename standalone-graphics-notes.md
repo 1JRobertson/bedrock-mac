@@ -185,6 +185,25 @@ about 2 GB of physical memory during that short online session. Fullscreen throu
 Video settings, fullscreen UI input, and return to the original window size passed.
 These bounded tests do not prove the overnight freeze is resolved.
 
+The subsequent September 30 gameplay session captured 654 samples over
+1 hour 51 minutes using the corrected normal runtime. The user confirmed
+multiplayer with an Xbox player. Physical footprint ranged from 4.18 to
+5.15 GiB, macOS memory pressure stayed normal, the swapout counter did not
+increase, and the launcher exited with code 0. No macOS crash was recorded.
+This is stronger gameplay evidence, but still shorter than the earlier
+nine-hour freeze; overnight stability remains unverified.
+
+A growth alert and the user's report of slight lag prompted two diagnostic
+captures around 3:45 p.m. Pacific. Both memory maps and thread samples completed.
+Native malloc allocated about 81 MiB at capture; much of the footprint was in
+Wine reserve, graphics, and owned unmapped memory. The thread samples contained
+unresolved Rosetta frames and repeated Wine syscall-dispatch frames, limiting
+attribution. The game log contained startup graphics warnings without a new
+connection timeout or device-lost error. These observations establish neither
+a memory leak nor the cause of the lag. No additional graphics fix was justified
+by this evidence. See the [session results](README.md#september-30-gameplay-session);
+raw diagnostics remain private under `logs/standalone/monitor/`.
+
 The same probe builder produces the existing account and Store-callback probes.
 It copies only the owner's `MicrosoftGame.Config` beside these probes, as required
 by GDK, and leaves the original game directory unchanged. All generated output
@@ -200,5 +219,6 @@ fallback and working gameplay. Inspection of the live game process found the
 standalone Wine and DXMT Metal library loaded, with no CrossOver or D3DMetal
 files mapped. A later test entered the Lifeboat online lobby with other players.
 The local save was reopened, moved in, and saved successfully on September 30.
-PS5 friend sessions, active Realm gameplay, and broader gameplay coverage remain
+The September 30 session above subsequently confirmed Xbox multiplayer.
+PS5 friend sessions, active Realm gameplay, and overnight stability remain
 untested.
