@@ -1,182 +1,109 @@
-# Bedrock for macOS
+# Bedrock for Mac
 
-An experimental launcher and compatibility setup for running the owned Windows
-edition of Minecraft Bedrock on Apple Silicon Macs, using WineGDK and DXMT.
-CrossOver is not required. This repository provides source, patches, and build
-scripts; users obtain Minecraft through their own Microsoft account.
+Play your owned Windows edition of Minecraft Bedrock on an Apple Silicon Mac.
+Built with WineGDK, DXMT, and Xodus. No CrossOver subscription.
 
-Built on [WineGDK](https://github.com/Sightem/WineGDK),
-[Wine](https://www.winehq.org/), [DXMT](https://github.com/3Shain/dxmt),
-[Xodus](https://github.com/xodus-gaming/xodus), and the additional upstream work
-credited in [THIRD_PARTY.md](THIRD_PARTY.md). Original project code is GPLv3;
-upstream files and patches retain their documented licenses.
+**Open-source preview.** The native app works on the development Mac; a public,
+notarized app is not available yet. This repository contains the source and build
+scripts. See [release readiness](docs/RELEASE.md) for tested behavior and remaining
+release work.
 
-## Standalone runtime
+## The app
 
-A CrossOver-free build combines source-built WineGDK, upstream DXMT,
-and the unified Microsoft account helper. The user confirmed working gameplay
-on September 29, 2026, on an M4 Pro Mac mini running macOS 15.3.1.
-The running game loads our Wine 11.8 runtime and DXMT v0.80, with no CrossOver
-or D3DMetal files mapped. Minecraft 1.26.5203.0 uses Direct3D 11 at feature level 11.1.
+1. Open the disk image and drag **Bedrock for Mac** into **Applications**.
+2. Open the app and click **Install & Play**.
+3. Sign in with the Microsoft account that owns **Minecraft for Windows**.
 
-Hardware rendering and presentation, cryptography, certificate-verified HTTPS,
-Xbox account lookup, Store callbacks, and native GameInput installation pass.
-A non-empty standalone world save exists. An online connection to the Lifeboat
-featured server was verified, including entry into its lobby with other players.
-Realms authentication and the joined-Realm list also work; entering an active
-Realm remains untested. Reopening the local save, PS5 friend sessions, and
-fresh-account installation through the new standalone helper remain untested.
-This gameplay test reused the existing authenticated unified account helper.
+The app downloads the game and its required Microsoft component, then opens
+Minecraft. Later launches show **Play**. Minecraft may show **Sign in now** on
+its first welcome screen; select it to use the account you just signed in with.
 
-Build prerequisites on Apple Silicon: macOS 15 or later, Rosetta, Apple Command
-Line Tools, Git, Python 3.9+, Rust toolchain `1.98.0`, and Homebrew `llvm`, `bison`,
-`gnutls`, `freetype`, and `protobuf` (for `protoc`). The current scripts use Homebrew's `/opt/homebrew`
-installation. A clean-machine installation has not yet been tested.
+Setup can be cancelled and retried. Completed installation steps are reused;
+interrupted game downloads restart. **Bedrock for Mac → Sign Out of Microsoft…**
+lets you change accounts without deleting your game or worlds.
 
-Clone the source repository:
+Requirements: Apple Silicon, Rosetta, an internet connection, a Minecraft for
+Windows license, and at least 8 GB free for setup. The current local packaged
+build requires **macOS 26 or later**. The Swift interface and DXMT target macOS
+15; every binary must meet that target before an older-macOS package is advertised.
+
+For now, developers can build the app below. These steps are build instructions,
+not extra tools that users of a packaged app need to install.
+
+## Build locally
+
+Build tools: Apple Command Line Tools, Git, Python 3.9+, Rust **1.98.0**, and
+Homebrew `llvm`, `bison`, `gnutls`, `freetype`, and `protobuf`. The scripts currently
+expect Homebrew at `/opt/homebrew`. Python **3.12+** is required for packaging.
 
 ```sh
 git clone https://github.com/1JRobertson/bedrock-mac.git
 cd bedrock-mac
-```
-
-Build, prepare, and launch:
-
-```sh
 python3 bootstrap-sources.py
 ./build-standalone-wine.sh
 ./build-standalone-graphics.sh --wine-runtime "$PWD/runtime/standalone/wine"
-python3 standalone-setup.py --build-helper --threading --download-game
-./build-standalone-probes.sh
-python3 standalone.py prepare
-python3 standalone.py probe graphics
-python3 standalone.py probe account
-python3 standalone.py probe store
-python3 standalone.py probe privileges
-python3 standalone.py launch
+python3 standalone-setup.py --build-helper
+python3 -m venv build/packaging-env
+build/packaging-env/bin/python -m pip install -r packaging-requirements.txt
+python3 package-launcher.py
+python3 build-dmg.py
 ```
 
-Existing prepared source trees can be checked with
-`python3 bootstrap-sources.py --check`. The setup command verifies and reuses an
-existing prepared Windows game. A new installation opens Microsoft sign-in and
-requires an account that owns the Windows PC game. Downloads come from the
-vendors; game files, credentials, and Microsoft DLLs are excluded from source
-exports.
+The output is `build/Bedrock for Mac.dmg`. The app includes its Python worker,
+Wine, DXMT, and account helper. It never installs Homebrew, downloads compilers,
+or builds source on a player's Mac. Game files, Microsoft DLLs, accounts, and
+worlds are **not** included. They are obtained or created on the user's Mac.
 
-The standalone launcher is **Launch Standalone.command**. Its prefix and saves
-live under `bottles/Bedrock-Standalone`; it does not import existing worlds.
-It requests the Direct3D 11 path because DXMT does not implement Direct3D 12.
-The live CrossOver game must be closed before testing the standalone game.
-The input setup extracts four checksum-verified files from the bundled Microsoft
-GameInput MSI and registers its service. This avoids an MSI custom action that
-stalls under standalone Wine. An unknown installer version is rejected for review.
+The default package destination must not already exist. Pass
+`--output /path/to/Bedrock\ for\ Mac.app` to build another app without replacing a
+running copy; pass that path to `build-dmg.py --app` and choose a new `--output`.
 
-After rebuilding Wine, rerun the graphics installer: Wine's installed builtin
-DLLs take precedence over `WINEDLLPATH`, so DXMT must also be installed there.
-The launcher verifies the five installed DXMT files against the staged copies.
+For a development launcher tied to your checkout, use `./build-launcher.sh`.
+For command-line setup, probes, and download details, see
+[STANDALONE-SETUP.md](STANDALONE-SETUP.md).
 
-```sh
-python3 standalone.py check
-python3 standalone-setup.py --check
-```
+## Help
 
-For source licensing, upstream credit, and a reviewed export, see
-[THIRD_PARTY.md](THIRD_PARTY.md) and [docs/PUBLISHING.md](docs/PUBLISHING.md).
+**macOS blocks the downloaded app.** Local builds use ad-hoc signatures and are
+not notarized. GitHub hosting does not change that. Follow
+[Apple's guidance for opening apps](https://support.apple.com/en-us/102445) only
+if you trust the source. Do not disable Gatekeeper globally.
 
-## Online permission checks
+**Rosetta is missing.** See [Apple's Rosetta instructions](https://support.apple.com/en-us/102527).
+The launcher checks for Rosetta before starting account setup.
 
-The initial runtime returned `E_NOTIMPL` for every multiplayer-permission check,
-which produced Minecraft's **Fox / Prerequisites-4** error before connecting.
-`standalone-wine-user-privileges.patch` reads authenticated Xbox `prv` and `agg`
-claims, checks exact privilege IDs and expiration, and preserves those claims
-when a different service needs its own token. Missing, malformed, or expired
-claims never grant access. Account restrictions remain enforced.
+**Keychain requests access.** Microsoft credentials stay in macOS Keychain.
+One account helper reads one saved item per session and reuses it through setup
+and play. Rebuilding an ad-hoc signed helper changes its identity and may require
+new authorization. **Allow** grants access once; **Always Allow** remembers
+permission for that helper. Keychain access is separate from permission to open a
+downloaded app; zero-prompt upgrades have not been verified. See
+[Apple’s Keychain explanation](https://support.apple.com/guide/keychain-access/kyca1243/mac).
 
-`python3 standalone.py probe privileges` checks the current account's real
-permissions and Xbox/PlayFab/Realms token generation without printing credentials.
-The parser tests in `tests/xuser-claims.c` cover grants, denials, malformed
-claims, exact ID matching, and UTC expiration; all 31 checks pass. Rebuild probes
-with `./build-standalone-probes.sh`, then run `python3 standalone.py probe claims`.
+**Setup failed.** Click **Try Again**. Closing Microsoft sign-in returns to the
+launcher; **Cancel** stops setup. Use **Help → Open Setup Logs** for diagnostics.
+If an existing game directory is incomplete, quit the app and rename the `game`
+folder in the data directory before retrying. Keep the old folder until you have
+verified the replacement; never remove `bottles` to repair a download.
 
-Realms uses a separate XSTS audience. `standalone-wine-xuser-realms.patch` maps
-its three known HTTPS API hosts to `https://pocket.realms.minecraft.net/` so
-the runtime requests a token for the correct service. The 19 routing tests
-reject lookalike and unrelated hosts. Run all 50 offline claim and routing
-checks with `bash tests/run-xuser-tests.sh`; see [tests/XUSER.md](tests/XUSER.md).
+**Where are my worlds?** Packaged app data lives in
+`~/Library/Application Support/Bedrock for Mac/`. The Wine prefix is
+`bottles/Bedrock-Standalone`; worlds are inside that prefix's user profile under
+`AppData/Roaming/Minecraft Bedrock`. Updating the app or signing out keeps these
+files. Back up the data directory before experimenting with builds. The older
+CrossOver setup uses a separate prefix; it does not migrate automatically.
 
-## Earlier CrossOver configuration
+## Contribute
 
-- Mac mini M4 Pro, macOS 15.3.1, Rosetta.
-- Windows game 1.26.5203.0 downloaded through the signed-in Microsoft account.
-- CrossOver 26.3 trial runs Windows programs. The trial lasts 14 days.
-- D3DMetal renders the game. DXMT also passed a hardware DirectX 11 device probe.
-- Custom WineGDK DLL and macOS bridge compile and load; the signed-in Xbox user resolves successfully.
-- The 41% loading stall and 82% crash are fixed. The game loads into a playable world.
-- Mouse/keyboard input, movement, crafting, and block breaking work; the user confirmed normal gameplay on September 29, 2026.
-- A non-empty world save exists on disk. Reopening that save and multiplayer have not been tested.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for tests and bug reports,
+[docs/PUBLISHING.md](docs/PUBLISHING.md) for reviewed source exports, and
+[docs/LEGACY.md](docs/LEGACY.md) for the earlier CrossOver implementation.
 
-The combined `bedrock_helper` owns Microsoft login, executable preparation, and the Xbox account service. Its credentials stay in macOS Keychain under `Minecraft Bedrock Mac`. A process-local cache avoids repeatedly asking Keychain for the same entry. Authentication and license tokens are not printed or saved in project files.
+Original project code is **GPLv3**. Upstream components retain their licenses;
+see [THIRD_PARTY.md](THIRD_PARTY.md). Built on
+[WineGDK](https://github.com/Sightem/WineGDK),
+[Wine](https://www.winehq.org/), [DXMT](https://github.com/3Shain/dxmt), and
+[Xodus](https://github.com/xodus-gaming/xodus).
 
-## Earlier CrossOver launcher
-
-Double-click **Launch Bedrock.command**. It starts or reuses the local account helper, waits for it to be ready, and launches the game. This launch path has reached gameplay with the existing signed-in helper; a new helper session can still require Keychain approval. Use this launcher so the required runtime overrides and game working directory are applied.
-
-Client worlds are stored under `bottles/Bedrock-Mac/drive_c/users/crossover/AppData/Roaming/Minecraft Bedrock/`, inside the account's `games/com.mojang/minecraftWorlds` directory. They are separate from the dedicated server's worlds.
-
-To check the installation without launching:
-
-```sh
-./launch.py --check
-```
-
-## Diagnostic commands
-
-Run the helper from this directory, leaving it open for the game:
-
-```sh
-umask 077
-XODUS_LOG=off RUST_LOG=off ./sources/xodus/target/release/examples/bedrock_helper "$PWD/game" > logs/bedrock-helper.log 2>&1
-```
-
-Once `/tmp/xodus.sock` exists and the helper reports that preparation finished:
-
-```sh
-./run-windows.sh "$PWD/game/runtime-auth-probe.exe"
-./run-windows.sh "$PWD/game/Minecraft.Windows.exe"
-```
-
-Stop the helper with Ctrl-C after closing the game. Do not run multiple account helpers at once.
-
-`build-runtime.sh`, `stage-runtime.py`, `build-helper.sh`, and `build-probes.sh` rebuild the local components from the prepared sources. Exit the game and helper before rebuilding. A changed helper binary may require macOS to authorize Keychain access again.
-
-The bottle lives under `bottles/Bedrock-Mac`; a symlink in the standard CrossOver Bottles directory makes it visible in CrossOver. Graphics is set to D3DMetal. The server files and worlds in the parent Bedrock directory are separate.
-
-## Startup fixes
-
-- Native overrides for WineGDK's `twinapi.appcore`, `windows.ui.core.textinput`, `windows.web`, and `wintypes`, with the activation mappings in `winrt.reg`. The `wintypes` capability query avoids the fatal `E_NOTIMPL` at 82%.
-- `minecraft-store-callback.patch` completes the unsupported game-license query with `E_NOTIMPL` on the caller's task queue. The previous immediate stub stranded Minecraft at 41%. This reports a missing Store capability; it does not fabricate ownership or alter the game's licensing checks. The executable is prepared using the account's real Microsoft license.
-- Microsoft's bundled GameInput redistributable and the missing directory registration in `gameinput.reg`.
-
-After staging the runtime, register the classes and install the bundled input component:
-
-```sh
-./run-windows.sh reg import "$PWD/winrt.reg"
-./run-windows.sh msiexec /i 'Y:\git\minecraft\bedrock\macos-client\game\Installers\GameInputRedist.msi' /qn /norestart
-./run-windows.sh reg import "$PWD/gameinput.reg"
-```
-
-The MSI path above is for this Mac's existing Wine drive mapping. For another checkout, use that bottle's Windows path to the same bundled installer. Restart Minecraft after installation.
-
-`store-callback-probe.c` verifies that both thread-pool and manually dispatched completion queues receive exactly one callback, report the expected error, and leave the license output untouched. Both cases pass, including with the staged `wintypes` module.
-
-## Sources and local changes
-
-- [Xodus](https://github.com/xodus-gaming/xodus), commit `0670e25aeb0e0e9f800f8f2f4968ae3b681842a7`.
-- [WineGDK](https://github.com/Sightem/WineGDK), commit `b5d23b074cfd5e28e79acceaaefaf41a26ce6272`.
-- [macOS runtime reference](https://github.com/wtfsayo/cricket26-crossover): licensed Store integration and macOS IPC patches.
-- CrossOver 26.3 official trial archive SHA-256: `8688e0848c4e5f79f1cc351cb52d32447da00c6c00cfd3b4bb2d164d44589a26`.
-- Microsoft GDK `2604.4.7897` Gaming Services runtime provides the threading DLL. SHA-256: `aa611155057ebd01cf315ad702a4b5725aa9d5e6fad87732c956fe0a1e5fcfba`.
-
-Apply the reference patches in `patches/` to their pinned source trees, then `minecraft-store-callback.patch` to WineGDK and `keychain-cache.patch` and `unified-helper.patch` to Xodus; use `patches/Cargo.lock`. The source clones, game, binaries, bottle, and private logs are ignored. `runtime/staged-hashes.json` records staged runtime hashes.
-
-The credential-cache tests cover concurrent reads, persistent updates, failed writes, and deletion. Logs in `logs/` record the actual runtime and graphics checks. Store/account success alone does not establish multiplayer support.
+Not affiliated with Microsoft, Mojang, Apple, or CodeWeavers. Minecraft is not
+included; each player needs their own legitimate Windows license.

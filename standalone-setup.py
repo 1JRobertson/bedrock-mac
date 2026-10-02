@@ -13,14 +13,16 @@ import io
 import json
 import os
 import shutil
+import signal
 import struct
 import subprocess
 import sys
 import tempfile
 import zipfile
+import zlib
 import xml.etree.ElementTree as ET
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(os.environ.get('BEDROCK_HOME', Path(__file__).resolve().parent))
 XODUS = ROOT / "sources/xodus"
 XODUS_COMMIT = "0670e25aeb0e0e9f800f8f2f4968ae3b681842a7"
 HELPER = XODUS / "target/release/examples/standalone_helper"
@@ -28,9 +30,15 @@ GDK_NAME = "GDK_2604.4.7897.zip"
 GDK_URL = "https://github.com/microsoft/GDK/releases/download/April-2026-Update-4-v2604.4.7897/" + GDK_NAME
 GDK_SHA256 = "3da3f104fa66bb3ee1299b3dc8c0a3ecac1cb56a4cf04136b8595942272017eb"
 GDK_SIZE = 1315537904
+# Exact compressed ZIP member within the pinned, checksum-verified GDK archive.
+# Fetching this byte range avoids downloading the other 1.1 GB of developer tools.
+GAMING_OFFSET = 1101515484
+GAMING_SIZE = 196592307
+GAMING_UNPACKED_SIZE = 198332601
+GAMING_SHA256 = 'f8d5f3ebe7339d9d65ebf4b4d68cb7a5281c0f944acafd613ccc68d7d908baed'
 THREADING_SHA256 = "aa611155057ebd01cf315ad702a4b5725aa9d5e6fad87732c956fe0a1e5fcfba"
 THREADING = ROOT / "runtime/xgameruntime.dll.threading"
-PATCHES = ("xodus-real-store-license.patch", "keychain-cache.patch", "unified-helper.patch")
+PATCHES = ("xodus-real-store-license.patch", "keychain-cache.patch", "unified-helper.patch", "standalone-signin-window.patch", "standalone-keychain-write.patch")
 
 
 def sha256(path):
@@ -96,37 +104,52 @@ def acquire_threading():
     downloads.mkdir(exist_ok=True)
     archive = downloads / GDK_NAME
     if not archive.exists():
-        partial = archive.with_suffix(".zip.part")
-        outstanding = max(0, GDK_SIZE - (partial.stat().st_size if partial.exists() else 0))
-        if shutil.disk_usage(downloads).free < outstanding + 256 * 1024 * 1024:
-            raise RuntimeError("Not enough free space for Microsoft's GDK download.")
-        print("Downloading the pinned Microsoft GDK (1.3 GB).", flush=True)
-        subprocess.run(["curl", "--fail", "--location", "--retry", "3", "--continue-at", "-",
-                        "--proto", "=https", "--proto-redir", "=https", "--output", str(partial), GDK_URL], check=True)
-        if partial.stat().st_size != GDK_SIZE or sha256(partial) != GDK_SHA256:
-            raise RuntimeError("The downloaded GDK failed checksum validation; the partial file was preserved.")
-        partial.rename(archive)
-    if archive.stat().st_size != GDK_SIZE or sha256(archive) != GDK_SHA256:
-        raise RuntimeError("The GDK archive differs from Microsoft's published release digest; it was preserved.")
-    payload = extract_threading(archive)
+        payload = download_threading_member(downloads)
+    else:
+        if archive.stat().st_size != GDK_SIZE or sha256(archive) != GDK_SHA256:
+            raise RuntimeError("The GDK archive differs from Microsoft's published release digest; it was preserved.")
+        payload = extract_threading(archive)
     THREADING.parent.mkdir(exist_ok=True)
     atomic_write(THREADING, payload)
     print("Extracted and verified Microsoft's unmodified x64 threading DLL.")
 
 
-def extract_threading(archive):
-    # Read exact members rather than extracting arbitrary archive paths.
-    with zipfile.ZipFile(archive) as gdk:
-        with zipfile.ZipFile(io.BytesIO(gdk.read("Installers/GamingServices.appxbundle"))) as bundle:
-            package = "GamingServicesTcui-Package_35.116.29001.0_x64.appx"
-            with zipfile.ZipFile(io.BytesIO(bundle.read(package))) as appx:
-                matches = [name for name in appx.namelist() if name.lower() == "xgameruntime.dll"]
-                if len(matches) != 1:
-                    raise RuntimeError("The pinned Gaming Services package has an unexpected layout.")
-                payload = appx.read(matches[0])
+def threading_from_bundle(data):
+    with zipfile.ZipFile(io.BytesIO(data)) as bundle:
+        package = 'GamingServicesTcui-Package_35.116.29001.0_x64.appx'
+        with zipfile.ZipFile(io.BytesIO(bundle.read(package))) as appx:
+            matches = [name for name in appx.namelist() if name.lower() == 'xgameruntime.dll']
+            if len(matches) != 1:
+                raise RuntimeError('The pinned Gaming Services package has an unexpected layout.')
+            payload = appx.read(matches[0])
     if hashlib.sha256(payload).hexdigest() != THREADING_SHA256:
         raise RuntimeError("Microsoft's extracted threading DLL failed checksum validation.")
     return payload
+
+
+def download_threading_member(downloads):
+    if shutil.disk_usage(downloads).free < GAMING_SIZE + 256 * 1024 * 1024:
+        raise RuntimeError('Not enough free space for the Microsoft component.')
+    print('Downloading the Microsoft game component (197 MB).', flush=True)
+    with tempfile.TemporaryDirectory(prefix='.gaming-', dir=downloads) as temporary:
+        partial = Path(temporary) / 'member.deflate'
+        response = subprocess.check_output([
+            '/usr/bin/curl', '--fail', '--location', '--retry', '3', '--silent', '--show-error',
+            '--proto', '=https', '--proto-redir', '=https', '--max-filesize', str(GAMING_SIZE),
+            '--range', f'{GAMING_OFFSET}-{GAMING_OFFSET + GAMING_SIZE - 1}',
+            '--output', str(partial), '--write-out', '%{http_code}', GDK_URL], text=True)
+        if response != '206' or partial.stat().st_size != GAMING_SIZE or sha256(partial) != GAMING_SHA256:
+            raise RuntimeError('Microsoft component download failed verification. Please retry.')
+        data = zlib.decompress(partial.read_bytes(), -15)
+        if len(data) != GAMING_UNPACKED_SIZE:
+            raise RuntimeError('Microsoft component has an unexpected size.')
+        return threading_from_bundle(data)
+
+
+def extract_threading(archive):
+    # Read exact members rather than extracting arbitrary archive paths.
+    with zipfile.ZipFile(archive) as gdk:
+        return threading_from_bundle(gdk.read('Installers/GamingServices.appxbundle'))
 
 
 def atomic_write(path, payload):
@@ -206,7 +229,7 @@ def download_game(directory, market):
     if not HELPER.is_file():
         raise RuntimeError("Build the standalone account helper first with --build-helper.")
     env = dict(os.environ, XODUS_LOG="off", RUST_LOG="off")
-    subprocess.run([str(HELPER), "--download", str(directory), "--market", market], cwd=ROOT, env=env, check=True)
+    subprocess.run([str(HELPER.resolve()), "--download", str(directory), "--market", market], cwd=ROOT, env=env, check=True)
     status = game_status(directory)
     if not all(status[key] for key in ("prepared_windows_x64_game", "minecraft_store_product", "package_metadata_present", "gameinput_installer_present")):
         raise RuntimeError("The downloaded game did not pass the Windows installation check.")

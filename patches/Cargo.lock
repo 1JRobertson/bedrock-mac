@@ -7187,6 +7187,7 @@ dependencies = [
  "nix",
  "reqwest 0.13.4",
  "rustix",
+ "security-framework",
  "serde_json",
  "tao",
  "tempfile",
