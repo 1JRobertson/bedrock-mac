@@ -121,7 +121,7 @@ def account_update(line):
     elif line.startswith(b'Finding the Windows package'):
         event('busy', 'Checking your Minecraft purchase', '', 0.3)
     elif line.startswith(b'Downloading Minecraft '):
-        event('busy', 'Downloading Minecraft', 'Keep this app open. Minecraft will start when it’s ready.', 0.5)
+        event('busy', 'Downloading Minecraft', 'Keep this app open. Minecraft will start when it’s ready.', 0.35)
     elif line.startswith(b'Downloaded ') and b' files.' in line:
         import re
         match = re.fullmatch(rb'Downloaded (\d+)/(\d+) files\.\s*', line)

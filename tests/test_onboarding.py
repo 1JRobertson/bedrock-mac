@@ -184,13 +184,14 @@ class OnboardingTests(unittest.TestCase):
 
     def test_download_progress_advances_and_rejects_invalid_counts(self):
         with contextlib.redirect_stdout(io.StringIO()) as output:
+            worker.account_update(b'Downloading Minecraft 1.26 (1000 files).\n')
             worker.account_update(b'Downloaded 500/1000 files.\n')
             worker.account_update(b'Downloaded 1000/1000 files.\n')
             worker.account_update(b'Downloaded 1/0 files.\n')
             worker.account_update(b'Downloaded 2/1 files.\n')
         statuses = [json.loads(line) for line in output.getvalue().splitlines()]
-        self.assertEqual(len(statuses), 2)
-        self.assertLess(statuses[0]['progress'], statuses[1]['progress'])
+        self.assertEqual(len(statuses), 3)
+        self.assertEqual([status['progress'] for status in statuses], sorted(status['progress'] for status in statuses))
         self.assertTrue(all(0 <= event['progress'] <= 1 for event in statuses))
 
     def test_cancel_stops_owned_command(self):
