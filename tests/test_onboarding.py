@@ -221,7 +221,9 @@ class OnboardingTests(unittest.TestCase):
             process = subprocess.Popen([sys.executable, str(wrapper)])
             try:
                 deadline = time.monotonic() + 10
-                while not pidfile.exists() and time.monotonic() < deadline:
+                while time.monotonic() < deadline:
+                    if pidfile.exists() and pidfile.read_text().strip():
+                        break
                     time.sleep(0.02)
                 self.assertTrue(pidfile.exists(), 'Fixture download never started')
                 pid = int(pidfile.read_text())

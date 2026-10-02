@@ -12,10 +12,10 @@ is not required to publish the source or an explicitly unsigned preview.
 - Earlier standalone runtime testing reached local gameplay, a featured-server
   lobby, and the joined-Realm list. Entry into an active Realm and PS5 friend
   sessions have not been verified.
-- Live retest on October 2: an unchanged app launched after one Keychain prompt
-  when the user chose **Allow** (one-time access). Remembered authorization via
-  **Always Allow** is being checked separately; it must not be inferred from the
-  credential-cache tests.
+- Live retest on October 2: **Allow** produced one prompt on the next launch.
+  The user then chose **Always Allow**, quit Minecraft, and launched the unchanged
+  build again: **no Keychain prompt**. This verifies remembered access for this
+  build, not authorization across a changed helper signature.
 - Offline tests cover one account helper across download and launch, failed
   setup cleanup, cancellation with a real child process, bounded sign-in waits,
   damaged setup records, progress parsing, and source export boundaries.
