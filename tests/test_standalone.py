@@ -3,6 +3,8 @@ import importlib.util
 import os
 from pathlib import Path
 import socket
+import json
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -36,6 +38,33 @@ class IsolationTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     standalone.map_drive('g', second)
             self.assertEqual((prefix / 'dosdevices/g:').resolve(), first.resolve())
+
+    def test_damaged_setup_record_is_repairable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix = Path(temporary)
+            (prefix / '.bedrock-setup.json').write_text('{interrupted')
+            with patch.object(standalone, 'PREFIX', prefix):
+                self.assertFalse(standalone.setup_matches({'setup_version': 2}))
+
+    def test_account_timeout_stops_owned_helper_and_preserves_error(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            helper = root / 'helper'
+            helper.touch()
+            child = unittest.mock.Mock(pid=43210)
+            child.poll.return_value = None
+            with patch.object(standalone, 'ROOT', root), patch.object(standalone, 'HELPER', helper), \
+                    patch.object(standalone, 'STATE', root / 'state.json'), \
+                    patch.object(standalone, 'account_ready', return_value=False), \
+                    patch.object(standalone, 'account_pid', side_effect=[None, 43210]), \
+                    patch.object(standalone.subprocess, 'Popen', return_value=child), \
+                    patch.object(standalone.time, 'monotonic', side_effect=[0, 2000]):
+                with self.assertRaises(standalone.AccountError) as raised:
+                    with standalone.account(root / 'game', timeout=10):
+                        self.fail('A helper without a ready socket must not launch Minecraft')
+                self.assertEqual(raised.exception.code, 'account_timeout')
+            child.send_signal.assert_called_once()
+            self.assertFalse((root / 'state.json').exists())
 
     def test_symlink_account_socket_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:

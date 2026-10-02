@@ -6,6 +6,8 @@ use futures_util::{stream, StreamExt, TryStreamExt};
 use msixvc::{streaming, xvd::{SegmentFile, XvdFile}};
 use tokio::{fs::{File, OpenOptions}, io::AsyncReadExt};
 use xodus::tokens::{TokenManager, store::TokenStoreError};
+use xodus::tokens::{backend::{KeychainBackend, MemoryBackend}, store::TokenBackend};
+use std::sync::Mutex;
 
 #[path = "../src/webview.rs"] mod webview;
 #[path = "../src/commands/login.rs"] mod login;
@@ -14,6 +16,132 @@ use xodus::tokens::{TokenManager, store::TokenStoreError};
 
 type Outcome<T> = Result<T, Box<dyn std::error::Error>>;
 const PRODUCT: &str = "9NBLGGH2JHXJ";
+
+#[derive(Debug)]
+struct SetupFailure(&'static str);
+impl std::fmt::Display for SetupFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str(self.0) }
+}
+impl std::error::Error for SetupFailure {}
+fn failure(code: &'static str) -> Box<dyn std::error::Error> { Box::new(SetupFailure(code)) }
+
+fn package_url_allowed(url: &reqwest::Url) -> bool {
+    if !url.username().is_empty() || url.password().is_some() || url.fragment().is_some() {
+        return false;
+    }
+    match url.scheme() {
+        "https" => true,
+        // Microsoft's package catalog returns these HTTP origins. They do not
+        // serve certificates for these names; changing the scheme breaks TLS.
+        "http" => matches!(url.host_str(), Some("assets1.xboxlive.com" | "assets2.xboxlive.com"))
+            && url.port_or_known_default() == Some(80),
+        _ => false,
+    }
+}
+
+fn package_client() -> Outcome<reqwest::Client> {
+    // This client carries no sign-in headers or cookies. Authentication and
+    // licensing continue to use the separate HTTPS-only account client.
+    Ok(reqwest::Client::builder().user_agent("bedrock-mac-standalone/0.1")
+        .connect_timeout(std::time::Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 5 || !package_url_allowed(attempt.url()) {
+                attempt.error("Unsupported package redirect")
+            } else { attempt.follow() }
+        })).build()?)
+}
+
+const ACCOUNT_ENTRY: &str = "account-v1";
+type AccountValues = HashMap<String, Vec<u8>>;
+
+struct AccountKeychain;
+impl TokenBackend for AccountKeychain {
+    fn get(&self, key: &str) -> Result<Option<Vec<u8>>, TokenStoreError> {
+        KeychainBackend.get(key)
+    }
+    fn set(&self, key: &str, value: &[u8]) -> Result<(), TokenStoreError> {
+        #[cfg(target_os = "macos")]
+        {
+            eprintln!("Keychain: saving sign-in entry ({key}) without rereading it");
+            // The legacy keyring setter calls find_generic_password, reading
+            // the secret again before every update. SecItemAdd/Update writes
+            // directly, without that extra authorization-triggering read.
+            security_framework::passwords::set_generic_password(
+                "Minecraft Bedrock Standalone", key, value)
+                .map_err(|error| std::io::Error::other(format!("Keychain write failed ({})", error.code())))?;
+            Ok(())
+        }
+        #[cfg(not(target_os = "macos"))]
+        { KeychainBackend.set(key, value) }
+    }
+    fn remove(&self, key: &str) -> Result<(), TokenStoreError> { KeychainBackend.remove(key) }
+}
+
+/// One Keychain read per process instead of one per token. Do not
+/// read legacy entries automatically: that itself triggers several prompts.
+/// The first run signs in again; previous entries remain untouched.
+struct AccountBackend<B> {
+    backing: B,
+    values: Mutex<Option<AccountValues>>,
+}
+
+impl<B: TokenBackend> AccountBackend<B> {
+    fn new(backing: B) -> Self { Self { backing, values: Mutex::new(None) } }
+
+    fn load(&self, values: &mut Option<AccountValues>) -> Result<(), TokenStoreError> {
+        if values.is_some() { return Ok(()); }
+        let loaded = if let Some(bytes) = self.backing.get(ACCOUNT_ENTRY)? {
+            serde_json::from_slice(&bytes)?
+        } else { AccountValues::new() };
+        *values = Some(loaded);
+        Ok(())
+    }
+
+    fn sign_out(&self) -> Result<(), TokenStoreError> {
+        let mut values = self.lock()?;
+        self.load(&mut values)?;
+        let mut next = values.as_ref().cloned().unwrap_or_default();
+        next.remove("user-DA");
+        next.remove("user-tokens");
+        self.backing.set(ACCOUNT_ENTRY, &serde_json::to_vec(&next)?)?;
+        *values = Some(next);
+        Ok(())
+    }
+
+    fn lock(&self) -> Result<std::sync::MutexGuard<'_, Option<AccountValues>>, TokenStoreError> {
+        self.values.lock().map_err(|_| std::io::Error::other("Account cache unavailable").into())
+    }
+}
+
+impl<B: TokenBackend> TokenBackend for AccountBackend<B> {
+    fn get(&self, key: &str) -> Result<Option<Vec<u8>>, TokenStoreError> {
+        let mut values = self.lock()?;
+        self.load(&mut values)?;
+        Ok(values.as_ref().and_then(|items| items.get(key).cloned()))
+    }
+
+    fn set(&self, key: &str, value: &[u8]) -> Result<(), TokenStoreError> {
+        let mut values = self.lock()?;
+        self.load(&mut values)?;
+        let mut next = values.as_ref().cloned().unwrap_or_default();
+        if next.get(key).is_some_and(|old| old == value) { return Ok(()); }
+        next.insert(key.into(), value.to_vec());
+        self.backing.set(ACCOUNT_ENTRY, &serde_json::to_vec(&next)?)?;
+        *values = Some(next);
+        Ok(())
+    }
+
+    fn remove(&self, key: &str) -> Result<(), TokenStoreError> {
+        let mut values = self.lock()?;
+        self.load(&mut values)?;
+        let mut next = values.as_ref().cloned().unwrap_or_default();
+        next.remove(key);
+        // Keep even an empty vault so old entries are never resurrected.
+        self.backing.set(ACCOUNT_ENTRY, &serde_json::to_vec(&next)?)?;
+        *values = Some(next);
+        Ok(())
+    }
+}
 
 fn safe_relative(name: &str) -> Outcome<PathBuf> {
     let normalized = name.replace('\\', "/");
@@ -50,7 +178,7 @@ async fn authorize_game(client: &reqwest::Client, tokens: &TokenManager, directo
     Ok(())
 }
 
-async fn download(client: &reqwest::Client, tokens: &TokenManager, directory: &Path, market: &str) -> Outcome<()> {
+async fn download(client: &reqwest::Client, tokens: &TokenManager, directory: &Path, market: &str, check_only: bool) -> Outcome<()> {
     if directory.symlink_metadata().is_ok() {
         return Err("The download destination must not exist; existing games are never overwritten.".into());
     }
@@ -60,28 +188,49 @@ async fn download(client: &reqwest::Client, tokens: &TokenManager, directory: &P
     let out = staging.path();
     eprintln!("Finding the Windows package for the signed-in owner's Minecraft purchase.");
     let content_id = package::get_content_id(client, PRODUCT.into(), Some(market.into())).await
-        .map_err(|_| "Microsoft did not return a Windows Minecraft package.")?;
+        .map_err(|_| failure("catalog_lookup"))?;
     let details = package::get_packages(client, tokens, content_id).await
-        .map_err(|_| "Microsoft did not return a package available to this account.")?;
+        .map_err(|_| failure("account_package"))?;
     let packages: Vec<_> = details.package_files.iter().filter(|p| p.file_name.ends_with(".msixvc")).collect();
-    if packages.len() != 1 { return Err("Expected one Windows MSIXVC package; selection requires review.".into()); }
+    if packages.len() != 1 { return Err(failure("package_selection")); }
     let package = packages[0];
-    let cdn = package.cdn_root_paths.first().ok_or("Microsoft supplied no package download location.")?;
-    let url = format!("{}{}", cdn, package.relative_url);
-    let url = url.strip_prefix("http://").map(|rest| format!("https://{rest}")).unwrap_or(url);
-    if !url.starts_with("https://") { return Err("The package download must use HTTPS.".into()); }
-    let http = streaming::HttpRead::open(client.clone(), &url, None::<fn(u64, u64)>).await
-        .map_err(|_| "Could not open the Microsoft package download.")?;
+    let download_client = package_client()?;
+    let mut connected = None;
+    for cdn in &package.cdn_root_paths {
+        let url = format!("{}{}", cdn, package.relative_url);
+        if !reqwest::Url::parse(&url).is_ok_and(|url| package_url_allowed(&url)) { continue; }
+        match streaming::HttpRead::open(download_client.clone(), &url, None::<fn(u64, u64)>).await {
+            Ok(http) => { connected = Some((url, http)); break; },
+            Err(error) => {
+                // Record only transport categories, never signed URLs or responses.
+                eprintln!("Package transport: {:?}", error.kind());
+                if let Some(http) = error.get_ref().and_then(|e| e.downcast_ref::<reqwest::Error>()) {
+                    eprintln!("Package transport: status={:?}, connect={}, timeout={}",
+                        http.status().map(|s| s.as_u16()), http.is_connect(), http.is_timeout());
+                    let mut source = std::error::Error::source(http);
+                    while let Some(cause) = source {
+                        let text = cause.to_string().to_lowercase();
+                        for category in ["certificate", "dns", "connection refused", "handshake", "network is unreachable"] {
+                            if text.contains(category) { eprintln!("Package transport category: {category}"); }
+                        }
+                        source = cause.source();
+                    }
+                }
+            },
+        }
+    }
+    let (url, http) = connected.ok_or_else(|| failure("package_connection"))?;
     if package.file_size <= 0 || http.len() != package.file_size as u64 {
-        return Err("The package download size does not match Microsoft's metadata.".into());
+        return Err(failure("package_size"));
     }
-    let mut metadata = streaming::PrefixCacheFile::new(http, package.file_size as u64, out.join(".xodus-streaming.msixvc")).await?;
-    let xvd = XvdFile::parse(&mut metadata).await?;
+    let mut metadata = streaming::PrefixCacheFile::new(http, package.file_size as u64, out.join(".xodus-streaming.msixvc")).await
+        .map_err(|_| failure("package_cache"))?;
+    let xvd = XvdFile::parse(&mut metadata).await.map_err(|_| failure("package_format"))?;
     let mut files: HashMap<String, SegmentFile> = HashMap::new();
-    for (name, segment) in xvd.parse_user_package_files(&mut metadata).await? {
-        if name == "SegmentMetadata.bin" { files.extend(xvd.parse_segment_metadata(&mut metadata, &segment).await?); }
+    for (name, segment) in xvd.parse_user_package_files(&mut metadata).await.map_err(|_| failure("package_files"))? {
+        if name == "SegmentMetadata.bin" { files.extend(xvd.parse_segment_metadata(&mut metadata, &segment).await.map_err(|_| failure("package_segments"))?); }
     }
-    files.extend(xvd.parse_ntfs_segment_metadata(&mut metadata, !files.is_empty()).await?);
+    files.extend(xvd.parse_ntfs_segment_metadata(&mut metadata, !files.is_empty()).await.map_err(|_| failure("package_filesystem"))?);
     xvd.populate_segment_hashes(&mut files)?;
     if !files.contains_key("Minecraft.Windows.exe") { return Err("The package is not the expected Windows Minecraft game.".into()); }
     let mut names = HashSet::new();
@@ -104,10 +253,14 @@ async fn download(client: &reqwest::Client, tokens: &TokenManager, directory: &P
     }
     if fs2::available_space(out)? < required { return Err("There is not enough free space to download and prepare Minecraft.".into()); }
     let (device_key, owned_license) = license::get_license(client, tokens, xvd.content_id().to_string(), market.into()).await
-        .map_err(|_| "Microsoft did not grant a Minecraft content license to this account.")?;
+        .map_err(|_| failure("content_license"))?;
     if owned_license.content_keys.len() != 1 { return Err("Microsoft returned an unsupported content license.".into()); }
     let content_key = owned_license.content_keys.into_values().next().ok_or("Content key missing.")?;
     let key = content_key.unpack(&device_key).map_err(|_| "Could not open the owner's content license.")?;
+    if check_only {
+        eprintln!("Minecraft download checks passed.");
+        return Ok(());
+    }
     eprintln!("Downloading Minecraft {} ({} files).", details.version, files.len());
     let completed = AtomicUsize::new(0);
     let total = files.len();
@@ -115,6 +268,7 @@ async fn download(client: &reqwest::Client, tokens: &TokenManager, directory: &P
         let xvd = &xvd;
         let key = &key;
         let url = &url;
+        let download_client = &download_client;
         let completed = &completed;
         async move {
             let relative = safe_relative(name)?;
@@ -122,7 +276,7 @@ async fn download(client: &reqwest::Client, tokens: &TokenManager, directory: &P
             std::fs::create_dir_all(target.parent().ok_or("Missing output parent.")?)?;
             let mut output = OpenOptions::new().write(true).create_new(true).open(&target).await?;
             tokio::time::timeout(std::time::Duration::from_secs(900),
-                xvd.download_file_http(client, url, &mut output, info, **key, |_, _| {})).await
+                xvd.download_file_http(download_client, url, &mut output, info, **key, |_, _| {})).await
                 .map_err(|_| "A game file download timed out; retry setup.")?
                 .map_err(|_| "A game file download failed; retry setup.")?;
             output.sync_all().await?;
@@ -160,14 +314,51 @@ async fn download(client: &reqwest::Client, tokens: &TokenManager, directory: &P
     Ok(())
 }
 
+async fn ensure_device(client: &reqwest::Client, tokens: &TokenManager) -> Outcome<()> {
+    use xodus::{hardware, licensing::{splicense::SPLicense, utils::{generate_string, parse_bcrypt_rsa_private}},
+        models::{devicecredential::{Authentication, ClientInfo, DeviceAddRequest, DeviceInfo}, secrets::Device, soap::BodyContent}};
+    let license = match tokens.get_device_license() {
+        Ok(license) => license,
+        Err(TokenStoreError::NotFound) => {
+            let username = format!("02{}", generate_string(14));
+            let password = generate_string(20);
+            let provision = DeviceAddRequest {
+                client_info: ClientInfo::default(),
+                authentication: Authentication::new(username.clone(), password.clone()),
+                device_info: Some(DeviceInfo {
+                    id: "DeviceInfo".into(), components: hardware::probe_provision_components(), tpm_info: None,
+                }),
+            };
+            let dev = xodus::api::live::login_device_credential(client, provision).await
+                .map_err(|_| failure("device_auth"))?;
+            let license = Device { username, password, puid: dev.puid, hwid: dev.hw_device_id,
+                device_id: dev.license.binding.device_id.unwrap_or_default(), splicense: dev.license.splicense_block };
+            tokens.save_device_license(&license).map_err(|_| failure("keychain_access"))?;
+            license
+        },
+        Err(_) => return Err(failure("keychain_access")),
+    };
+    if tokens.get_device_sts_token().is_ok() { return Ok(()); }
+    let license_data = SPLicense::parse_base64(&license.splicense).map_err(|_| failure("device_auth"))?;
+    let state = license_data.clep_sign_state.ok_or_else(|| failure("device_auth"))?;
+    let key = parse_bcrypt_rsa_private(&state.get_rsa_key()).map_err(|_| failure("device_auth"))?;
+    let resp = xodus::api::live::authenticate_device(client, license.username, key).await
+        .map_err(|_| failure("device_auth"))?;
+    let BodyContent::RequestSecurityTokenResponse(resp) = resp.body.body else { return Err(failure("device_auth")); };
+    let name = resp.requested_security_token.encrypted_data.as_ref()
+        .and_then(|data| data.key_info.key_name.clone()).ok_or_else(|| failure("device_auth"))?;
+    tokens.save_device_token(name, (*resp).into()).map_err(|_| failure("keychain_access"))?;
+    Ok(())
+}
+
 async fn run() -> Outcome<()> {
     let mut args = std::env::args().skip(1);
     let mode = args.next().ok_or("Use --download GAME_DIR or --serve GAME_DIR [--market CA].")?;
     if mode == "--help" {
-        println!("standalone_helper --download GAME_DIR [--market CA] [--serve-after]\nstandalone_helper --serve GAME_DIR [--market CA]\nCredentials: macOS Keychain, Minecraft Bedrock Standalone. Stop any existing Xbox helper first.");
+        println!("standalone_helper --download GAME_DIR [--market CA] [--serve-after]\nstandalone_helper --check-download GAME_DIR [--market CA]\nstandalone_helper --serve GAME_DIR [--market CA]\nstandalone_helper --sign-out GAME_DIR\nCredentials: macOS Keychain, Minecraft Bedrock Standalone. Stop any existing Xbox helper first.");
         return Ok(());
     }
-    if mode != "--download" && mode != "--serve" { return Err("Unknown helper mode.".into()); }
+    if mode != "--download" && mode != "--check-download" && mode != "--serve" && mode != "--sign-out" { return Err("Unknown helper mode.".into()); }
     let directory = PathBuf::from(args.next().ok_or("Game directory required.")?);
     let directory = if directory.is_absolute() { directory } else { std::env::current_dir()?.join(directory) };
     let mut market = String::from("CA");
@@ -184,7 +375,7 @@ async fn run() -> Outcome<()> {
         return Err("An Xbox service socket already exists. Close the game and stop its helper first; this helper never replaces it.".into());
     }
     if mode == "--serve" { check_game(&directory).await?; }
-    else if directory.symlink_metadata().is_ok() { return Err("Download destination already exists; choose a new directory.".into()); }
+    else if mode != "--sign-out" && directory.symlink_metadata().is_ok() { return Err("Download destination already exists; choose a new directory.".into()); }
     // A download does not create the IPC socket yet, so also serialize account access.
     let support = PathBuf::from(std::env::var_os("HOME").ok_or("Home directory is unavailable.")?)
         .join("Library/Application Support/Minecraft Bedrock Standalone");
@@ -197,26 +388,39 @@ async fn run() -> Outcome<()> {
     fs2::FileExt::try_lock_exclusive(&account_lock).map_err(|_| "Another standalone account helper is already running.")?;
     xodus::secrets::init_named_secrets("Minecraft Bedrock Standalone")
         .map_err(|_| "Could not initialize macOS Keychain.")?;
-    let tokens = Arc::new(TokenManager::with_keychain_and_memory());
-    let client = reqwest::Client::builder().user_agent("bedrock-mac-standalone/0.1").https_only(true)
-        .connect_timeout(std::time::Duration::from_secs(30)).build()?;
-    xodus::tokens::device::ensure_device_credentials(&client, &tokens).await;
-    match tokens.get_user() {
-        Ok(_) => {},
-        Err(TokenStoreError::NotFound) => {
-            eprintln!("Sign in with the Microsoft account that owns Minecraft: Java & Bedrock for PC.");
-            if login::run(&client, &tokens).await != ExitCode::SUCCESS { return Err("Microsoft sign-in was not completed.".into()); }
-        },
-        Err(_) => return Err("Could not read the saved Microsoft sign-in from Keychain.".into()),
+    let account = Arc::new(AccountBackend::new(AccountKeychain));
+    if mode == "--sign-out" {
+        account.sign_out().map_err(|_| failure("keychain_access"))?;
+        eprintln!("Signed out. Game files and worlds were kept.");
+        return Ok(());
     }
-    tokens.get_user_sts_token().map_err(|_| "Microsoft sign-in is unavailable.")?;
-    if mode == "--download" {
-        download(&client, &tokens, &directory, &market).await
-            .map_err(|_| "Minecraft download or licensed preparation failed. Check ownership, network access, and available space, then retry. No existing installation was changed.")?;
+    let tokens = Arc::new(TokenManager::new(account, Arc::new(MemoryBackend::default())));
+    let client = reqwest::Client::builder().user_agent("bedrock-mac-standalone/0.1").https_only(true)
+        .connect_timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_secs(90)).build()?;
+    ensure_device(&client, &tokens).await?;
+    match (tokens.get_user(), tokens.get_user_sts_token()) {
+        (Ok(_), Ok(_)) => {},
+        (Err(TokenStoreError::NotFound), _) | (_, Err(TokenStoreError::NotFound)) => {
+            eprintln!("Sign in with the Microsoft account that owns Minecraft: Java & Bedrock for PC.");
+            if login::run(&client, &tokens).await != ExitCode::SUCCESS { return Err(failure("signin_failed")); }
+        },
+        _ => return Err(failure("keychain_access")),
+    }
+    tokens.get_user_sts_token().map_err(|_| failure("signin_cancelled"))?;
+    if mode == "--download" || mode == "--check-download" {
+        // Dropping the download future on cancellation also removes its private
+        // temporary directory. Never leave gigabytes of abandoned staging data.
+        tokio::select! {
+            result = download(&client, &tokens, &directory, &market, mode == "--check-download") => {
+                result.map_err(|error| if error.is::<SetupFailure>() { error } else { failure("download_failed") })?;
+            },
+            _ = tokio::signal::ctrl_c() => return Ok(()),
+        }
     } else {
         eprintln!("Verifying this account's Microsoft license for the installed game.");
         authorize_game(&client, &tokens, &directory, &market).await
-            .map_err(|_| "Microsoft could not verify this account's license for the installed Minecraft game. Sign in with the owning account and check the network connection.")?;
+            .map_err(|_| failure("content_license"))?;
     }
     if serve {
         eprintln!("Starting Xbox account service.");
@@ -228,16 +432,153 @@ async fn run() -> Outcome<()> {
 #[tokio::main]
 async fn main() -> ExitCode {
     // Upstream panic payloads can contain request/response data. Never emit them.
-    std::panic::set_hook(Box::new(|_| eprintln!("The Microsoft account helper stopped unexpectedly; no account details were logged.")));
+    std::panic::set_hook(Box::new(|info| {
+        eprintln!("BEDROCK_ERROR:helper_stopped");
+        if let Some(location) = info.location() {
+            eprintln!("Helper stopped at {}:{}; no account details were logged.", location.file(), location.line());
+        }
+    }));
     match run().await {
         Ok(()) => ExitCode::SUCCESS,
-        Err(error) => { eprintln!("Setup failed: {error}"); ExitCode::FAILURE },
+        Err(error) => {
+            if let Some(failure) = error.downcast_ref::<SetupFailure>() {
+                eprintln!("BEDROCK_ERROR:{}", failure.0);
+            }
+            eprintln!("Setup failed: {error}");
+            ExitCode::FAILURE
+        },
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::safe_relative;
+    use super::*;
+
+    #[test]
+    fn sign_out_keeps_device_and_does_not_restore_old_user_tokens() {
+        let account = AccountBackend::new(MemoryBackend::default());
+        account.set("dev_license", b"device").unwrap();
+        account.set("device-tokens", b"device-token").unwrap();
+        account.set("user-DA", b"user").unwrap();
+        account.set("user-tokens", b"user-token").unwrap();
+        account.sign_out().unwrap();
+        let reopened = AccountBackend::new(account.backing);
+        assert_eq!(reopened.get("dev_license").unwrap().as_deref(), Some(b"device".as_slice()));
+        assert_eq!(reopened.get("device-tokens").unwrap().as_deref(), Some(b"device-token".as_slice()));
+        assert!(reopened.get("user-DA").unwrap().is_none());
+        assert!(reopened.get("user-tokens").unwrap().is_none());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "Creates and removes an isolated Keychain fixture; never reads the user's account"]
+    fn native_keychain_updates_preserve_the_latest_value() {
+        let key = format!("write-regression-{}", uuid::Uuid::new_v4());
+        struct Cleanup(String);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = security_framework::passwords::delete_generic_password(
+                    "Minecraft Bedrock Standalone", &self.0);
+            }
+        }
+        let _cleanup = Cleanup(key.clone());
+        for value in [b"fixture-one".as_slice(), b"fixture-two", b"fixture-three"] {
+            AccountKeychain.set(&key, value).unwrap();
+        }
+        let value = security_framework::passwords::get_generic_password(
+            "Minecraft Bedrock Standalone", &key).unwrap();
+        assert_eq!(value, b"fixture-three");
+    }
+
+    #[test]
+    fn package_transport_accepts_catalog_origins_without_rewriting_them() {
+        for url in ["http://assets1.xboxlive.com/game.msixvc", "http://assets2.xboxlive.com/game.msixvc", "https://example.com/game.msixvc"] {
+            let parsed = reqwest::Url::parse(url).unwrap();
+            assert!(package_url_allowed(&parsed));
+            assert_eq!(parsed.as_str(), url);
+        }
+        for url in ["http://example.com/game", "http://assets1.xboxlive.com.evil.test/game",
+            "http://assets1.xboxlive.com:8080/game", "http://user:secret@assets1.xboxlive.com/game",
+            "http://127.0.0.1/game", "file:///tmp/game", "https://example.com/game#fragment"] {
+            assert!(!package_url_allowed(&reqwest::Url::parse(url).unwrap()), "{url}");
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "Live Microsoft CDN check; no account or game download"]
+    async fn microsoft_package_transport_connects() {
+        let mut reader = streaming::HttpRead::open(package_client().unwrap(),
+            "http://assets1.xboxlive.com/Z/routing/up.txt", None::<fn(u64, u64)>).await.unwrap();
+        assert_eq!(reader.len(), 2);
+        let mut bytes = [0; 2];
+        reader.read_exact(&mut bytes).await.unwrap();
+        assert_eq!(&bytes, b"UP");
+    }
+
+    #[derive(Default)]
+    struct TestBackend {
+        memory: MemoryBackend,
+        reads: Mutex<Vec<String>>,
+        fail_key: Mutex<Option<String>>,
+        fail_write: std::sync::atomic::AtomicBool,
+    }
+    impl TokenBackend for TestBackend {
+        fn get(&self, key: &str) -> Result<Option<Vec<u8>>, TokenStoreError> {
+            self.reads.lock().unwrap().push(key.into());
+            if self.fail_key.lock().unwrap().as_deref() == Some(key) {
+                return Err(std::io::Error::other("Test read denied").into());
+            }
+            self.memory.get(key)
+        }
+        fn set(&self, key: &str, value: &[u8]) -> Result<(), TokenStoreError> {
+            if self.fail_write.load(Ordering::Relaxed) { return Err(std::io::Error::other("Test write denied").into()); }
+            self.memory.set(key, value)
+        }
+        fn remove(&self, key: &str) -> Result<(), TokenStoreError> { self.memory.remove(key) }
+    }
+
+    #[test]
+    fn account_reads_one_entry_per_launch_and_leaves_legacy_entries_alone() {
+        let backing = TestBackend::default();
+        let keys = ["dev_license", "device-tokens", "user-DA", "user-tokens"];
+        for key in keys { backing.memory.set(key, b"legacy").unwrap(); }
+        let account = AccountBackend::new(backing);
+        for key in keys {
+            assert!(account.get(key).unwrap().is_none());
+            account.set(key, key.as_bytes()).unwrap();
+        }
+        assert_eq!(*account.backing.reads.lock().unwrap(), vec![ACCOUNT_ENTRY]);
+        for key in keys { assert_eq!(account.backing.memory.get(key).unwrap().unwrap(), b"legacy"); }
+        account.backing.reads.lock().unwrap().clear();
+        let reopened = AccountBackend::new(account.backing);
+        for key in keys { assert_eq!(reopened.get(key).unwrap().unwrap(), key.as_bytes()); }
+        assert_eq!(*reopened.backing.reads.lock().unwrap(), vec![ACCOUNT_ENTRY]);
+    }
+
+    #[test]
+    fn denied_account_read_does_not_create_replacement_credentials() {
+        let backing = TestBackend::default();
+        backing.memory.set("dev_license", b"existing").unwrap();
+        *backing.fail_key.lock().unwrap() = Some(ACCOUNT_ENTRY.into());
+        let account = AccountBackend::new(backing);
+        assert!(account.get("dev_license").is_err());
+        assert!(account.backing.memory.get(ACCOUNT_ENTRY).unwrap().is_none());
+        assert!(account.values.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn failed_write_keeps_cache_and_removed_values_stay_removed() {
+        let account = AccountBackend::new(TestBackend::default());
+        account.set("user-DA", b"old").unwrap();
+        account.backing.fail_write.store(true, Ordering::Relaxed);
+        assert!(account.set("user-DA", b"new").is_err());
+        assert_eq!(account.get("user-DA").unwrap().unwrap(), b"old");
+        account.backing.fail_write.store(false, Ordering::Relaxed);
+        account.backing.memory.set("user-DA", b"legacy").unwrap();
+        account.remove("user-DA").unwrap();
+        let reopened = AccountBackend::new(account.backing);
+        assert!(reopened.get("user-DA").unwrap().is_none());
+    }
     #[test]
     fn package_paths_cannot_escape_destination() {
         for path in ["", "../file", "C:\\file", "/tmp/file", "dir\\..\\file", "file:stream", "bad\0name"] {

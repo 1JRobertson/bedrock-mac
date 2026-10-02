@@ -15,7 +15,7 @@ import subprocess
 import sys
 import time
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(os.environ.get('BEDROCK_HOME', Path(__file__).resolve().parent))
 WINE = ROOT / 'runtime/standalone/wine'
 DXMT = ROOT / 'runtime/standalone/dxmt'
 PREFIX = ROOT / 'bottles/Bedrock-Standalone'
@@ -75,28 +75,70 @@ def account_ready():
     return True
 
 
+class AccountError(RuntimeError):
+    def __init__(self, code=None):
+        super().__init__('The account helper stopped. Open the setup log for details.')
+        self.code = code
+
+
 @contextlib.contextmanager
-def account(game, market='CA'):
+def account(game, market='CA', *, download=False, progress=None, timeout=None):
     process = None
+    output = None
+    failure_code = None
+    deadline = time.monotonic() + (timeout if timeout is not None else (7200 if download else 900))
+
+    def read_output():
+        nonlocal failure_code
+        if output is None:
+            return
+        while True:
+            position = output.tell()
+            line = output.readline()
+            if not line.endswith(b'\n'):
+                output.seek(position)
+                return
+            if line.startswith(b'BEDROCK_ERROR:'):
+                code = line.strip().split(b':', 1)[1].decode('ascii', errors='replace')
+                if code.replace('_', '').isascii() and code.replace('_', '').isalpha():
+                    failure_code = code
+            if progress:
+                progress(line)
+
     try:
         if not account_ready() and not account_pid():
             require(HELPER)
-            print('Starting the account helper. Complete Microsoft sign-in if a window opens.', flush=True)
+            if not progress:
+                print('Starting the account helper. Complete Microsoft sign-in if a window opens.', flush=True)
             STATE.parent.mkdir(parents=True, exist_ok=True)
             log_path = ROOT / 'logs/standalone/account.log'
             log_path.parent.mkdir(parents=True, exist_ok=True)
             with log_path.open('ab') as log:
+                position = log.tell()
                 env = dict(os.environ, XODUS_LOG='off', RUST_LOG='off')
-                process = subprocess.Popen([str(HELPER), '--serve', str(game), '--market', market],
+                command = [str(HELPER.resolve()), '--download' if download else '--serve', str(game), '--market', market]
+                if download:
+                    command.append('--serve-after')
+                process = subprocess.Popen(command,
                     cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
+            output = log_path.open('rb')
+            output.seek(position)
             STATE.write_text(json.dumps({'pid': process.pid, 'executable': str(HELPER)}) + '\n')
             STATE.chmod(0o600)
-        while not account_ready():
+        while True:
+            read_output()
+            if account_ready():
+                break
             if (process and process.poll() is not None) or not account_pid():
-                raise RuntimeError('Account helper stopped; see logs/standalone/account.log.')
+                read_output()  # Drain an error written immediately before exit.
+                raise AccountError(failure_code)
+            if time.monotonic() >= deadline:
+                raise AccountError('account_timeout')
             time.sleep(0.25)
         yield
     finally:
+        if output:
+            output.close()
         if process:
             if process.poll() is None:
                 process.send_signal(signal.SIGINT)
@@ -104,7 +146,11 @@ def account(game, market='CA'):
                     process.wait(timeout=8)
                 except subprocess.TimeoutExpired:
                     process.terminate()
-                    process.wait(timeout=8)
+                    try:
+                        process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
             try:
                 if json.loads(STATE.read_text()).get('pid') == process.pid:
                     STATE.unlink()
@@ -176,6 +222,20 @@ def prerequisites(game):
             raise RuntimeError('Prepare the game with standalone-setup.py first.')
 
 
+def setup_signature(game):
+    return {'setup_version': 2, 'game': str(game), 'threading': THREADING_HASH,
+            'gameinput': sha256(game / 'Installers/GameInputRedist.msi'),
+            'wine': sha256(WINE / 'bin/wine'),
+            'dxmt': sha256(DXMT / 'x86_64-windows/d3d11.dll')}
+
+
+def setup_matches(desired):
+    try:
+        return json.loads((PREFIX / '.bedrock-setup.json').read_text()) == desired
+    except (OSError, ValueError):
+        return False
+
+
 def prepare(game):
     prerequisites(game)
     if PREFIX.is_symlink() or PREFIX.resolve() == (ROOT / 'bottles/Bedrock-Mac').resolve():
@@ -184,45 +244,50 @@ def prepare(game):
     logs = ROOT / 'logs/standalone'
     logs.mkdir(parents=True, exist_ok=True)
     marker = PREFIX / '.bedrock-setup.json'
-    desired = {'setup_version': 2, 'game': str(game), 'threading': THREADING_HASH,
-               'gameinput': sha256(game / 'Installers/GameInputRedist.msi'),
-               'wine': sha256(WINE / 'bin/wine'),
-               'dxmt': sha256(DXMT / 'x86_64-windows/d3d11.dll')}
-    if marker.is_file() and json.loads(marker.read_text()) == desired:
+    desired = setup_signature(game)
+    if setup_matches(desired):
         map_drive('g', game)
         map_drive('r', ROOT)
         return
     wait_for_idle_prefix()
-    with (logs / 'prefix-setup.log').open('ab') as log:
-        # Wine must create its own C: mapping before additional drives are added.
-        wine_run(['wineboot', '-u'], game, log=log, timeout=180)
-        map_drive('g', game)
-        map_drive('r', ROOT)
-        system32 = PREFIX / 'drive_c/windows/system32'
-        system32.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(ROOT / 'runtime/xgameruntime.dll.threading', system32)
-        wine_run(['reg', 'import', 'R:\\winrt.reg'], game, log=log, timeout=60)
-        wine_run(['reg', 'add', 'HKCU\\Software\\Wine', '/v', 'Version',
-                  '/d', 'win10', '/f'], game, log=log, timeout=60)
+    try:
+        with (logs / 'prefix-setup.log').open('ab') as log:
+            # Wine must create its own C: mapping before additional drives are added.
+            wine_run(['wineboot', '-u'], game, log=log, timeout=180)
+            map_drive('g', game)
+            map_drive('r', ROOT)
+            system32 = PREFIX / 'drive_c/windows/system32'
+            system32.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / 'runtime/xgameruntime.dll.threading', system32)
+            wine_run(['reg', 'import', 'R:\\winrt.reg'], game, log=log, timeout=60)
+            wine_run(['reg', 'add', 'HKCU\\Software\\Wine', '/v', 'Version',
+                      '/d', 'win10', '/f'], game, log=log, timeout=60)
+            stop_setup_server()
+            subprocess.run([sys.executable, str(ROOT / 'standalone-gameinput.py'),
+                            '--prefix', str(PREFIX), '--msi', str(game / 'Installers/GameInputRedist.msi'),
+                            '--wineserver', str(WINE / 'bin/wineserver')],
+                           stdout=log, stderr=subprocess.STDOUT, check=True, timeout=30)
+            wine_run(['reg', 'import', 'R:\\bottles\\Bedrock-Standalone\\.standalone-gameinput.reg'],
+                     game, log=log, timeout=60)
+            stop_setup_server()
+            subprocess.run([sys.executable, str(ROOT / 'standalone-gameinput.py'),
+                            '--prefix', str(PREFIX), '--msi', str(game / 'Installers/GameInputRedist.msi'),
+                            '--check'], stdout=log, stderr=subprocess.STDOUT, check=True, timeout=30)
+    except BaseException:
+        # This operation acquired an idle prefix before starting Wine. Stop
+        # only that owned setup so Cancel/retry cannot strand a busy server.
         stop_setup_server()
-        subprocess.run([sys.executable, str(ROOT / 'standalone-gameinput.py'),
-                        '--prefix', str(PREFIX), '--msi', str(game / 'Installers/GameInputRedist.msi'),
-                        '--wineserver', str(WINE / 'bin/wineserver')],
-                       stdout=log, stderr=subprocess.STDOUT, check=True, timeout=30)
-        wine_run(['reg', 'import', 'R:\\bottles\\Bedrock-Standalone\\.standalone-gameinput.reg'],
-                 game, log=log, timeout=60)
-        stop_setup_server()
-        subprocess.run([sys.executable, str(ROOT / 'standalone-gameinput.py'),
-                        '--prefix', str(PREFIX), '--msi', str(game / 'Installers/GameInputRedist.msi'),
-                        '--check'], stdout=log, stderr=subprocess.STDOUT, check=True, timeout=30)
+        raise
     require(PREFIX / 'drive_c/Program Files/Microsoft GameInput/x64/GameInputRedist.dll')
     require(PREFIX / 'drive_c/Program Files/Microsoft GameInput/x64/GameInputRedistService.exe')
-    marker.write_text(json.dumps(desired, indent=2) + '\n')
+    temporary = marker.with_suffix('.new')
+    temporary.write_text(json.dumps(desired, indent=2) + '\n')
+    os.replace(temporary, marker)
 
 
 def game_running():
     processes = subprocess.check_output(['/bin/ps', '-axo', 'comm='], text=True)
-    return any(line.strip().lower().endswith('\\minecraft.windows.exe') for line in processes.splitlines())
+    return any(line.strip().lower().endswith(('\\minecraft.windows.exe', '/minecraft.windows.exe')) for line in processes.splitlines())
 
 
 def status(game):
@@ -284,6 +349,9 @@ def main():
 
 
 if __name__ == '__main__':
+    def interrupted(_signal, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupted)
     try:
         sys.exit(main())
     except KeyboardInterrupt:

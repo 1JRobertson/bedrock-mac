@@ -31,6 +31,14 @@ All five Wine patches retain LGPL 2.1 or later.
 Build scripts and the pinned Cargo lockfile use the same upstream dependencies;
 each dependency retains its own license and notices.
 
+`patches/standalone-signin-window.patch` changes the Xodus login window title to
+“Microsoft sign-in” for the native launcher; it retains Xodus's GPLv3 license.
+The native launcher and packaging scripts are original GPLv3 project code.
+`patches/standalone-keychain-write.patch` adds a direct dependency on the already
+pinned `security-framework` 3.7.0 crate for Keychain updates that do not reread
+secrets. The patch retains GPLv3; security-framework retains its MIT/Apache-2.0
+licensing.
+
 The WineGDK startup fixes reuse its `windows.web`, `twinapi.appcore`,
 `windows.ui.core.textinput`, and `wintypes` implementations. Their full source
 and notices are in the pinned WineGDK tree fetched by `bootstrap-sources.py`.
