@@ -8,7 +8,21 @@ notarized app is not available yet. This repository contains the source and buil
 scripts. See [release readiness](docs/RELEASE.md) for tested behavior and remaining
 release work.
 
+## Documentation
+
+| I want to… | Start here |
+| --- | --- |
+| Install, sign in, play, back up worlds, or troubleshoot | [User guide](docs/USER_GUIDE.md) |
+| Build or change the app locally | [Development guide](docs/DEVELOPMENT.md) |
+| Understand components, paths, and account/process ownership | [Project context](CONTEXT.md) |
+| Contribute a fix or run checks | [Contributing](CONTRIBUTING.md) and [testing](docs/TESTING.md) |
+| Work on this repository with a coding agent | [Agent guidance](AGENTS.md) |
+| Review release readiness or export source | [Release status](docs/RELEASE.md) and [publishing](docs/PUBLISHING.md) |
+| Understand licenses or report a security problem | [Upstream notices](THIRD_PARTY.md) and [security](SECURITY.md) |
+
 ## The app
+
+For a complete locally built app (not GitHub's source ZIP):
 
 1. Open the disk image and drag **Bedrock for Mac** into **Applications**.
 2. Open the app and click **Install & Play**.
@@ -58,6 +72,9 @@ The default package destination must not already exist. Pass
 `--output /path/to/Bedrock\ for\ Mac.app` to build another app without replacing a
 running copy; pass that path to `build-dmg.py --app` and choose a new `--output`.
 
+For tool installation, first-build checks, safe rebuilds, and build failures,
+follow the full [development guide](docs/DEVELOPMENT.md).
+
 For a development launcher tied to your checkout, use `./build-launcher.sh`.
 For command-line setup, probes, and download details, see
 [STANDALONE-SETUP.md](STANDALONE-SETUP.md).
@@ -92,6 +109,9 @@ verified the replacement; never remove `bottles` to repair a download.
 `AppData/Roaming/Minecraft Bedrock`. Updating the app or signing out keeps these
 files. Back up the data directory before experimenting with builds. The older
 CrossOver setup uses a separate prefix; it does not migrate automatically.
+See the [user guide](docs/USER_GUIDE.md#your-files-backups-and-updates) for backup,
+restore, app replacement, and uninstall steps. There is no automatic app/game
+updater or supported offline-launch mode.
 
 ## Contribute
 

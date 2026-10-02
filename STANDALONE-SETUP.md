@@ -2,6 +2,11 @@
 
 This setup obtains each user's Windows Bedrock game through their own Microsoft account. It does not use CrossOver or distribute Minecraft, Microsoft runtime binaries, credentials, or licenses.
 
+This is the developer/reference CLI guide. Players should start with the
+[user guide](docs/USER_GUIDE.md); for a complete build from a fresh checkout,
+follow [local development](docs/DEVELOPMENT.md). Commands here use checkout data
+unless `BEDROCK_HOME` is set; the packaged app has a separate data directory.
+
 From this directory:
 
 ```sh
