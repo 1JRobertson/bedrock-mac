@@ -1,9 +1,40 @@
 # Preparing a source release
 
-Nothing in these instructions creates a remote repository or publishes files.
-Export only the reviewed client source, not the parent server repository or this
-entire development directory. Read [THIRD_PARTY.md](../THIRD_PARTY.md) for the
-component licenses and credit.
+The public source repository is
+[1JRobertson/bedrock-mac](https://github.com/1JRobertson/bedrock-mac). The commands
+below prepare and verify source locally; they do not push or create a release.
+Export only reviewed client source, not this entire development directory or
+any adjacent server repository. Read [THIRD_PARTY.md](../THIRD_PARTY.md) for
+component notices and [RELEASE.md](RELEASE.md) for binary release gates.
+
+## Update the source inventory
+
+Every new public file, including documentation and `AGENTS.md`, must be added
+individually to `ALLOWED_FILES` in `export-source.py`. Check its contents before
+adding it. The tracked `SOURCE-SHA256.txt` lists those files; it does not include
+itself, generated output, or private data. CI verifies it, so regenerate it after
+the last source/documentation edit:
+
+```sh
+python3 - <<'PY'
+from pathlib import Path
+import hashlib, os, runpy
+collect = runpy.run_path('export-source.py')['collect_sources']
+files = collect(Path.cwd())
+temporary = Path('SOURCE-SHA256.txt.new')
+with temporary.open('x', encoding='utf-8') as output:
+    for name, contents, _mode in files:
+        output.write(f'{hashlib.sha256(contents).hexdigest()}  {name}\n')
+os.replace(temporary, 'SOURCE-SHA256.txt')
+print('Inventoried source files:', len(files))
+PY
+shasum -a 256 -c SOURCE-SHA256.txt
+```
+
+If `.new` already exists, inspect and preserve it before retrying. Do not use
+recursive filesystem hashing: it can enumerate account data, worlds, binaries,
+or ignored logs. `--check` validates source boundaries but does not refresh the
+tracked inventory. An export generates its own inventory in the destination.
 
 ## Validate and export
 
@@ -14,6 +45,7 @@ python3 -m unittest discover -s tests -p 'test_export_source.py'
 python3 -m unittest discover -s tests -p 'test_bootstrap_sources.py'
 python3 export-source.py --check
 python3 export-source.py --list
+shasum -a 256 -c SOURCE-SHA256.txt
 python3 export-source.py ../bedrock-mac-source
 ```
 
@@ -28,7 +60,7 @@ The package omits game assets/executables, downloaded archives, source checkouts
 compiled binaries, Wine prefixes and worlds, Keychain data, helper session files,
 logs, screenshots, CrossOver, D3DMetal, and Microsoft runtime DLLs. `.gitignore`
 alone is not the release boundary. Review the exported source and the inventory
-before choosing a public repository and explicitly publishing it.
+before publishing them to the intended repository.
 
 ## Reproduce source preparation
 
@@ -50,8 +82,9 @@ and network access; `--check` is offline and does not modify the source trees.
 The check rebuilds the expected patched files in a temporary directory and compares
 them with the checkout. It verifies the pinned base, preserved patch contents,
 and Xodus lockfile. It does not certify unrelated local edits, runtime binaries,
-or the complete Cargo dependency cache. `build-helper.sh` installs the helper
-example sources before its locked Cargo build. The obsolete separate
+or the complete Cargo dependency cache. `standalone-setup.py --build-helper`
+copies and builds the current standalone helper example with `--locked`.
+`build-helper.sh` builds the earlier CrossOver helper instead. The obsolete separate
 `prepare-game.rs` helper is intentionally not exported.
 
 `build-standalone-wine.sh` creates its own build copy of the prepared WineGDK tree
@@ -82,3 +115,20 @@ credentials, proprietary runtime, or current user's world is part of this releas
 A source release does not grant permission to bundle third-party binaries. Any
 future binary release needs its own dependency/notice inventory and matching
 corresponding source for the exact components distributed.
+
+## Review and publish source
+
+1. Run the relevant [checks](TESTING.md), regenerate the inventory, and export to
+   a new directory whose parent exists. Verify the exported inventory there.
+2. Inspect `git diff --check`, the diff, and `git status --short`. Stage only the
+   intended source, docs, patches, and inventory; inspect `git diff --cached`
+   before committing. Do not rely on `.gitignore` to review publication content.
+3. Open a pull request and wait for checks on its final commit. Record live-test
+   claims separately from compilation and fixture checks. Merge only within
+   the maintainer's requested scope.
+4. For a tagged source release, identify the exact commit, its source archive
+   checksum, build prerequisites, and known limitations. A normal source PR
+   does not require uploading any DMG or local runtime.
+5. Do not upload the development DMG as a public installer until the gates in
+   [RELEASE.md](RELEASE.md) are satisfied. Once a binary preview is ready, label
+   its signing/notarization status and tested platforms explicitly.
