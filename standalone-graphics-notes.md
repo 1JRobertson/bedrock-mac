@@ -1,5 +1,9 @@
 # Standalone graphics
 
+These are component notes and historical test observations. The current complete
+app's minimum OS and verified behavior are in [release status](docs/RELEASE.md);
+the component's deployment target does not establish support for the whole app.
+
 `build-standalone-graphics.sh` stages the upstream DXMT v0.80 release into
 `runtime/standalone/dxmt/`. It checks the pinned SHA-256 before extracting only
 the four x64 graphics DLLs and `winemetal.so`. No CrossOver payload is used.

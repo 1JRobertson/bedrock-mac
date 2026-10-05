@@ -4,6 +4,12 @@ This is a source preview. A local development DMG exists, but it is not a signed
 notarized, or clean-Mac-verified public binary release. Apple Developer membership
 is not required to publish the source or an explicitly unsigned preview.
 
+Status snapshot: October 2, 2026. The native launcher source was merged in
+[PR #1](https://github.com/1JRobertson/bedrock-mac/pull/1), merge commit `0205d2a`.
+That merge did not publish a binary. Use [TESTING.md](TESTING.md) for the manual
+test matrix and artifact checks; use [PUBLISHING.md](PUBLISHING.md) for source
+inventories and exports.
+
 ## Verified behavior
 
 - Owned Windows package downloaded and prepared on the development Mac.
@@ -16,6 +22,10 @@ is not required to publish the source or an explicitly unsigned preview.
   The user then chose **Always Allow**, quit Minecraft, and launched the unchanged
   build again: **no Keychain prompt**. This verifies remembered access for this
   build, not authorization across a changed helper signature.
+- The final local app was installed in Applications. Play started Minecraft
+  using the existing game and saved account; the launcher reached its running
+  state. This was an existing installation on the development Mac, not a clean
+  account or downloaded-app Gatekeeper test.
 - Offline tests cover one account helper across download and launch, failed
   setup cleanup, cancellation with a real child process, bounded sign-in waits,
   damaged setup records, progress parsing, and source export boundaries.
@@ -24,6 +34,24 @@ is not required to publish the source or an explicitly unsigned preview.
 
 Automated tests use fixtures; they do not prove a clean-machine sign-in or a
 particular number of macOS security prompts.
+
+## Current support limits
+
+| Area | Status |
+| --- | --- |
+| Local packaged app | Apple Silicon, Rosetta, macOS 26 minimum for the assembled components |
+| Swift / pinned DXMT targets | macOS 15; this does not establish support for the complete bundle |
+| Game version observed | Windows Bedrock 1.26.5203.0; Microsoft's catalog selects the version for a new download |
+| Distribution | Public source; local ad-hoc signed app/DMG; no public notarized installer |
+| Updates | Manual app replacement; existing game reused; no automatic game updater |
+| Offline launch / native market selector | Not implemented; native setup uses `CA`, CLI accepts a market argument |
+| Gameplay evidence | Local gameplay, featured-server lobby, joined-Realm listing observed; active Realm entry and PS5 friend sessions unverified |
+| Saves | Existing data preserved by installation/update paths; clean-Mac world save/reopen and restore scenarios remain to be verified |
+
+Earlier graphics notes record a different historical host/OS. They do not lower
+the current bundle's inspected macOS requirement. No Intel-Mac, older-macOS,
+all-game-versions, Marketplace-completeness, or zero-prompt-update support claim
+is made.
 
 ## Before publishing a binary preview
 
@@ -48,6 +76,10 @@ particular number of macOS security prompts.
   toward a normal public Mac distribution.
 
 ## Local validation
+
+See [TESTING.md](TESTING.md) for prerequisites and live-test boundaries. Close
+the game/helper before rebuilding source components. After bootstrap and
+preparing the current helper example, the core checks are:
 
 ```sh
 python3 -m unittest discover -s tests -p 'test_*.py'
