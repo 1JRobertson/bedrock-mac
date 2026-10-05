@@ -97,6 +97,10 @@ components. Quit Minecraft normally and let its account helper finish first.
 The Wine and helper builders have active-process guards; still check which app
 copy and runtime you are testing.
 
+The optional memory-lifetime bridge can be built and validated following
+[the graphics notes](../standalone-graphics-notes.md) before packaging. Packaging
+retains and verifies its provenance; see [stability notes](STABILITY.md).
+
 ## Iterate without losing a working build
 
 `./build-launcher.sh` creates `build/Bedrock for Mac.app`, a development front end

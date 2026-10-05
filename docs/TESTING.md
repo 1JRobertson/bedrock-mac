@@ -3,7 +3,7 @@
 Run checks from the repository root. Prefer tests that reproduce a failure at
 its real boundary; avoid tests that only restate implementation. Documentation
 changes need link, command, export, and checksum checks, not a fresh game install.
-Test counts below describe the October 2, 2026 source snapshot.
+Test counts below describe the October 5, 2026 source snapshot.
 
 ## Choose the relevant checks
 
@@ -28,7 +28,7 @@ shasum -a 256 -c SOURCE-SHA256.txt
 git diff --check
 ```
 
-The Python suite currently has 39 tests. Coverage includes source isolation,
+The Python suite currently has 77 tests. Coverage includes source isolation,
 one helper across download/preparation/launch, safe account error messages,
 process cancellation, setup-marker corruption, runtime relinking, reduced
 download verification, and packaged minimum OS detection. The count is a dated
@@ -67,7 +67,7 @@ cargo +1.98.0 test --release --locked --manifest-path sources/xodus/Cargo.toml \
   -p xodus-cli --example standalone_helper
 ```
 
-There are currently six default helper tests and two ignored live fixtures.
+There are currently 12 default helper tests and two ignored live fixtures.
 Default tests use fake/in-memory token storage and check cache reads, denied
 reads, failed writes, sign-out, package paths, and URL policy. Do not add
 `--include-ignored` to routine tests: the ignored Keychain fixture creates its
@@ -83,7 +83,7 @@ bash tests/run-xuser-tests.sh
 ```
 
 This compiles against the actual patched headers and runs 31 claim checks and
-19 Realms-routing checks using synthetic data. It uses the separate
+19 Realms-routing and 18 token-refresh checks using synthetic data. It uses the separate
 `runtime/standalone-wine-prefix` and writes `build/standalone-wine/xuser-*-test.log`.
 It does not access Microsoft. See [tests/XUSER.md](../tests/XUSER.md).
 

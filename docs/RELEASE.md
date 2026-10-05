@@ -16,8 +16,9 @@ inventories and exports.
 - Native launcher started Minecraft; the user confirmed **Sign in now** worked
   with the existing Microsoft session on October 2, 2026.
 - Earlier standalone runtime testing reached local gameplay, a featured-server
-  lobby, and the joined-Realm list. Entry into an active Realm and PS5 friend
-  sessions have not been verified.
+  lobby, and the joined-Realm list. Xbox multiplayer and PS5 friend-world entry were confirmed on the September 30
+  stability build; see [the dated evidence](STABILITY.md). Entry into an active
+  Realm and gameplay with the combined native-launcher build remain unverified.
 - Live retest on October 2: **Allow** produced one prompt on the next launch.
   The user then chose **Always Allow**, quit Minecraft, and launched the unchanged
   build again: **no Keychain prompt**. This verifies remembered access for this

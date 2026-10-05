@@ -22,9 +22,14 @@ CrossOver work is documented in [docs/LEGACY.md](docs/LEGACY.md).
 | Acquisition tools | Helper compilation and verified Microsoft threading component | `standalone-setup.py` |
 | GameInput preparation | Verify/extract known MSI files and prepare registry entries | `standalone-gameinput.py` |
 | Windows compatibility | WineGDK with local GDK, Store, privilege, and Realms patches | `bootstrap-sources.py`, `patches/standalone-wine-*.patch` |
-| Graphics | Pinned upstream DXMT Direct3D 10/11 binaries and Wine overlay | `build-standalone-graphics.sh` |
+| Graphics | Pinned upstream DXMT and optional verified display-lifetime bridge | `build-standalone-graphics.sh` |
 | Packaging | Swift bundle, frozen Python worker, runtime inventory, local DMG | `build-launcher.sh`, `package-launcher.py`, `build-dmg.py` |
 | Source distribution | Explicit reviewed file allowlist and checksum inventory | `export-source.py`, `SOURCE-SHA256.txt` |
+
+The [stability notes](docs/STABILITY.md) describe token renewal, device/title
+authentication, recorded dead-socket recovery, and the optional graphics bridge.
+The bridge's source provenance is included in packaged resources, with library
+hashes recorded again after ad-hoc signing.
 
 The account helper uses the real owner's Microsoft content license. The Store
 callback compatibility patch does not fabricate ownership. DXMT handles

@@ -18,6 +18,7 @@ release work.
 | Contribute a fix or run checks | [Contributing](CONTRIBUTING.md) and [testing](docs/TESTING.md) |
 | Work on this repository with a coding agent | [Agent guidance](AGENTS.md) |
 | Review release readiness or export source | [Release status](docs/RELEASE.md) and [publishing](docs/PUBLISHING.md) |
+| Review stability fixes and earlier Xbox/PS5 gameplay | [Stability notes](docs/STABILITY.md) |
 | Understand licenses or report a security problem | [Upstream notices](THIRD_PARTY.md) and [security](SECURITY.md) |
 
 ## The app

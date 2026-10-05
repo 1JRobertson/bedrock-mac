@@ -99,6 +99,17 @@ if args.wine_runtime:
     wine = args.wine_runtime.resolve()
     if 'CrossOver.app' in wine.parts:
         raise SystemExit('Use the standalone Wine installation, not a CrossOver bundle')
+    mapped_candidates = [wine / 'lib/wine' / name for name in files]
+    mapped_candidates += [wine / 'lib/wine/x86_64-unix/winemetal-upstream.so']
+    existing = [str(path) for path in mapped_candidates if path.exists()]
+    if existing:
+        mapped = subprocess.run(['/usr/sbin/lsof', '-Fpn', '--', *existing],
+                                text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if mapped.returncode not in (0, 1) or mapped.stderr.strip():
+            raise SystemExit('Cannot check mapped graphics files: ' + mapped.stderr.strip())
+        pids = [line[1:] for line in mapped.stdout.splitlines() if line.startswith('p')]
+        if pids:
+            raise SystemExit('Graphics files are mapped by PID(s) ' + ', '.join(pids) + '; stop the target runtime first')
     for name in ('ntdll.so', 'winemac.so'):
         target = wine / 'lib/wine/x86_64-unix' / name
         if not target.is_file():
@@ -129,6 +140,12 @@ if args.wine_runtime:
         runtime_overlay[name] = {'sha256': expected}
         if backup:
             runtime_overlay[name]['backup'] = str(backup.relative_to(stage))
+    if any(digest(wine / 'lib/wine' / name) != hashes[name] for name in files):
+        raise SystemExit('Installed graphics verification failed; optional bridge manifests retained')
+    # The official entry library no longer uses either optional adapter. Only
+    # clear their manifests after every restored file has passed verification.
+    for optional in ('dxmt-unix-bridge.json', 'dxmt-pool-adapter.json'):
+        (wine / optional).unlink(missing_ok=True)
 
 manifest = {
     'component': 'DXMT', 'version': tag, 'source_commit': commit,

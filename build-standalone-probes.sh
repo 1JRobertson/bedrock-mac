@@ -22,7 +22,7 @@ done
 
 mkdir -p "$OUTPUT"
 cd "$WINE_BUILD"
-for PROBE in standalone-graphics-probe runtime-auth-probe store-callback-probe runtime-privilege-probe xuser-claims-test; do
+for PROBE in standalone-graphics-probe standalone-graphics-shader-probe runtime-auth-probe store-callback-probe runtime-privilege-probe xuser-claims-test; do
   PROBE_SOURCE="$ROOT/$PROBE.c"
   if [ "$PROBE" = xuser-claims-test ]; then
     PROBE_SOURCE="$ROOT/tests/xuser-claims.c"
