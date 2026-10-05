@@ -75,6 +75,39 @@ void mainCRTStartup(void) {
     result("RedPixel=", pixel);
     HRESULT present = IDXGISwapChain_Present(chain, 0, 0);
     result("HiddenPresent=", present);
+    /* Optional bounded soak for diagnosing per-frame host allocation growth. */
+    char stress_text[12];
+    UINT stress = 0;
+    DWORD stress_length = GetEnvironmentVariableA("BEDROCK_GRAPHICS_STRESS_FRAMES", stress_text, sizeof(stress_text));
+    if (stress_length > 0 && stress_length < sizeof(stress_text)) {
+        for (DWORD i = 0; i < stress_length; i++) {
+            if (stress_text[i] < '0' || stress_text[i] > '9') { stress = 0; break; }
+            stress = stress * 10 + stress_text[i] - '0';
+            if (stress > 1200) { stress = 1200; break; }
+        }
+    }
+    if (stress) {
+        typedef UINT64 (WINAPI *PoolCreateFn)(void);
+        typedef void (WINAPI *PoolReleaseFn)(UINT64);
+        PoolCreateFn pool_create = NULL; PoolReleaseFn pool_release = NULL;
+        if (GetEnvironmentVariableA("BEDROCK_GRAPHICS_STRESS_AUTORELEASEPOOL", stress_text, sizeof(stress_text))) {
+            HMODULE metal = GetModuleHandleW(L"winemetal.dll");
+            pool_create = (PoolCreateFn)GetProcAddress(metal, "NSAutoreleasePool_alloc_init");
+            pool_release = (PoolReleaseFn)GetProcAddress(metal, "NSObject_release");
+            if (!pool_create || !pool_release) { result("StressPoolUnavailable=", E_NOTIMPL); ExitProcess(1); }
+        }
+        result("StressStart=", 0);
+        Sleep(1000);
+        for (UINT i = 0; i < stress && SUCCEEDED(present); i++) {
+            UINT64 pool = pool_create ? pool_create() : 0;
+            float red[4] = {1.f, 0.f, 0.f, 1.f};
+            ID3D11DeviceContext_ClearRenderTargetView(context, view, red);
+            present = IDXGISwapChain_Present(chain, 0, 0);
+            if (pool) pool_release(pool);
+            if ((i+1) % 300 == 0) { result("StressFrames=", i+1); Sleep(1000); }
+        }
+        result("StressPresent=", present);
+    }
     if (view) ID3D11RenderTargetView_Release(view);
     if (staging) ID3D11Texture2D_Release(staging);
     if (gpu) ID3D11Texture2D_Release(gpu);

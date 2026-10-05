@@ -70,8 +70,10 @@ for Microsoft sign-in and checks the new account's ownership.
 
 This is a compatibility project, not an official Microsoft Mac edition.
 Local gameplay, a featured-server lobby, and listing joined Realms have been
-observed. Entry into an active Realm, PS5 friend sessions, and every Marketplace
-feature have not been verified. Keep Xbox permissions and game versions in mind
+observed. Xbox and PS5 friend-world play were also confirmed on the earlier
+standalone stability build; see [the dated evidence](STABILITY.md). Active Realm
+entry, combined native-build multiplayer, and every Marketplace feature remain
+unverified. Keep Xbox permissions and game versions in mind
 when reporting multiplayer issues; do not assume a visible server or Realm list
 proves a successful online session. See [the current evidence](RELEASE.md).
 

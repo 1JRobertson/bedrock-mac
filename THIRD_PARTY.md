@@ -28,6 +28,9 @@ account privilege and age-group checks using authenticated Xbox display claims.
 `patches/standalone-wine-xuser-realms.patch` maps the exact Realms API hosts to
 their original XSTS audience, cross-checked against BedrockOnLinux's runtime.
 All five Wine patches retain LGPL 2.1 or later.
+`patches/standalone-wine-xuser-token-refresh.patch` and
+`patches/standalone-wine-xuser-z-device-auth.patch` also retain LGPL 2.1 or later;
+they extend token renewal and device/title authentication in WineGDK.
 Build scripts and the pinned Cargo lockfile use the same upstream dependencies;
 each dependency retains its own license and notices.
 

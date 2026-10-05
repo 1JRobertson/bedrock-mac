@@ -47,6 +47,12 @@ launch each started a helper, causing a second Keychain read during onboarding.
 The integration test exercises this flow with a private socket and fails if more
 than one helper is started. This does not test or override macOS Keychain dialogs.
 
+Expired or incomplete user tokens trigger sign-in again. Expired device tokens are
+renewed using the existing device identity. Credential read failures preserve the
+saved account. The launcher recovers only its recorded dead helper's private,
+non-listening socket; unknown endpoints remain untouched. See
+[stability notes](docs/STABILITY.md) for Wine token refresh and friend joining.
+
 The native app menu includes **Sign Out of Microsoft…**. The helper’s `--sign-out GAME_DIR` mode removes only user tokens and user identity from the account item, keeps the device identity, and never changes game files or worlds. It refuses while an account service is active.
 
 The launcher may start the service with:
@@ -57,7 +63,7 @@ XODUS_LOG=off RUST_LOG=off ./sources/xodus/target/release/examples/standalone_he
 
 Use the same binary for download and service. Each `--serve` start reacquires the signed-in account's real Microsoft content license for the installed package before opening the Xbox IPC service. A copied prepared executable does not replace account ownership. `--download GAME_DIR --serve-after` performs both in one process. Stop the service with Ctrl-C after exiting the game. An account lock prevents two standalone helpers from accessing the same saved session concurrently.
 
-`--threading` retrieves the exact compressed Gaming Services ZIP member using an HTTPS byte-range request to Microsoft's [GDK April 2026 Update 4](https://github.com/microsoft/GDK/releases/tag/April-2026-Update-4-v2604.4.7897) archive. It requires HTTP 206, verifies the exact compressed length and SHA-256, checks the decompressed length, and verifies the original pinned DLL hash. Servers that ignore Range are rejected instead of downloading the full archive. An existing full GDK archive is still supported and verified against Microsoft's published digest. The verified DLL goes in `runtime/xgameruntime.dll.threading`; conflicting existing files are preserved and rejected.
+`--threading` retrieves the exact compressed Gaming Services ZIP member using an HTTPS byte-range request to Microsoft's [GDK April 2026 Update 4](https://github.com/microsoft/GDK/releases/tag/April-2026-Update-4-v2604.4.7897) archive. It requires HTTP 206, verifies the exact compressed length and SHA-256, checks the decompressed length, and verifies the original pinned DLL hash. Servers that ignore Range are rejected instead of downloading the full archive. A completed older `.zip.part` is validated and promoted without overwriting a racing destination. Incomplete older partial archives remain untouched while the smaller component request is used. An existing full GDK archive is still supported and verified against Microsoft's published digest. The verified DLL goes in `runtime/xgameruntime.dll.threading`; conflicting existing files are preserved and rejected.
 
 The compressed member starts at byte `1101515484`, is `196592307` bytes long,
 and has SHA-256 `f8d5f3ebe7339d9d65ebf4b4d68cb7a5281c0f944acafd613ccc68d7d908baed`.

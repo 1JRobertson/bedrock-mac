@@ -7,6 +7,7 @@ parts of this source project. Each user obtains their own copies from the vendor
 """
 from pathlib import Path
 import argparse
+import ctypes
 import fcntl
 import hashlib
 import io
@@ -103,6 +104,19 @@ def acquire_threading():
     downloads = ROOT / "downloads"
     downloads.mkdir(exist_ok=True)
     archive = downloads / GDK_NAME
+    if archive.is_symlink():
+        raise RuntimeError("The GDK archive path is a symbolic link; it was preserved.")
+    if not archive.exists():
+        partial = archive.with_suffix(".zip.part")
+        if partial.is_symlink():
+            raise RuntimeError("The GDK partial download is a symbolic link; it was preserved.")
+        partial_size = partial.stat().st_size if partial.exists() else 0
+        if partial_size > GDK_SIZE:
+            raise RuntimeError("The GDK partial download is larger than the pinned release; it was preserved.")
+        if partial_size == GDK_SIZE:
+            if sha256(partial) != GDK_SHA256:
+                raise RuntimeError("The downloaded GDK failed checksum validation; the partial file was preserved.")
+            exclusive_rename(partial, archive)
     if not archive.exists():
         payload = download_threading_member(downloads)
     else:
@@ -134,7 +148,7 @@ def download_threading_member(downloads):
     with tempfile.TemporaryDirectory(prefix='.gaming-', dir=downloads) as temporary:
         partial = Path(temporary) / 'member.deflate'
         response = subprocess.check_output([
-            '/usr/bin/curl', '--fail', '--location', '--retry', '3', '--silent', '--show-error',
+            '/usr/bin/curl', '--disable', '--fail', '--location', '--retry', '3', '--silent', '--show-error',
             '--proto', '=https', '--proto-redir', '=https', '--max-filesize', str(GAMING_SIZE),
             '--range', f'{GAMING_OFFSET}-{GAMING_OFFSET + GAMING_SIZE - 1}',
             '--output', str(partial), '--write-out', '%{http_code}', GDK_URL], text=True)
@@ -167,18 +181,38 @@ def atomic_write(path, payload):
             os.unlink(temporary)
 
 
+def exclusive_rename(source, destination):
+    """Promote completed local data atomically without replacing a racing path."""
+    if sys.platform != "darwin":
+        raise RuntimeError("Installation promotion currently requires macOS.")
+    library = ctypes.CDLL(None, use_errno=True)
+    rename = library.renamex_np
+    rename.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
+    rename.restype = ctypes.c_int
+    if rename(os.fsencode(source), os.fsencode(destination), 0x00000004) != 0:  # RENAME_EXCL
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code), str(destination))
+
+
 def command_output(command):
     return subprocess.check_output(command, text=True).strip()
 
 
 def prepare_source():
+    if XODUS.is_symlink():
+        raise RuntimeError("The Xodus source path is a symbolic link; it was preserved.")
     if not XODUS.exists():
         XODUS.parent.mkdir(exist_ok=True)
-        subprocess.run(["git", "clone", "--no-checkout", "https://github.com/xodus-gaming/xodus.git", str(XODUS)], check=True)
-        subprocess.run(["git", "-C", str(XODUS), "checkout", "--detach", XODUS_COMMIT], check=True)
-        for patch in PATCHES:
-            subprocess.run(["git", "-C", str(XODUS), "apply", str(ROOT / "patches" / patch)], check=True)
-        shutil.copyfile(ROOT / "patches/Cargo.lock", XODUS / "Cargo.lock")
+        # Interrupted cloning/patching leaves no poisoned final checkout. Only our
+        # private staging directory is removed on failure; rerunning can retry.
+        with tempfile.TemporaryDirectory(prefix=".xodus-setup-", dir=XODUS.parent) as temporary:
+            candidate = Path(temporary) / "source"
+            subprocess.run(["git", "clone", "--no-checkout", "https://github.com/xodus-gaming/xodus.git", str(candidate)], check=True)
+            subprocess.run(["git", "-C", str(candidate), "checkout", "--detach", XODUS_COMMIT], check=True)
+            for patch in PATCHES:
+                subprocess.run(["git", "-C", str(candidate), "apply", str(ROOT / "patches" / patch)], check=True)
+            shutil.copyfile(ROOT / "patches/Cargo.lock", candidate / "Cargo.lock")
+            exclusive_rename(candidate, XODUS)
     if command_output(["git", "-C", str(XODUS), "rev-parse", "HEAD"]) != XODUS_COMMIT:
         raise RuntimeError("The Xodus source checkout is not at the pinned commit; it was preserved.")
     # Existing checkouts are never patched implicitly while an older helper runs.
@@ -205,7 +239,9 @@ def build_helper(jobs):
     prepare_source()
     example = XODUS / "crates/xodus-cli/examples/standalone_helper.rs"
     example.parent.mkdir(exist_ok=True)
-    atomic_write(example, (ROOT / "standalone-helper.rs").read_bytes())
+    source = (ROOT / "standalone-helper.rs").read_bytes()
+    if not example.is_file() or example.read_bytes() != source:
+        atomic_write(example, source)
     # Only this new example is built; the running bedrock_helper binary is untouched.
     env = dict(os.environ, XODUS_LOG="off", RUST_LOG="off")
     subprocess.run(["cargo", "+1.98.0", "build", "--manifest-path", str(XODUS / "Cargo.toml"),

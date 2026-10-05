@@ -55,7 +55,7 @@ own random test entry. It does not establish how many prompts a user's existing
 account will show. Do not automate clicks on security dialogs.
 
 After building the standalone runtime, `bash tests/run-xuser-tests.sh` runs the
-50 account-claim and Realms-routing checks. Live game, Keychain, fresh-account,
+68 account-claim, Realms-routing, and token-refresh checks. Live game, Keychain, fresh-account,
 and clean-Mac testing are separate from these offline checks.
 
 ## Bug reports

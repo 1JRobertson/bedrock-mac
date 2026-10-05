@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Assemble a local test app with prebuilt open-source components; never bundle a game/account."""
 import hashlib
+import importlib.util
 import argparse
 import json
 import os
@@ -33,6 +34,32 @@ def minimum_macos(resources):
     return max(versions, key=lambda value: tuple(map(int, value.split('.'))))
 
 
+def verify_source_bridge(wine, dxmt):
+    if not (wine / 'dxmt-unix-bridge.json').exists():
+        return None
+    spec = importlib.util.spec_from_file_location('packaged_runtime', ROOT / 'standalone.py')
+    runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runtime)
+    runtime.ROOT, runtime.WINE, runtime.DXMT = ROOT, wine, dxmt
+    runtime.verify_unix_bridge()
+    return json.loads((wine / 'dxmt-unix-bridge.json').read_text())
+
+
+def record_packaged_bridge(resources, original):
+    if original is None:
+        return
+    wine = resources / 'runtime/wine'
+    metadata = dict(original)
+    # Ad-hoc signing changes Mach-O bytes. Retain build provenance and record
+    # the exact signed copies, including the separately signed upstream reference.
+    metadata['source_files'] = original['files']
+    metadata['files'] = {name: hashlib.sha256((wine / 'lib/wine/x86_64-unix' / name).read_bytes()).hexdigest()
+                         for name in original['files']}
+    metadata['packaged_upstream_sha256'] = hashlib.sha256(
+        (resources / 'runtime/dxmt/x86_64-unix/winemetal.so').read_bytes()).hexdigest()
+    (wine / 'dxmt-unix-bridge.json').write_text(json.dumps(metadata, indent=2) + '\n')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=APP)
@@ -48,6 +75,7 @@ def main():
             raise SystemExit('Complete the developer build first. Missing: ' + str(path))
     if app.exists() or app.is_symlink():
         raise SystemExit('The packaged app already exists. Move it aside before making a new package.')
+    bridge = verify_source_bridge(wine, dxmt)
     subprocess.run([str(ROOT / 'build-launcher.sh')], check=True)
     subprocess.run([str(required[-1]), '--noconfirm', '--clean', '--onedir',
                     '--name', 'BedrockWorker', '--distpath', str(ROOT / 'build/frozen'),
@@ -80,11 +108,17 @@ def main():
     (resources / 'scripts').mkdir()
     for name in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'winrt.reg'):
         shutil.copy2(ROOT / name, resources / 'scripts' / name)
+    if bridge is not None:
+        for name in ('patches/standalone-dxmt-memory-lifetime.patch', 'standalone-dxmt-display-trace.c'):
+            target = resources / 'scripts' / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / name, target)
     shutil.copytree(ROOT / 'LICENSES', resources / 'LICENSES')
     for name in ('LICENSE', 'THIRD_PARTY.md'):
         shutil.copy2(ROOT / name, resources / name)
     # Sign nested binaries before hashing: signing modifies their bytes.
     subprocess.run(['codesign', '--force', '--deep', '--sign', '-', str(app)], check=True)
+    record_packaged_bridge(resources, bridge)
     # A local test artifact, not a public release: retain an exact payload inventory.
     inventory = {}
     for path in resources.rglob('*'):
