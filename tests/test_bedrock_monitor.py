@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+import sys
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('monitor', Path(__file__).resolve().parents[1] / 'bedrock-monitor.py')
@@ -52,6 +53,7 @@ class MonitorTests(unittest.TestCase):
                 self.assertTrue((Path(report) / 'incident.json').is_file())
                 run.assert_not_called()
 
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS libproc process metrics')
     def test_native_footprint_and_birth_can_be_read_for_this_test_process(self):
         measured = monitor.usage(monitor.os.getpid())
         self.assertGreater(measured['phys_footprint'], 0)

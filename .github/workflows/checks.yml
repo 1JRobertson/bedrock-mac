@@ -26,6 +26,7 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: python3 -m unittest discover -s tests -p 'test_*.py'
       - run: ./build-launcher.sh
   account-helper:
     runs-on: macos-15

@@ -158,8 +158,9 @@ results in [RELEASE.md](RELEASE.md), including failures and untested cases.
 ## Continuous integration
 
 [`.github/workflows/checks.yml`](../.github/workflows/checks.yml) runs Python
-3.12/3.14 source tests, allowlist and inventory checks on Linux, plus a native
-Swift build and pinned Rust helper tests on macOS 15. Actions and the Rust
+3.12/3.14 source tests, allowlist and inventory checks on Linux, plus the Python suite, native
+Swift build, and pinned Rust helper tests on macOS 15. Native process metrics
+and exclusive-rename tests run on macOS and are skipped on Linux. Actions and the Rust
 toolchain are pinned. CI does not package Wine, run Minecraft, access Keychain,
 or certify that the full app supports macOS 15. Confirm checks belong to the
 exact PR commit before merging.
