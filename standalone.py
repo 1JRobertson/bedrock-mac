@@ -6,6 +6,7 @@ import datetime
 import errno
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -32,7 +33,7 @@ OVERRIDES = 'xgameruntime,windows.web,twinapi.appcore,windows.ui.core.textinput,
 def environment(*, network_diagnostics=False):
     # Keep the selected runtime independent of a shell's existing Wine/CrossOver session.
     env = {k: v for k, v in os.environ.items()
-           if not k.startswith(('CX_', 'WINE', 'DYLD_'))}
+           if not k.startswith(('CX_', 'WINE', 'DYLD_', 'BEDROCK_PRIVATE_REFMOVE'))}
     env.update(WINEPREFIX=str(PREFIX), WINEARCH='win64', WINEDEBUG='-all',
                WINEDLLPATH=str(DXMT), WINEDLLOVERRIDES=OVERRIDES,
                LC_ALL='en_US.UTF-8')
@@ -209,11 +210,69 @@ def require(path):
         raise RuntimeError('Missing required file: ' + str(path))
 
 
+def verified_refmove_activation(game):
+    """Opt in only through a verified reversible stage, never inherited shell flags."""
+    if not os.path.lexists(WINE / 'bedrock-refmove.json'):
+        return False
+    source = Path(__file__).resolve().parent / 'standalone-bedrock-refmove.py'
+    spec = importlib.util.spec_from_file_location('bedrock_refmove', source)
+    helper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(helper)
+    return helper.verified_activation(WINE, game)
+
+
 def wine_run(args, game, *, log=None, timeout=None, network_diagnostics=False):
     require(WINE / 'bin/wine')
+    env = environment(network_diagnostics=network_diagnostics)
+    if args == ['G:\\Minecraft.Windows.exe'] and verified_refmove_activation(game):
+        env['BEDROCK_PRIVATE_REFMOVE_15203'] = '1'
+    if args == ['G:\\Minecraft.Windows.exe']:
+        apply_frame_pacing(env, game)
     return subprocess.run([str(WINE / 'bin/wine'), *map(str, args)],
-        cwd=game, env=environment(network_diagnostics=network_diagnostics), stdout=log, stderr=subprocess.STDOUT,
+        cwd=game, env=env, stdout=log, stderr=subprocess.STDOUT,
         timeout=timeout, check=True)
+
+
+def apply_frame_pacing(env, game):
+    """Activate only the staged, tested renderer for this owned game build."""
+    env.pop('BEDROCK_DXMT_PRESENT_PACING', None)
+    env.pop('BEDROCK_METRICS_HUD', None)
+    record = WINE / 'frame-pacing.json'
+    if not record.exists():
+        return
+    data = json.loads(record.read_text())
+    if not data.get('enabled'):
+        return
+    if set(data['files']) != {'x86_64-windows/d3d11.dll', 'x86_64-unix/winemetal.so'}:
+        raise RuntimeError('Incomplete frame-pacing manifest.')
+    for name, expected in data['files'].items():
+        if name not in ('x86_64-windows/d3d11.dll', 'x86_64-unix/winemetal.so'):
+            raise RuntimeError('Unexpected frame-pacing manifest entry.')
+        if sha256(WINE / 'lib/wine' / name) != expected:
+            raise RuntimeError('Frame-pacing runtime changed; restore or restage its tested build.')
+    if sha256(game / 'Minecraft.Windows.exe') != data['game_sha256']:
+        return
+    # Metal supplies display timing. A second duration limiter adds a refresh
+    # of delay; the renderer bounds outstanding presents instead.
+    config = env.get('DXMT_CONFIG', '').rstrip(';')
+    env['DXMT_CONFIG'] = (config + ';' if config else '') + 'd3d11.preferredMaxFrameRate=0;d3d11.maxFrameLatency=1'
+    env['BEDROCK_DXMT_PRESENT_PACING'] = '1'
+    if data.get('metrics_hud'):
+        env['BEDROCK_METRICS_HUD'] = '1'
+
+
+def install_pending_hud():
+    """Apply an already validated local HUD at the next clean launch."""
+    pending = WINE / 'pending-hud.json'
+    if not pending.exists():
+        return
+    data = json.loads(pending.read_text())
+    build = ROOT / 'build/metrics-hud'
+    for name in ('winemetal.so', 'validation.json', 'stage.py'):
+        if sha256(build / name) != data['files'][name]:
+            raise RuntimeError('The pending HUD build changed; validate it again before launching.')
+    subprocess.run([sys.executable, str(build / 'stage.py')], check=True, cwd=ROOT)
+    pending.unlink()
 
 
 def map_drive(letter, directory):
@@ -399,6 +458,8 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise RuntimeError('Another standalone setup or game session is running.')
+        if args.command == 'launch':
+            install_pending_hud()
         prepare(game)
         if args.command == 'prepare':
             print('Standalone prefix prepared.')

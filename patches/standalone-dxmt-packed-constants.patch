@@ -1,0 +1,30 @@
+--- a/src/d3d11/d3d11_buffer.cpp
++++ b/src/d3d11/d3d11_buffer.cpp
+@@ -1,4 +1,5 @@
+ #include "com/com_pointer.hpp"
++#include "config/config.hpp"
+ #include "d3d11_device.hpp"
+ #include "dxmt_buffer.hpp"
+ #include "dxmt_dynamic.hpp"
+@@ -84,6 +85,21 @@
+       flags.set(BufferAllocationFlag::CpuPlaced);
+ #endif
+     }
++    // Full DEFAULT constant-buffer updates already use the dynamic rename path.
++    // Reuse its page suballocation to avoid a separate Metal object per update.
++    static const bool pack_default_constants =
++        Config::getInstance().getOption<bool>("d3d11.packDefaultConstantBuffers", true);
++    static const bool constant_write_combined =
++        Config::getInstance().getOption<bool>("d3d11.constantBufferWriteCombined", true);
++    if (pack_default_constants && pDesc->Usage == D3D11_USAGE_DEFAULT &&
++        pDesc->BindFlags == D3D11_BIND_CONSTANT_BUFFER &&
++        device->GetMTLDevice().hasUnifiedMemory() &&
++        device->GetMTLDevice().supportsFamily(WMTGPUFamilyApple1)) {
++      flags.set(BufferAllocationFlag::SuballocateFromOnePage);
++      // Like DYNAMIC buffers, these allocations are written but never read by CPU maps.
++      if (constant_write_combined && !m_parent->IsTraced())
++        flags.set(BufferAllocationFlag::CpuWriteCombined);
++    }
+     auto allocation = buffer_->allocate(flags);
+     auto &initializer = device->GetDXMTDevice().queue().initializer;
+     if (pInitialData) {

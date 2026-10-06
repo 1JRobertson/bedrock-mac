@@ -15,6 +15,44 @@ spec.loader.exec_module(standalone)
 
 
 class IsolationTests(unittest.TestCase):
+    def test_unstaged_runtime_needs_no_optional_allocator_sources(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.object(standalone, 'WINE', Path(temporary)), \
+                 patch.object(standalone.importlib.util, 'spec_from_file_location') as load:
+                self.assertFalse(standalone.verified_refmove_activation(Path('/owned-game')))
+                load.assert_not_called()
+
+    def test_inherited_allocator_and_sentinel_gates_are_removed(self):
+        with patch.dict(os.environ, {'BEDROCK_PRIVATE_REFMOVE_15203': '1',
+                                     'BEDROCK_PRIVATE_REFMOVE_SENTINEL': '1'}):
+            env = standalone.environment()
+        self.assertFalse(any(key.startswith('BEDROCK_PRIVATE_REFMOVE') for key in env))
+
+    def test_only_verified_game_launch_receives_allocator_gate(self):
+        game = Path('/owned-game')
+        with patch.object(standalone, 'require'), \
+             patch.object(standalone, 'verified_refmove_activation', return_value=True) as verify, \
+             patch.object(standalone.subprocess, 'run') as run:
+            standalone.wine_run(['G:\\Minecraft.Windows.exe'], game)
+            verify.assert_called_once_with(game)
+            self.assertEqual(run.call_args.kwargs['env']['BEDROCK_PRIVATE_REFMOVE_15203'], '1')
+            verify.reset_mock()
+            standalone.wine_run(['wineboot', '-u'], game)
+            verify.assert_not_called()
+            self.assertNotIn('BEDROCK_PRIVATE_REFMOVE_15203', run.call_args.kwargs['env'])
+
+    def test_disabled_or_failed_allocator_stage_cannot_activate(self):
+        with patch.object(standalone, 'require'), \
+             patch.object(standalone, 'verified_refmove_activation', return_value=False) as verify, \
+             patch.object(standalone.subprocess, 'run') as run:
+            standalone.wine_run(['G:\\Minecraft.Windows.exe'], Path('/owned-game'))
+            self.assertNotIn('BEDROCK_PRIVATE_REFMOVE_15203', run.call_args.kwargs['env'])
+            run.reset_mock()
+            verify.side_effect = RuntimeError('Corrupt stage')
+            with self.assertRaisesRegex(RuntimeError, 'Corrupt stage'):
+                standalone.wine_run(['G:\\Minecraft.Windows.exe'], Path('/owned-game'))
+            run.assert_not_called()
+
     def test_network_diagnostics_are_explicit_and_do_not_enable_http_payload_tracing(self):
         with patch.dict(os.environ, {'WINEDEBUG': '+all', 'WINEGDK_HTTP_STATUS_TRACE': '1'}):
             normal = standalone.environment()

@@ -1,0 +1,196 @@
+{
+  "date": "2026-10-05",
+  "source_commit": "589adb780354b461645b29999cefaf533594ee99",
+  "test": "Four alternating 20-second samples in the same process and paused scene; 7-second settling before each. Menu activity prevents the game idle throttle.",
+  "settings": "Original 48-chunk view distance, original resolution, textures and vsync unchanged.",
+  "measurement": "Present-return intervals; frame throughput is not independently measured displayed FPS. Process CPU includes game and wineserver. CPU per frame is derived from CPU time and frame throughput.",
+  "scope": "Both A/B modes allocate shared buffers. A makes the old bridge call for writes; B writes mapped memory directly. This isolates call avoidance; it is not a full original-release-versus-new-release benchmark.",
+  "phases": [
+    {
+      "phase": 0,
+      "direct": 0,
+      "seconds": 20.079145542,
+      "cpu_percent": 387.21120504873056,
+      "ram_GiB": 3.954657845199108,
+      "profile": {
+        "frame": 18422.0,
+        "frame_ms": 19.73925,
+        "p95_ms": 22.8665,
+        "present_ms": 0.0495,
+        "encode_prepare_ms": 5.272375,
+        "encode_flush_ms": 2.662125,
+        "drawable_ms": 0.06975,
+        "latency_ms": 0.001,
+        "sync_ms": 0.0,
+        "commit_ms": 0.004125,
+        "chunks": 3.0,
+        "syncs": 0.0,
+        "gpu_ms": 15.47175,
+        "metal_MiB": 507.1,
+        "buffers_MiB": 348.58750000000003,
+        "buffers": 55378.625,
+        "ring_host_MiB": 16.4,
+        "ring_upload_MiB": 8.0,
+        "ring_private_MiB": 0.0,
+        "update_MiB": 401.83,
+        "updates": 1651800.0,
+        "bridged": 1651800.0,
+        "direct": 0.0
+      },
+      "present_calls_per_second": 50.66048608736401,
+      "cpu_ms_per_frame": 76.43258779258154
+    },
+    {
+      "phase": 1,
+      "direct": 1,
+      "seconds": 20.062573125,
+      "cpu_percent": 482.2608920708918,
+      "ram_GiB": 3.959812400951272,
+      "profile": {
+        "frame": 20042.0,
+        "frame_ms": 14.59309090909091,
+        "p95_ms": 18.41018181818182,
+        "present_ms": 0.04945454545454545,
+        "encode_prepare_ms": 5.558363636363636,
+        "encode_flush_ms": 2.9495454545454547,
+        "drawable_ms": 0.1450909090909091,
+        "latency_ms": 0.001,
+        "sync_ms": 0.0,
+        "commit_ms": 0.004090909090909091,
+        "chunks": 3.0,
+        "syncs": 0.0,
+        "gpu_ms": 15.034454545454546,
+        "metal_MiB": 507.1,
+        "buffers_MiB": 348.6,
+        "buffers": 55381.0,
+        "ring_host_MiB": 16.4,
+        "ring_upload_MiB": 8.0,
+        "ring_private_MiB": 0.0,
+        "update_MiB": 401.83,
+        "updates": 1651800.0,
+        "bridged": 0.0,
+        "direct": 1.0
+      },
+      "present_calls_per_second": 68.52557872966037,
+      "cpu_ms_per_frame": 70.37677039889803
+    },
+    {
+      "phase": 2,
+      "direct": 0,
+      "seconds": 20.067476250000006,
+      "cpu_percent": 414.2535358259943,
+      "ram_GiB": 3.9556142357843265,
+      "profile": {
+        "frame": 21602.0,
+        "frame_ms": 18.752222222222223,
+        "p95_ms": 19.451777777777778,
+        "present_ms": 0.04411111111111111,
+        "encode_prepare_ms": 5.218333333333334,
+        "encode_flush_ms": 2.6325555555555553,
+        "drawable_ms": 0.06555555555555556,
+        "latency_ms": 0.001,
+        "sync_ms": 0.0,
+        "commit_ms": 0.004,
+        "chunks": 3.0,
+        "syncs": 0.0,
+        "gpu_ms": 15.198222222222222,
+        "metal_MiB": 507.1,
+        "buffers_MiB": 348.6,
+        "buffers": 55381.0,
+        "ring_host_MiB": 16.4,
+        "ring_upload_MiB": 8.0,
+        "ring_private_MiB": 0.0,
+        "update_MiB": 401.83,
+        "updates": 1651800.0,
+        "bridged": 1651800.0,
+        "direct": 0.0
+      },
+      "present_calls_per_second": 53.32701309474432,
+      "cpu_ms_per_frame": 77.68174360150338
+    },
+    {
+      "phase": 3,
+      "direct": 1,
+      "seconds": 20.080505834000007,
+      "cpu_percent": 556.1915086034744,
+      "ram_GiB": 3.9591397426667667,
+      "profile": {
+        "frame": 23522.0,
+        "frame_ms": 12.611076923076922,
+        "p95_ms": 14.356076923076923,
+        "present_ms": 0.042923076923076925,
+        "encode_prepare_ms": 5.180153846153846,
+        "encode_flush_ms": 2.825230769230769,
+        "drawable_ms": 0.1343076923076923,
+        "latency_ms": 0.001,
+        "sync_ms": 0.0,
+        "commit_ms": 0.004,
+        "chunks": 3.0,
+        "syncs": 0.0,
+        "gpu_ms": 13.980153846153845,
+        "metal_MiB": 507.1,
+        "buffers_MiB": 348.6,
+        "buffers": 55381.0,
+        "ring_host_MiB": 16.4,
+        "ring_upload_MiB": 8.0,
+        "ring_private_MiB": 0.0,
+        "update_MiB": 401.83,
+        "updates": 1651800.0,
+        "bridged": 0.0,
+        "direct": 1.0
+      },
+      "present_calls_per_second": 79.29536915044162,
+      "cpu_ms_per_frame": 70.14173898960615
+    }
+  ],
+  "correctness": "Original release and clean optimized build each passed 32768 queued constant-buffer updates with GPU readbacks.",
+  "limitations": [
+    "One scene on one Mac; no universal gain guaranteed.",
+    "Initial calibration contained menu idle-throttled samples and is excluded.",
+    "No meaningful RAM saving. Total CPU increased when more frames were produced."
+  ],
+  "release_gameplay_smoke": {
+    "name": "shared-release-gameplay",
+    "seconds": 30.104263958,
+    "processes": {
+      "8982": {
+        "cpu_percent": 497.4781987437865,
+        "ram_mean_GiB": 4.014416438196936
+      },
+      "8991": {
+        "cpu_percent": 15.952325053908119,
+        "ram_mean_GiB": 0.012096683584874677
+      }
+    },
+    "layer_queries_per_second": 56.53398111853365,
+    "total_cpu_percent": 513.4305237976946
+  },
+  "release_gameplay_smoke_note": "Unpaused load/render smoke test with changing world workload; not an A/B performance comparison.",
+  "release_build_manifest": {
+    "source_commit": "589adb780354b461645b29999cefaf533594ee99",
+    "patch_sha256": "7528c1e85920944af3b5a0a0480d51ce940255d6e8c403e4cfa3db7bcfc70694",
+    "dll_sha256": "3f836309b8e7e1b44f78a0defdbaa81fdcfb701f89c556ee4054953e110d0e5c",
+    "upstream_dll_sha256": "7ca382af0eb32d8a432f6efb14d594fefb45673663be1f7e6682254bff885c47",
+    "metal_library_sha256": "875e4990dcd818c6f4b5dfb697823afd0d2b851601f0b1e89ec0e5dd54bbf195",
+    "validation": "Build only; GPU correctness and gameplay tests are separate."
+  },
+  "release_gameplay_validation": [
+    "World loaded and rendered with original settings",
+    "Saved, reloaded and rendered the copied world successfully"
+  ],
+  "additional_correctness_tests": [
+    {
+      "test": "upstream-managed-output",
+      "returncode": 0
+    },
+    {
+      "test": "shared-managed-output",
+      "returncode": 0
+    },
+    {
+      "test": "shared-disabled-managed-output",
+      "returncode": 0
+    }
+  ],
+  "deployment": "Staged in normal standalone runtime; exact DLL/manifest rollback checked on isolated runtime; original DLL/manifest backups and unchanged normal options hashes verified."
+}

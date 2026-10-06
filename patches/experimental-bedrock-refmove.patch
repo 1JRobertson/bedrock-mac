@@ -1,0 +1,280 @@
+--- a/dlls/ntdll/loader.c
++++ b/dlls/ntdll/loader.c
+@@ -42,6 +42,8 @@
+ WINE_DECLARE_DEBUG_CHANNEL(snoop);
+ WINE_DECLARE_DEBUG_CHANNEL(loaddll);
+ WINE_DECLARE_DEBUG_CHANNEL(imports);
++
++#include "bedrock_private_refmove.h"
+ 
+ #ifdef _WIN64
+ #define DEFAULT_SECURITY_COOKIE_64  (((ULONGLONG)0x00002b99 << 32) | 0x2ddfa232)
+@@ -4473,6 +4475,7 @@
+ 
+         wm = build_main_module();
+         build_ntdll_module();
++        bedrock_private_refmove_pre_entry( wm->ldr.DllBase, wm->ldr.SizeOfImage );
+ #ifdef __arm64ec__
+         load_arm64ec_module();
+         update_load_config( wm->ldr.DllBase );
+--- /dev/null
++++ b/dlls/ntdll/bedrock_private_refmove.h
+@@ -0,0 +1,143 @@
++/* PRIVATE, exact-build experiment. Not an upstream or general-purpose Wine fix. */
++#include "tomcrypt.h"
++#include "guarded_refmove.h"
++#include "bedrock_private_refmove_sentinel.h"
++
++static int bedrock_refmove_sha256( const unsigned char *data, size_t size, unsigned char digest[32] )
++{
++    hash_state state;
++    if (sha256_init( &state ) != CRYPT_OK) return 0;
++    while (size)
++    {
++        unsigned long chunk = min( size, 1024 * 1024 );
++        if (sha256_process( &state, data, chunk ) != CRYPT_OK) return 0;
++        data += chunk;
++        size -= chunk;
++    }
++    return sha256_done( &state, digest ) == CRYPT_OK;
++}
++
++/* Called exactly once from initial loader_init, before importing DLLs or running
++ * any process-attach/TLS callback. Never called from a running game thread. */
++static void bedrock_private_refmove_pre_entry( void *image, SIZE_T image_size )
++{
++    const UNICODE_STRING *path = &NtCurrentTeb()->Peb->ProcessParameters->ImagePathName;
++    UNICODE_STRING basename, expected, env_name, env_value, nt_path = {0};
++    WCHAR env_buffer[4];
++    const struct brm_spec *spec = &brm_game_spec;
++    const WCHAR *environment_name = L"BEDROCK_PRIVATE_REFMOVE_15203";
++    const char *target_name = "minecraft";
++    OBJECT_ATTRIBUTES attr;
++    IO_STATUS_BLOCK io;
++    FILE_STANDARD_INFORMATION file_info;
++    MEMORY_BASIC_INFORMATION memory;
++    HANDLE file = 0, section = 0;
++    void *raw = NULL, *protect_base = NULL;
++    SIZE_T raw_size = 0, protect_size = 0;
++    ULONG old_protect = 0, ignored;
++    NTSTATUS status;
++    BOOL writable = FALSE, changed = FALSE;
++    const char *failure = "unknown";
++    unsigned int i, start = 0;
++
++    for (i = 0; i < path->Length / sizeof(WCHAR); i++)
++        if (path->Buffer[i] == '\\' || path->Buffer[i] == '/') start = i + 1;
++    basename.Buffer = path->Buffer + start;
++    basename.Length = basename.MaximumLength = path->Length - start * sizeof(WCHAR);
++    RtlInitUnicodeString( &expected, L"Minecraft.Windows.exe" );
++    if (!RtlEqualUnicodeString( &basename, &expected, TRUE ))
++    {
++        RtlInitUnicodeString( &expected, L"refmove-sentinel.exe" );
++        if (!RtlEqualUnicodeString( &basename, &expected, TRUE )) return; /* Ancillary processes. */
++        spec = &brm_sentinel_spec;
++        environment_name = L"BEDROCK_PRIVATE_REFMOVE_SENTINEL";
++        target_name = "sentinel";
++    }
++    RtlInitUnicodeString( &env_name, environment_name );
++    env_value.Buffer = env_buffer;
++    env_value.Length = 0;
++    env_value.MaximumLength = sizeof(env_buffer);
++    status = RtlQueryEnvironmentVariable_U( NULL, &env_name, &env_value );
++    if (status == STATUS_VARIABLE_NOT_FOUND || (!status && !env_value.Length)) return;
++    if (!status && env_value.Length == sizeof(WCHAR) && env_buffer[0] == '0') return;
++    failure = "invalid opt-in value";
++    if (status || env_value.Length != sizeof(WCHAR) || env_buffer[0] != '1') goto failed;
++
++    failure = "opening exact executable";
++    if (RtlDosPathNameToNtPathName_U_WithStatus( path->Buffer, &nt_path, NULL, NULL )) goto failed;
++    InitializeObjectAttributes( &attr, &nt_path, OBJ_CASE_INSENSITIVE, NULL, NULL );
++    if (NtOpenFile( &file, GENERIC_READ | SYNCHRONIZE, &attr, &io, FILE_SHARE_READ,
++                    FILE_SYNCHRONOUS_IO_NONALERT | FILE_NON_DIRECTORY_FILE )) goto failed;
++    if (NtQueryInformationFile( file, &io, &file_info, sizeof(file_info), FileStandardInformation )) goto failed;
++    failure = "unsupported executable length";
++    if (file_info.EndOfFile.QuadPart != spec->file_size || image_size != spec->image_size) goto failed;
++    failure = "mapping read-only executable";
++    if (NtCreateSection( &section, SECTION_MAP_READ, NULL, NULL, PAGE_READONLY, SEC_COMMIT, file )) goto failed;
++    if (NtMapViewOfSection( section, NtCurrentProcess(), &raw, 0, 0, NULL, &raw_size,
++                           ViewShare, 0, PAGE_READONLY )) goto failed;
++    failure = "SHA256, PE identity, relocation or instruction guard";
++    if (raw_size < spec->file_size || brm_verify_spec( spec, "1", raw, spec->file_size, image, image_size,
++                                               bedrock_refmove_sha256 ) != BRM_APPLIED) goto failed;
++
++    /* Use the same protection/write primitive for both the real PE sentinel and
++     * the game. Require a single original protection region for exact restoration. */
++    {
++        SIZE_T first = ~(SIZE_T)0, last = 0;
++        for (i = 0; i < spec->edit_count; i++)
++        {
++            first = min( first, spec->edits[i].rva & ~(SIZE_T)0xfff );
++            last = max( last, (spec->edits[i].rva + spec->edits[i].size + 0xfff) & ~(SIZE_T)0xfff );
++        }
++        protect_base = (char *)image + first;
++        protect_size = last - first;
++    }
++    failure = "nonuniform original page protection";
++    if (NtQueryVirtualMemory( NtCurrentProcess(), protect_base, MemoryBasicInformation,
++                              &memory, sizeof(memory), NULL )) goto failed;
++    if (memory.State != MEM_COMMIT || memory.Type != MEM_IMAGE ||
++        (char *)memory.BaseAddress + memory.RegionSize < (char *)protect_base + protect_size ||
++        (memory.Protect != PAGE_EXECUTE_READ && memory.Protect != PAGE_EXECUTE_WRITECOPY)) goto failed;
++    failure = "making instruction pages temporarily writable";
++    if (NtProtectVirtualMemory( NtCurrentProcess(), &protect_base, &protect_size,
++                                PAGE_READWRITE, &old_protect )) goto failed;
++    writable = TRUE;
++    failure = "final transactional instruction guard";
++    /* A second raw hash here is deliberate: the guard core is also independently
++     * usable by the anonymous-image test, and all writes remain after all checks. */
++    if (brm_apply_spec_to_writable_private_image( spec, "1", raw, spec->file_size, image, image_size,
++                                            bedrock_refmove_sha256 ) != BRM_APPLIED) goto failed;
++    changed = TRUE;
++    for (i = 0; i < spec->edit_count; i++)
++        if (memcmp( (char *)image + spec->edits[i].rva, spec->edits[i].after, spec->edits[i].size )) goto failed;
++    failure = "flushing translated instruction cache";
++    if (NtFlushInstructionCache( NtCurrentProcess(), protect_base, protect_size )) goto failed;
++    failure = "restoring original instruction-page protection";
++    if (NtProtectVirtualMemory( NtCurrentProcess(), &protect_base, &protect_size,
++                                old_protect, &ignored )) goto failed;
++    writable = FALSE;
++    MESSAGE( "[bedrock-private-refmove] enabled target=%s full_sha256_verified=1 sites=%Iu image=%p\n", target_name, spec->edit_count, image );
++    NtUnmapViewOfSection( NtCurrentProcess(), raw );
++    NtClose( section );
++    NtClose( file );
++    RtlFreeUnicodeString( &nt_path );
++    return;
++
++failed:
++    /* Best-effort in-memory rollback, followed by unconditional process termination.
++     * A cache/protection restoration error must never launch a partially patched game. */
++    if (writable)
++    {
++        if (changed)
++            for (i = 0; i < spec->edit_count; i++)
++                memcpy( (char *)image + spec->edits[i].rva, spec->edits[i].before, spec->edits[i].size );
++        NtFlushInstructionCache( NtCurrentProcess(), protect_base, protect_size );
++        NtProtectVirtualMemory( NtCurrentProcess(), &protect_base, &protect_size, old_protect, &ignored );
++    }
++    if (raw) NtUnmapViewOfSection( NtCurrentProcess(), raw );
++    if (section) NtClose( section );
++    if (file) NtClose( file );
++    RtlFreeUnicodeString( &nt_path );
++    MESSAGE( "[bedrock-private-refmove] REFUSED: %s; game entry will not run\n", failure );
++    NtTerminateProcess( NtCurrentProcess(), STATUS_INVALID_IMAGE_FORMAT );
++    for (;;) {} /* Even an unexpected termination failure cannot enter game code. */
++}
+--- /dev/null
++++ b/dlls/ntdll/bedrock_private_refmove_sentinel.h
+@@ -0,0 +1,4 @@
++static const unsigned char brm_sentinel_sha256[32] = {0x77,0x6d,0x9c,0x8d,0x4f,0x51,0x79,0xdc,0x80,0x6d,0xe6,0x84,0x35,0x29,0x49,0x49,0x74,0x66,0x76,0x45,0xb8,0x36,0xdb,0x23,0x43,0x1b,0x78,0xe7,0xe6,0x83,0xa1,0xd6};
++static const struct brm_region brm_sentinel_regions[] = {{0x13e0,0x7e0,6}};
++static const struct brm_edit brm_sentinel_edits[] = {{0x13e1,4,{0xdf,0x9b,0x57,0x13},{0xe0,0xac,0x68,0x24}}};
++static const struct brm_spec brm_sentinel_spec = {89088,126976,brm_sentinel_sha256,brm_sentinel_regions,1,brm_sentinel_edits,1};
+--- /dev/null
++++ b/dlls/ntdll/guarded_refmove.h
+@@ -0,0 +1,85 @@
++/* PRIVATE prototype, not linked into Wine. Only writable anonymous test images so far.
++ * A future loader adapter must call this before any game code/TLS executes, handle
++ * temporary page protection and instruction-cache flushing, and terminate on any
++ * protection/flush failure. It must never write the executable file.
++ */
++#ifndef GUARDED_REFMOVE_H
++#define GUARDED_REFMOVE_H
++#include <stdint.h>
++#include <stddef.h>
++#include <string.h>
++
++struct brm_region { uint32_t rva, file_offset, size; };
++struct brm_edit { uint32_t rva, size; unsigned char before[10], after[10]; };
++#include "manifest.h"
++struct brm_spec {
++    size_t file_size, image_size;
++    const unsigned char *sha256;
++    const struct brm_region *regions; size_t region_count;
++    const struct brm_edit *edits; size_t edit_count;
++};
++static const struct brm_spec brm_game_spec = {
++    BRM_FILE_SIZE, BRM_IMAGE_SIZE, brm_expected_sha256,
++    brm_regions, sizeof(brm_regions)/sizeof(brm_regions[0]),
++    brm_edits, sizeof(brm_edits)/sizeof(brm_edits[0])
++};
++
++enum brm_result { BRM_DISABLED=0, BRM_APPLIED=1, BRM_BAD_ARGUMENT=-1,
++    BRM_BAD_FILE=-2, BRM_BAD_HEADERS=-3, BRM_CHANGED_FUNCTION=-4,
++    BRM_CHANGED_SITE=-5 };
++typedef int (*brm_sha256_fn)(const unsigned char *, size_t, unsigned char [32]);
++static uint32_t brm_u32(const unsigned char *p)
++{ return (uint32_t)p[0] | (uint32_t)p[1]<<8 | (uint32_t)p[2]<<16 | (uint32_t)p[3]<<24; }
++static uint64_t brm_u64(const unsigned char *p)
++{ return brm_u32(p) | (uint64_t)brm_u32(p+4)<<32; }
++
++/* Verifies EVERYTHING first; no partial write on a guard failure. The hash callback
++ * must compute SHA256 of the supplied raw bytes, not accept an environment digest.
++ * An exact raw hash binds the PE timestamp/PDB/build identity and all function data.
++ */
++static int brm_verify_spec(const struct brm_spec *spec, const char *opt_in,
++                     const unsigned char *raw, size_t raw_size,
++                     const unsigned char *image, size_t image_size, brm_sha256_fn hash)
++{
++    unsigned char digest[32]; uint32_t nt, opt; size_t i;
++    if (!opt_in || strcmp(opt_in,"1")) return BRM_DISABLED;
++    if (!raw || !image || !hash || raw_size!=spec->file_size || image_size!=spec->image_size)
++        return BRM_BAD_ARGUMENT;
++    if (!hash(raw,raw_size,digest) || memcmp(digest,spec->sha256,32)) return BRM_BAD_FILE;
++    nt=brm_u32(raw+0x3c); opt=nt+24;
++    if (nt>raw_size-264 || nt>image_size-264 ||
++        memcmp(image,raw,2) || brm_u32(image+0x3c)!=nt ||
++        memcmp(image+nt,raw+nt,24) || memcmp(image+opt,raw+opt,24) ||
++        memcmp(image+opt+32,raw+opt+32,80) ||
++        brm_u64(image+opt+24)!=(uintptr_t)image) return BRM_BAD_HEADERS;
++    for (i=0;i<spec->region_count;++i) {
++        const struct brm_region *r=&spec->regions[i];
++        if ((size_t)r->rva+r->size>image_size || (size_t)r->file_offset+r->size>raw_size ||
++            memcmp(image+r->rva,raw+r->file_offset,r->size)) return BRM_CHANGED_FUNCTION;
++    }
++    for (i=0;i<spec->edit_count;++i) {
++        const struct brm_edit *e=&spec->edits[i];
++        if ((size_t)e->rva+e->size>image_size || memcmp(image+e->rva,e->before,e->size))
++            return BRM_CHANGED_SITE;
++    }
++    return BRM_APPLIED; /* Means eligible here; no mutation in verify. */
++}
++
++/* This core neither changes page protections nor attaches to a process. It is
++ * deliberately unsuitable for invoking after game threads have started.
++ */
++static int brm_apply_spec_to_writable_private_image(const struct brm_spec *spec,const char *opt_in,
++                 const unsigned char *raw, size_t raw_size, unsigned char *image,
++                 size_t image_size, brm_sha256_fn hash)
++{
++    int result=brm_verify_spec(spec,opt_in,raw,raw_size,image,image_size,hash); size_t i;
++    if (result!=BRM_APPLIED) return result;
++    for (i=0;i<spec->edit_count;++i) {
++        const struct brm_edit *e=&spec->edits[i];
++        memcpy(image+e->rva,e->after,e->size);
++    }
++    return BRM_APPLIED;
++}
++#define brm_verify(...) brm_verify_spec(&brm_game_spec,__VA_ARGS__)
++#define brm_apply_to_writable_private_image(...) brm_apply_spec_to_writable_private_image(&brm_game_spec,__VA_ARGS__)
++#endif
+--- /dev/null
++++ b/dlls/ntdll/manifest.h
+@@ -0,0 +1,17 @@
++/* Generated by make_manifest.py from an exactly verified, read-only EXE. */
++#define BRM_IMAGE_SIZE 314576896u
++#define BRM_FILE_SIZE 311215984u
++static const unsigned char brm_expected_sha256[32] = {0x4a,0x92,0xbf,0xa3,0xce,0x24,0x28,0xb4,0x0e,0xe5,0x17,0xb7,0xc1,0x12,0x5d,0x9f,0x6f,0x79,0x27,0x43,0x82,0xde,0x03,0x84,0x63,0x51,0x99,0x26,0x63,0xb2,0xe2,0xe4};
++static const struct brm_region brm_regions[] = {
++{86993488u,86990416u,378u},
++{86991648u,86988576u,215u},
++{86989936u,86986864u,1380u},
++};
++static const struct brm_edit brm_edits[] = {
++{86993760u,4u,{0xf0,0xff,0x47,0x08},{0x0f,0x1f,0x40,0x00}},
++{86993810u,10u,{0xf0,0xff,0x4f,0x08,0x0f,0x85,0x09,0xff,0xff,0xff},{0xe9,0x0e,0xff,0xff,0xff,0x90,0x90,0x90,0x90,0x90}},
++{86991737u,4u,{0xf0,0xff,0x41,0x08},{0x0f,0x1f,0x40,0x00}},
++{86991812u,6u,{0xf0,0xff,0x4f,0x08,0x75,0xc1},{0xe9,0xc2,0xff,0xff,0xff,0x90}},
++{86990056u,4u,{0xf0,0xff,0x40,0x08},{0x0f,0x1f,0x40,0x00}},
++{86990115u,7u,{0xf0,0x41,0xff,0x4e,0x08,0x75,0x26},{0xe9,0x28,0x00,0x00,0x00,0x90,0x90}},
++};

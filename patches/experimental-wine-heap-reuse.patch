@@ -1,0 +1,14 @@
+diff --git a/dlls/ntdll/heap.c b/dlls/ntdll/heap.c
+index feee54e..324b79d 100644
+--- a/dlls/ntdll/heap.c
++++ b/dlls/ntdll/heap.c
+@@ -1884,7 +1884,8 @@ static NTSTATUS heap_release_bin_group( struct heap *heap, ULONG flags, struct b
+         return STATUS_SUCCESS;
+ 
+     /* try re-using the block group instead of releasing it */
+-    if (RtlQueryDepthSList( &bin->groups ) <= ARRAY_SIZE(affinity_mapping))
++    if (RtlQueryDepthSList( &bin->groups ) <=
++        ((heap == process_heap && bin == heap->bins + BLOCK_SIZE_BIN(48)) ? 4095 : ARRAY_SIZE(affinity_mapping)))
+     {
+         RtlInterlockedPushEntrySList( &bin->groups, &group->entry );
+         return STATUS_SUCCESS;

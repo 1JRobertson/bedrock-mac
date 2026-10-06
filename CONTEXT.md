@@ -31,6 +31,14 @@ authentication, recorded dead-socket recovery, and the optional graphics bridge.
 The bridge's source provenance is included in packaged resources, with library
 hashes recorded again after ad-hoc signing.
 
+Optional source-development performance profiles are recorded in
+[the graphics notes](standalone-graphics-notes.md). Their builders cover shared
+buffers, packed constants, input-layout reuse, Wine heap reuse, and an exact-game
+allocator experiment. Launch-time allocator and frame-pacing gates require local
+staging records and matching runtime hashes; a normal unstaged installation does
+not enable them. The October 6 metrics HUD remains disabled after a startup crash
+and rollback. These local observations do not establish packaged-app validation.
+
 The account helper uses the real owner's Microsoft content license. The Store
 callback compatibility patch does not fabricate ownership. DXMT handles
 Direct3D 11; the launcher disables Direct3D 12 for the tested game path.

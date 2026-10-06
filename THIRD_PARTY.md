@@ -76,10 +76,38 @@ release.
 
 `build-standalone-graphics.sh` retrieves a pinned official DXMT 0.80 binary release
 for local use, verifies its SHA-256, and saves the source revision and notices.
-This is an open-source dependency built by upstream, not a DXMT build performed by
-this project. The source export contains only the retrieval script, probe source,
-and unchanged license texts; it does not contain the downloaded graphics binaries.
+The optional `standalone-dxmt-shared.py` build applies
+`patches/standalone-dxmt-shared-buffers.patch` to that pinned source revision and
+rebuilds the Windows graphics DLL locally. Its `--packed-constants` profile also
+applies `patches/standalone-dxmt-packed-constants.patch`, reusing the existing
+DXMT page allocator for DEFAULT constant buffers on Apple GPUs. Its
+`--reuse-input-layout` profile additionally applies
+`patches/standalone-dxmt-input-layout-reuse.patch`, preserving already prepared
+pipelines when an identical input layout is rebound in ordinary VS/PS rendering.
+It reuses the verified upstream Metal
+shader library and native bridge. The source export includes the build script,
+patch, probes, correctness test, and unchanged license texts; it excludes compiled
+and downloaded graphics binaries.
 Additional [embedded upstream notices](LICENSES/DXMT-embedded-NOTICES.txt) identify
 the Microsoft DXBC parser and utilities credited to Philip Rebohle and Alexander
 Bessonov. This collection preserves known attribution; it is not a completed
 license audit of a future binary bundle.
+
+The optional `patches/experimental-wine-heap-reuse.patch` retains Wine's LGPL
+2.1-or-later terms. Its process-heap 48-byte LFH group-cache experiment follows
+[Roritharr/bedrock-on-macos performance research](https://github.com/Roritharr/bedrock-on-macos/blob/main/docs/performance.md)
+and that project's `patches/wine/lfh48-group-cache.patch`. Credit for identifying
+this optimization belongs to that project. Local tests evaluate it separately
+with WineGDK 11.8 and DXMT on M4 Pro; upstream benchmark results are not our results.
+`standalone-wine-heap.py` records the exact local patch, source-input and artifact
+checksums and provides explicit staging and rollback. The experimental filename
+keeps it outside the standard Wine builder's automatic patch selection.
+
+The separate `patches/experimental-bedrock-refmove.patch` is a local Wine loader
+experiment under Wine's LGPL 2.1-or-later terms. It transfers existing allocator
+ownership instead of copying and immediately releasing the same reference in
+one exact, checksum-verified Bedrock executable. It changes only the loaded
+process image; the source export contains no game executable or game assets.
+`standalone-bedrock-refmove.py` records the reviewed Wine sources and frozen
+artifact, defaults to disabled, and provides verified staging and rollback.
+This experiment is independent of the LFH cache optimization credited above.

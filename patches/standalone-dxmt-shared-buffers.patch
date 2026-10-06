@@ -1,0 +1,35 @@
+--- a/src/dxmt/dxmt_buffer.cpp
++++ b/src/dxmt/dxmt_buffer.cpp
+@@ -1,5 +1,6 @@
+ #include "dxmt_buffer.hpp"
+ #include "dxmt_format.hpp"
++#include "config/config.hpp"
+ #include "thread.hpp"
+ #include "util_likely.hpp"
+ #include "util_math.hpp"
+@@ -26,6 +27,14 @@
+   if (flags_.test(BufferAllocationFlag::CpuPlaced)) {
+     placed_buffer = wsi::aligned_malloc(info_.length, DXMT_PAGE_SIZE);
+     info_.memory.set(placed_buffer);
++  }
++  // Apple GPUs share coherent system memory with the CPU. Keep the logical
++  // GpuManaged flag (used by view creation), but avoid managed write notifications.
++  static const bool shared_managed_buffers =
++      Config::getInstance().getOption<bool>("d3d11.sharedManagedBuffers", true);
++  if (shared_managed_buffers && flags_.test(BufferAllocationFlag::GpuManaged) &&
++      device.hasUnifiedMemory() && device.supportsFamily(WMTGPUFamilyApple1)) {
++    info_.options = static_cast<WMTResourceOptions>(info_.options & ~WMTResourceStorageModeManaged);
+   }
+   obj_ = device.newBuffer(info_);
+   gpuAddress_ = info_.gpu_address;
+--- a/src/dxmt/dxmt_buffer.hpp
++++ b/src/dxmt/dxmt_buffer.hpp
+@@ -95,7 +95,7 @@
+ 
+   void
+   updateContents(uint64_t offset, const void *data, uint64_t length, uint32_t suballocation = 0) noexcept {
+-    if (likely(mappedMemory_ != nullptr && !flags_.test(BufferAllocationFlag::GpuManaged))) {
++    if (likely(mappedMemory_ != nullptr && !(info_.options & WMTResourceStorageModeManaged))) {
+       memcpy(reinterpret_cast<char *>(mappedMemory_) + suballocation * suballocation_size_ + offset, data, length);
+       return;
+     }

@@ -1,0 +1,512 @@
+{
+  "date": "2026-10-05",
+  "source_commit": "589adb780354b461645b29999cefaf533594ee99",
+  "hardware": "Apple M4 Pro, 24 GiB unified memory",
+  "measurement": "Present-return throughput, not independently measured displayed FPS. CPU time includes Minecraft and wineserver; CPU work per frame is derived from CPU time and throughput. GPU time sums command-buffer durations and may include overlap; it is not GPU utilization or power.",
+  "method": "Each pair uses the same running process, loaded copied world, camera and paused scene. Original 48-chunk view distance, resolution, textures and vsync unchanged. Eight seconds settling after mode change, then 25 seconds sampling; first partial profile window discarded. Menu activity avoids idle throttling.",
+  "baseline": "Previously installed shared-memory/direct-write optimization; packing disabled.",
+  "modes": {
+    "0": "Baseline: separate DEFAULT constant allocations, CPU default cache",
+    "1": "Packed DEFAULT constant buffers, CPU default cache",
+    "2": "Packed DEFAULT constant buffers, CPU write-combined cache"
+  },
+  "phases": [
+    {
+      "name": "packed-toggle-a1",
+      "seconds": 25.086975540999997,
+      "cpu_percent": 556.9968376151919,
+      "ram_GiB": 4.16691055893898,
+      "profile": {
+        "frame": 10022.0,
+        "frame_ms": 14.048571428571428,
+        "p95_ms": 15.050642857142858,
+        "present_ms": 0.04285714285714286,
+        "encode_prepare_ms": 5.265571428571429,
+        "encode_flush_ms": 2.809214285714286,
+        "drawable_ms": 0.10271428571428572,
+        "latency_ms": 0.001,
+        "sync_ms": 0.0,
+        "commit_ms": 0.004,
+        "chunks": 3.0,
+        "syncs": 0.0,
+        "gpu_ms": 15.199142857142856,
+        "metal_MiB": 502.5,
+        "buffers_MiB": 343.6,
+        "buffers": 43556.0,
+        "ring_host_MiB": 16.3,
+        "ring_upload_MiB": 8.0,
+        "ring_private_MiB": 0.0,
+        "update_MiB": 408.7,
+        "updates": 1686480.0,
+        "bridged": 0.0,
+        "direct": 1.0,
+        "fast": 0.0,
+        "packed": 0.0
+      },
+      "present_calls_per_second": 71.18161480577588,
+      "cpu_ms_per_frame": 78.25009858725426
+    },
+    {
+      "name": "packed-toggle-b1",
+      "seconds": 25.06582525,
+      "cpu_percent": 434.94110422316936,
+      "ram_GiB": 4.041030654540429,
+      "profile": {
+        "frame": 13202.0,
+        "frame_ms": 15.047923076923077,
+        "p95_ms": 17.55723076923077,
+        "present_ms": 0.04453846153846154,
+        "encode_prepare_ms": 4.627230769230769,
+        "encode_flush_ms": 1.783076923076923,
+        "drawable_ms": 0.07576923076923077,
+        "latency_ms": 0.001,
+        "sync_ms": 0.0,
+        "commit_ms": 0.004076923076923077,
+        "chunks": 3.0,
+        "syncs": 0.0,
+        "gpu_ms": 7.062846153846154,
+        "metal_MiB": 533.0,
+        "buffers_MiB": 340.0,
+        "buffers": 3136.0,
+        "ring_host_MiB": 16.3,
+        "ring_upload_MiB": 8.0,
+        "ring_private_MiB": 0.0,
+        "update_MiB": 408.7,
+        "updates": 1686480.0,
+        "bridged": 0.0,
+        "direct": 1.0,
+        "fast": 0.0,
+        "packed": 1.0
+      },
+      "present_calls_per_second": 66.45435352693701,
+      "cpu_ms_per_frame": 65.44960279342236
+    },
+    {
+      "name": "packed-toggle-a2",
+      "seconds": 25.066365292,
+      "cpu_percent": 561.7636343614913,
+      "ram_GiB": 4.032166929199145,
+      "profile": {
+        "frame": 16502.0,
+        "frame_ms": 13.889357142857143,
+        "p95_ms": 15.1305,
+        "present_ms": 0.04328571428571428,
+        "encode_prepare_ms": 5.199357142857143,
+        "encode_flush_ms": 2.7630714285714286,
+        "drawable_ms": 0.08285714285714287,
+        "latency_ms": 0.001,
+        "sync_ms": 0.0,
+        "commit_ms": 0.004,
+        "chunks": 3.0,
+        "syncs": 0.0,
+        "gpu_ms": 15.115285714285715,
+        "metal_MiB": 502.12142857142857,
+        "buffers_MiB": 343.1357142857143,
+        "buffers": 42187.642857142855,
+        "ring_host_MiB": 16.3,
+        "ring_upload_MiB": 8.0,
+        "ring_private_MiB": 0.0,
+        "update_MiB": 408.7,
+        "updates": 1686480.0,
+        "bridged": 0.0,
+        "direct": 1.0,
+        "fast": 0.0,
+        "packed": 0.0
+      },
+      "present_calls_per_second": 71.99757265326483,
+      "cpu_ms_per_frame": 78.02535747516167
+    },
+    {
+      "name": "packed-toggle-b2",
+      "seconds": 25.070868291,
+      "cpu_percent": 454.54420615702793,
+      "ram_GiB": 4.047461438064392,
+      "profile": {
+        "frame": 20102.0,
+        "frame_ms": 14.315214285714285,
+        "p95_ms": 15.397,
+        "present_ms": 0.039642857142857146,
+        "encode_prepare_ms": 4.290285714285714,
+        "encode_flush_ms": 1.7107142857142859,
+        "drawable_ms": 0.067,
+        "latency_ms": 0.001,
+        "sync_ms": 0.0,
+        "commit_ms": 0.003928571428571429,
+        "chunks": 3.0,
+        "syncs": 0.0,
+        "gpu_ms": 7.061642857142857,
+        "metal_MiB": 532.9,
+        "buffers_MiB": 340.0,
+        "buffers": 3130.0,
+        "ring_host_MiB": 16.3,
+        "ring_upload_MiB": 8.0,
+        "ring_private_MiB": 0.0,
+        "update_MiB": 408.7,
+        "updates": 1686480.0,
+        "bridged": 0.0,
+        "direct": 1.0,
+        "fast": 0.0,
+        "packed": 1.0
+      },
+      "present_calls_per_second": 69.85574788062651,
+      "cpu_ms_per_frame": 65.06897713467745
+    },
+    {
+      "name": "cache-a1",
+      "seconds": 25.071103917000002,
+      "cpu_percent": 603.9335277560897,
+      "ram_GiB": 4.131633002597552,
+      "profile": {
+        "frame": 8522.0,
+        "frame_ms": 12.6634,
+        "p95_ms": 14.1118,
+        "present_ms": 0.04073333333333334,
+        "encode_prepare_ms": 5.371666666666667,
+        "encode_flush_ms": 3.0694666666666666,
+        "drawable_ms": 0.2628666666666667,
+        "latency_ms": 0.001,
+        "sync_ms": 0.0,
+        "commit_ms": 0.0041333333333333335,
+        "chunks": 3.0,
+        "syncs": 0.0,
+        "gpu_ms": 14.505466666666667,
+        "metal_MiB": 498.84,
+        "buffers_MiB": 339.8466666666667,
+        "buffers": 44282.26666666667,
+        "ring_host_MiB": 12.3,
+        "ring_upload_MiB": 8.0,
+        "ring_private_MiB": 0.0,
+        "update_MiB": 408.43,
+        "updates": 1685280.0,
+        "bridged": 0.0,
+        "direct": 1.0,
+        "fast": 0.0,
+        "packed": 0.0
+      },
+      "present_calls_per_second": 78.96773378397587,
+      "cpu_ms_per_frame": 76.47851835386466
+    },
+    {
+      "name": "cache-b1",
+      "seconds": 25.069241042,
+      "cpu_percent": 499.6919191003671,
+      "ram_GiB": 4.026388131082058,
+      "profile": {
+        "frame": 11942.0,
+        "frame_ms": 12.5945,
+        "p95_ms": 12.9611875,
+        "present_ms": 0.567125,
+        "encode_prepare_ms": 4.2513125,
+        "encode_flush_ms": 1.6888125,
+        "drawable_ms": 0.0695,
+        "latency_ms": 0.001,
+        "sync_ms": 0.0,
+        "commit_ms": 0.0033125,
+        "chunks": 3.0,
+        "syncs": 0.0,
+        "gpu_ms": 7.47725,
+        "metal_MiB": 564.1999999999999,
+        "buffers_MiB": 343.4625,
+        "buffers": 5035.625,
+        "ring_host_MiB": 12.3,
+        "ring_upload_MiB": 8.0,
+        "ring_private_MiB": 0.0,
+        "update_MiB": 408.43,
+        "updates": 1685280.0,
+        "bridged": 0.0,
+        "direct": 1.0,
+        "fast": 0.0,
+        "packed": 2.0
+      },
+      "present_calls_per_second": 79.39973798086466,
+      "cpu_ms_per_frame": 62.93369875109573
+    },
+    {
+      "name": "cache-a2",
+      "seconds": 25.069257874999998,
+      "cpu_percent": 614.8017719291979,
+      "ram_GiB": 3.9870910019828725,
+      "profile": {
+        "frame": 17102.0,
+        "frame_ms": 12.4654375,
+        "p95_ms": 13.3394375,
+        "present_ms": 0.040125,
+        "encode_prepare_ms": 5.314875,
+        "encode_flush_ms": 3.0019375,
+        "drawable_ms": 0.183625,
+        "latency_ms": 0.001,
+        "sync_ms": 0.0,
+        "commit_ms": 0.004,
+        "chunks": 3.0,
+        "syncs": 0.0,
+        "gpu_ms": 14.469125,
+        "metal_MiB": 498.50625,
+        "buffers_MiB": 339.55,
+        "buffers": 43459.6875,
+        "ring_host_MiB": 16.3,
+        "ring_upload_MiB": 8.0,
+        "ring_private_MiB": 0.0,
+        "update_MiB": 408.43,
+        "updates": 1685280.0,
+        "bridged": 0.0,
+        "direct": 1.0,
+        "fast": 0.0,
+        "packed": 0.0
+      },
+      "present_calls_per_second": 80.22181331381269,
+      "cpu_ms_per_frame": 76.63773062872671
+    },
+    {
+      "name": "cache-b2",
+      "seconds": 25.074404833,
+      "cpu_percent": 502.8077291618906,
+      "ram_GiB": 4.004256473137782,
+      "profile": {
+        "frame": 21782.0,
+        "frame_ms": 12.5221875,
+        "p95_ms": 13.74575,
+        "present_ms": 0.0403125,
+        "encode_prepare_ms": 4.351125,
+        "encode_flush_ms": 1.7395,
+        "drawable_ms": 0.0644375,
+        "latency_ms": 0.001,
+        "sync_ms": 0.0,
+        "commit_ms": 0.0040625,
+        "chunks": 3.0,
+        "syncs": 0.0,
+        "gpu_ms": 7.2276875,
+        "metal_MiB": 526.8,
+        "buffers_MiB": 335.5,
+        "buffers": 2993.0,
+        "ring_host_MiB": 16.4,
+        "ring_upload_MiB": 8.0,
+        "ring_private_MiB": 0.0,
+        "update_MiB": 408.43,
+        "updates": 1685280.0,
+        "bridged": 0.0,
+        "direct": 1.0,
+        "fast": 0.0,
+        "packed": 2.0
+      },
+      "present_calls_per_second": 79.85825160340396,
+      "cpu_ms_per_frame": 62.962526610144124
+    }
+  ],
+  "status": "Installed in both normal runtime graphics DLL copies; source, provenance and rollback retained.",
+  "final_pairs": [
+    {
+      "baseline": "cache-a1",
+      "candidate": "cache-b1",
+      "cpu_work_per_frame_reduction_percent": 17.710619784888227,
+      "throughput_change_percent": 0.5470641946881516,
+      "gpu_command_time_reduction_percent": 48.452192736531515
+    },
+    {
+      "baseline": "cache-a2",
+      "candidate": "cache-b2",
+      "cpu_work_per_frame_reduction_percent": 17.84395741678787,
+      "throughput_change_percent": -0.4531955778493191,
+      "gpu_command_time_reduction_percent": 50.04751496721467
+    }
+  ],
+  "decision": "Use packing plus write-combined CPU cache. Packing with default CPU cache reduced CPU work but lowered throughput 3-7%; it is not the selected configuration. The separate fast-update shortcut showed no material throughput gain and is not included.",
+  "limitations": "One stationary scene on one M4 Pro; not a general gameplay FPS guarantee. RAM did not fall consistently across paired samples. Normal graphics quality and game settings are unchanged.",
+  "release_correctness": [
+    {
+      "test": "release-shared1-packed1-16-immediate",
+      "exit": 0,
+      "seconds": 2.6918002920000004
+    },
+    {
+      "test": "release-shared1-packed1-16-deferred",
+      "exit": 0,
+      "seconds": 0.9335960829999999
+    },
+    {
+      "test": "release-shared1-packed1-256-immediate",
+      "exit": 0,
+      "seconds": 0.7806811250000001
+    },
+    {
+      "test": "release-shared1-packed1-256-deferred",
+      "exit": 0,
+      "seconds": 0.9909873340000006
+    },
+    {
+      "test": "release-shared1-packed1-4096-immediate",
+      "exit": 0,
+      "seconds": 0.9403089589999993
+    },
+    {
+      "test": "release-shared1-packed1-4096-deferred",
+      "exit": 0,
+      "seconds": 0.981968792
+    },
+    {
+      "test": "release-shared1-packed1-4112-immediate",
+      "exit": 0,
+      "seconds": 0.7737043329999995
+    },
+    {
+      "test": "release-shared1-packed1-4112-deferred",
+      "exit": 0,
+      "seconds": 0.9317307499999998
+    },
+    {
+      "test": "release-shared1-packed0-16-immediate",
+      "exit": 0,
+      "seconds": 2.5522107910000003
+    },
+    {
+      "test": "release-shared1-packed0-16-deferred",
+      "exit": 0,
+      "seconds": 0.8852047909999996
+    },
+    {
+      "test": "release-shared1-packed0-256-immediate",
+      "exit": 0,
+      "seconds": 0.7173117919999967
+    },
+    {
+      "test": "release-shared1-packed0-256-deferred",
+      "exit": 0,
+      "seconds": 0.8268455420000009
+    },
+    {
+      "test": "release-shared1-packed0-4096-immediate",
+      "exit": 0,
+      "seconds": 0.9366186670000012
+    },
+    {
+      "test": "release-shared1-packed0-4096-deferred",
+      "exit": 0,
+      "seconds": 0.9482602500000006
+    },
+    {
+      "test": "release-shared1-packed0-4112-immediate",
+      "exit": 0,
+      "seconds": 0.988288292
+    },
+    {
+      "test": "release-shared1-packed0-4112-deferred",
+      "exit": 0,
+      "seconds": 0.9832209580000004
+    },
+    {
+      "test": "release-shared0-packed1-16-immediate",
+      "exit": 0,
+      "seconds": 2.622429499999999
+    },
+    {
+      "test": "release-shared0-packed1-16-deferred",
+      "exit": 0,
+      "seconds": 0.9334384170000014
+    },
+    {
+      "test": "release-shared0-packed1-256-immediate",
+      "exit": 0,
+      "seconds": 0.6691027910000003
+    },
+    {
+      "test": "release-shared0-packed1-256-deferred",
+      "exit": 0,
+      "seconds": 0.7701707919999983
+    },
+    {
+      "test": "release-shared0-packed1-4096-immediate",
+      "exit": 0,
+      "seconds": 0.9448579590000001
+    },
+    {
+      "test": "release-shared0-packed1-4096-deferred",
+      "exit": 0,
+      "seconds": 0.8808852499999986
+    },
+    {
+      "test": "release-shared0-packed1-4112-immediate",
+      "exit": 0,
+      "seconds": 0.8285535000000053
+    },
+    {
+      "test": "release-shared0-packed1-4112-deferred",
+      "exit": 0,
+      "seconds": 0.9387603750000011
+    },
+    {
+      "test": "release-shared0-packed0-16-immediate",
+      "exit": 0,
+      "seconds": 2.567273
+    },
+    {
+      "test": "release-shared0-packed0-16-deferred",
+      "exit": 0,
+      "seconds": 0.9906139579999973
+    },
+    {
+      "test": "release-shared0-packed0-256-immediate",
+      "exit": 0,
+      "seconds": 0.7641141670000025
+    },
+    {
+      "test": "release-shared0-packed0-256-deferred",
+      "exit": 0,
+      "seconds": 1.038855458999997
+    },
+    {
+      "test": "release-shared0-packed0-4096-immediate",
+      "exit": 0,
+      "seconds": 0.9319835419999976
+    },
+    {
+      "test": "release-shared0-packed0-4096-deferred",
+      "exit": 0,
+      "seconds": 1.0418854159999995
+    },
+    {
+      "test": "release-shared0-packed0-4112-immediate",
+      "exit": 0,
+      "seconds": 0.9328291249999978
+    },
+    {
+      "test": "release-shared0-packed0-4112-deferred",
+      "exit": 0,
+      "seconds": 0.9746416250000038
+    }
+  ],
+  "rollback_validation": {
+    "staged_both_copies": true,
+    "preserved_shared_profile": true,
+    "restored_previous_dll_and_manifest_exactly": true
+  },
+  "build": {
+    "source_commit": "589adb780354b461645b29999cefaf533594ee99",
+    "patch_sha256": "6de4f8df54b50f434da8a07a630e41cd90a05f244be7aff6658b9b8ba835c03b",
+    "patches_sha256": {
+      "standalone-dxmt-shared-buffers.patch": "7528c1e85920944af3b5a0a0480d51ce940255d6e8c403e4cfa3db7bcfc70694",
+      "standalone-dxmt-packed-constants.patch": "6de4f8df54b50f434da8a07a630e41cd90a05f244be7aff6658b9b8ba835c03b"
+    },
+    "dll_sha256": "9d9105af56e6a54b6160cb645e78c92bab8d12fb86152344ba78b188cc668484",
+    "upstream_dll_sha256": "7ca382af0eb32d8a432f6efb14d594fefb45673663be1f7e6682254bff885c47",
+    "metal_library_sha256": "875e4990dcd818c6f4b5dfb697823afd0d2b851601f0b1e89ec0e5dd54bbf195",
+    "toolchain": "build/performance/llvm-mingw-20251216-ucrt-macos-universal",
+    "validation": "Build only; GPU correctness and gameplay tests are separate."
+  },
+  "python_tests": {
+    "test_export_source": 11,
+    "test_standalone": 10,
+    "failures": 0
+  },
+  "gameplay_validation": {
+    "clean_release_load": true,
+    "movement_and_rendering": true,
+    "save_and_reload_copied_world": true,
+    "log": "logs/standalone/minecraft-20261005-152548.log"
+  },
+  "installation": {
+    "dll_sha256": "9d9105af56e6a54b6160cb645e78c92bab8d12fb86152344ba78b188cc668484",
+    "normal_prerequisites": "passed",
+    "original_options_unchanged": true,
+    "previous_shared_profile_preserved": true,
+    "rollback_command": "python3 standalone-dxmt-shared.py restore --packed-constants"
+  }
+}
