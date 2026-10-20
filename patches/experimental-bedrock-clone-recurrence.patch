@@ -1,0 +1,357 @@
+--- a/dlls/ntdll/frame_adapter.h
++++ b/dlls/ntdll/frame_adapter.h
+@@ -203,12 +203,13 @@
+     "subq $40,%rsp\n\t" __ASM_SEH(".seh_stackalloc 40\n\t") __ASM_SEH(".seh_endprologue\n\t")
+     "movq %r15,32(%rsp)\n\t"
+     "call " __ASM_NAME("bfr_allocate") "\n\t" "addq $40,%rsp\n\t" "ret")
++#include "observer_adapter.h"
+ static int bfr_verify(const struct brm_spec *spec,const unsigned char *raw,void *image,SIZE_T image_size,int game)
+ {
+     unsigned i;
+     if(!bad_exact_verify(spec,raw,image,image_size,game))return 0;
+     for(i=0;i<spec->edit_count;i++){
+-        const struct brm_edit *e=&spec->edits[i];unsigned kind=game?bfr_game_kinds[i]:bfr_sentinel_kinds[i];
++        const struct brm_edit *e=&spec->edits[i];unsigned kind=game?(spec==&bcr_game_spec?bcr_game_kinds[i]:bfr_game_kinds[i]):bfr_sentinel_kinds[i];
+         if(kind==5){if(bfr_word((uintptr_t)image+e->rva)!=(uintptr_t)image+(game?0x5e220e0:BFR_SENTINEL_BEGIN))return 0;}
+         else if(memcmp((char *)image+e->rva,e->before,e->size))return 0;
+     }
+@@ -224,8 +225,8 @@
+     HANDLE file=0,section=0,output=0,output_section=0;
+     void *raw=NULL,*page=NULL;SIZE_T raw_size=0,page_size=0,map_size=0;LARGE_INTEGER total;
+     ULONG old=0,ignored;int n,i,start=0,game=1;unsigned applied=0;
+-    const char *failure="unknown";void *targets[6];unsigned char patches[32][10];struct bfa_api api;
+-    uint64_t initial_chunk=0;
++    const char *failure="unknown";void *targets[9];unsigned char patches[32][10];struct bfa_api api;
++    uint64_t initial_chunk=0;int observe=0;
+     for(i=0;i<path->Length/sizeof(WCHAR);i++)if(path->Buffer[i]=='\\'||path->Buffer[i]=='/')start=i+1;
+     basename.Buffer=path->Buffer+start;basename.Length=basename.MaximumLength=path->Length-start*sizeof(WCHAR);
+     RtlInitUnicodeString(&expected,L"Minecraft.Windows.exe");
+@@ -233,8 +234,11 @@
+         RtlInitUnicodeString(&expected,L"frame-sentinel.exe");if(!RtlEqualUnicodeString(&basename,&expected,TRUE))return;
+         spec=&bfr_sentinel_spec;game=0;
+     }
++    n=bad_environment(L"BEDROCK_CLONE_RECURRENCE",setting,1024);
++    failure="invalid clone recurrence opt-in (expected0 or1; exact game only)";
++    if(n&&!(n==1&&setting[0]=='0')){if(!game||n!=1||setting[0]!='1')goto failed;observe=1;spec=&bcr_game_spec;}
+     n=bad_environment(L"BEDROCK_FRAME_SLAB",setting,1024);
+-    if(!n||(n==1&&setting[0]=='0'))return;
++    if(!n||(n==1&&setting[0]=='0')){if(observe){failure="clone recurrence requires frame-slab control";goto failed;}return;}
+     failure="invalid BEDROCK_FRAME_SLAB (expected1)";if(n!=1||setting[0]!='1')goto failed;
+     failure="frame slab requires other allocator experiments off";
+     n=bad_environment(L"BEDROCK_ALLOC_DIAG",setting,1024);if(n&&!(n==3&&!memcmp(setting,L"off",6)))goto failed;
+@@ -264,9 +268,13 @@
+     bfr_original_worker=(void *)((char *)image+(game?0x5e4b4f0:BFR_SENTINEL_WORKER));
+     bfr_scope_vtable=(uintptr_t)image+(game?0xe977000:BFR_SENTINEL_SCOPE_VTABLE);
+     targets[0]=bfr_allocation_shim;targets[1]=bfr_transfer;targets[2]=bfr_reset;targets[3]=bfr_destroy;targets[4]=bfr_worker;targets[5]=bfr_begin;
++    if(observe){
++        bcr_original_clone=(void *)((char *)image+0xdff3180);
++        targets[4]=bcr_worker;targets[6]=bcr_clone_seed;targets[7]=bcr_clone_prepared;targets[8]=bcr_clone_render;
++    }
+     failure="frame-slab relay allocation";
+     for(i=0;i<spec->edit_count;i++){
+-        const struct brm_edit *e=&spec->edits[i];unsigned kind=game?bfr_game_kinds[i]:bfr_sentinel_kinds[i];uintptr_t target;
++        const struct brm_edit *e=&spec->edits[i];unsigned kind=game?(spec==&bcr_game_spec?bcr_game_kinds[i]:bfr_game_kinds[i]):bfr_sentinel_kinds[i];uintptr_t target;
+         if(kind==5){target=(uintptr_t)targets[5];memcpy(patches[i],&target,8);}
+         else {void *relay=bad_allocate_relay((char *)image+e->rva+5,targets[kind]);intptr_t distance;
+             if(!relay)goto failed;distance=(intptr_t)relay-((intptr_t)image+e->rva+5);
+@@ -287,6 +295,7 @@
+     api.context=NULL;api.allocate=bfr_heap_allocate;api.deallocate=bfr_heap_free;api.lock=bfr_lock_enter;api.unlock=bfr_lock_leave;api.process_serial=&bfr_serial;
+     for(i=0;i<3;i++)if(!bfa_init(&bfr_pools[i],api,i==0?4096:i==1?16384:65536,64*1024*1024,128*1024*1024))goto failed;
+     bfr_tls_index=RtlFindClearBitsAndSet(NtCurrentTeb()->Peb->TlsBitmap,1,1);if(bfr_tls_index>=64)goto failed;
++    if(observe){failure="fresh recurrence control path required";if(!bcr_open_control())goto failed;}
+     failure="final transactional frame-slab guard";if(!bfr_verify(spec,raw,image,image_size,game))goto failed;
+     for(i=0;i<spec->edit_count;i++){
+         const struct brm_edit *e=&spec->edits[i];page=(char *)image+e->rva;page_size=e->size;
+--- a/dlls/ntdll/frame_manifest.h
++++ b/dlls/ntdll/frame_manifest.h
+@@ -19,3 +19,7 @@
+ #define BFR_SENTINEL_WORKER 0x1880
+ #define BFR_SENTINEL_BEGIN 0x13e0
+ #define BFR_SENTINEL_SCOPE_VTABLE 0x8080
++
++static const struct brm_edit bcr_game_edits[]={{0xdff31e4,5,{0xe8,0x87,0x2a,0x30,0xf7},{0}},{0x5e229ca,5,{0xe8,0x11,0x2d,0x0,0x0},{0}},{0x5e1680d,5,{0xe8,0x8e,0x2,0x0,0x0},{0}},{0x5e25cb2,5,{0xe8,0xe9,0xd,0xff,0xff},{0}},{0x5e27159,5,{0xe8,0x42,0xf9,0xfe,0xff},{0}},{0x5e22394,5,{0xe8,0x47,0x2d,0x19,0x0},{0}},{0x5fb4df0,5,{0xe8,0xeb,0x2,0x0,0x0},{0}},{0x5fb4ec4,5,{0xe8,0x17,0x2,0x0,0x0},{0}},{0x5fb4ee2,5,{0xe8,0xf9,0x1,0x0,0x0},{0}},{0x5fb4fe4,5,{0xe8,0xf7,0x0,0x0,0x0},{0}},{0x5fb5008,5,{0xe8,0xd3,0x0,0x0,0x0},{0}},{0x5fb83e4,5,{0xe8,0xf7,0xcc,0xff,0xff},{0}},{0x5fb8449,5,{0xe8,0x92,0xcc,0xff,0xff},{0}},{0x5fb86dd,5,{0xe8,0xfe,0xc9,0xff,0xff},{0}},{0x5e4b3b6,5,{0xe8,0x35,0x1,0x0,0x0},{0}},{0xe976640,8,{0xe0,0x20,0xe2,0x45,0x1,0x0,0x0,0x0},{0}}, {0x5f06c0a,5,{0xe8,0x71,0xc5,0x0e,0x08},{0}}, {0x5f07d86,5,{0xe8,0xf5,0xb3,0x0e,0x08},{0}}, {0x5f9e412,5,{0xe8,0x69,0x4d,0x05,0x08},{0}}};
++static const unsigned bcr_game_kinds[]={0,1,2,2,2,3,3,3,3,3,3,3,3,3,4,5,6,7,8};
++static const struct brm_spec bcr_game_spec={311215984,314576896,bfr_game_sha256,bfr_game_regions,125,bcr_game_edits,19};
+--- /dev/null
++++ b/dlls/ntdll/observer_adapter.h
+@@ -0,0 +1,25 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++#include "observer_hooks.h"
++static int bcr_open_control(void)
++{
++    WCHAR setting[1024];UNICODE_STRING path={0};OBJECT_ATTRIBUTES attr;IO_STATUS_BLOCK io;
++    HANDLE file=0,section=0;SIZE_T size=0;LARGE_INTEGER total;FILE_END_OF_FILE_INFORMATION eof;
++    int success=0;
++    if(bad_environment(L"BEDROCK_CLONE_RECURRENCE_CONTROL",setting,1024)<=0)return 0;
++    if(RtlDosPathNameToNtPathName_U_WithStatus(setting,&path,NULL,NULL))return 0;
++    InitializeObjectAttributes(&attr,&path,OBJ_CASE_INSENSITIVE,NULL,NULL);
++    if(NtCreateFile(&file,GENERIC_READ|GENERIC_WRITE|SYNCHRONIZE,&attr,&io,NULL,FILE_ATTRIBUTE_NORMAL,
++       FILE_SHARE_READ|FILE_SHARE_WRITE,FILE_CREATE,FILE_SYNCHRONOUS_IO_NONALERT|FILE_NON_DIRECTORY_FILE,NULL,0))goto done;
++    eof.EndOfFile.QuadPart=sizeof(*bcr_control);
++    if(NtSetInformationFile(file,&io,&eof,sizeof(eof),FileEndOfFileInformation))goto done;
++    total.QuadPart=sizeof(*bcr_control);
++    if(NtCreateSection(&section,SECTION_MAP_READ|SECTION_MAP_WRITE,NULL,&total,PAGE_READWRITE,SEC_COMMIT,file))goto done;
++    if(NtMapViewOfSection(section,NtCurrentProcess(),(void **)&bcr_control,0,0,NULL,&size,ViewShare,0,PAGE_READWRITE))goto done;
++    memset(bcr_control,0,sizeof(*bcr_control));bcr_control->magic=BCR_MAGIC;bcr_control->version=1;
++    bcr_control->size=sizeof(*bcr_control);bcr_control->threads_count=BCR_THREADS;
++    bcr_control->row_size=sizeof(struct bcr_row);bcr_control->call_limit=BCR_CALL_LIMIT;
++    bcr_control->sample_mask=CR_SAMPLE_MASK;bcr_control->payload_limit=CR_MAX_PAYLOAD;bcr_control->cache_slots=CR_SLOTS;
++    /* Remains disarmed until the external native controller arms a bounded run. */
++    success=1;
++done:if(section)NtClose(section);if(file)NtClose(file);RtlFreeUnicodeString(&path);return success;
++}
+--- /dev/null
++++ b/dlls/ntdll/observer_hooks.h
+@@ -0,0 +1,91 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later
++ * Private observation only; include after the unchanged frame-slab adapter's
++ * worker and allocation wrappers. Never dereference saved game addresses. */
++#include "clone_recurrence.h"
++#include "observer_control.h"
++static struct bcr_control *bcr_control;
++struct bcr_thread {
++    struct cr_observer sites[BCR_SITES];
++    uint64_t calls,inside_worker,outside_worker,abi_mismatch,completed_workers,exceptions;
++    unsigned depth;
++};
++static struct bcr_thread bcr_threads[BFR_THREADS];
++static bfr_native4 bcr_original_clone;
++static const uint64_t bcr_return_rvas[BCR_SITES]={0x5f06c0f,0x5f07d8b,0x5f9e417};
++static struct bcr_thread *bcr_current(unsigned *index)
++{
++    struct bfr_tls *t=bfr_tls_get();
++    if(!bcr_control||!t)return NULL;
++    *index=(unsigned)(t-bfr_threads);
++    return *index<BCR_THREADS?&bcr_threads[*index]:NULL;
++}
++static void bcr_publish(unsigned index,struct bcr_thread *t)
++{
++    struct bcr_row *r=&bcr_control->threads[index];
++    uint64_t *destination;const uint64_t *source;unsigned i,s;
++    /* Single writer per registered thread. All shared words are atomic; an
++     * even unchanged sequence gives the native reader one consistent snapshot. */
++    __atomic_fetch_add(&r->sequence,1,__ATOMIC_SEQ_CST);
++    __atomic_store_n(&r->calls,t->calls,__ATOMIC_RELAXED);
++    __atomic_store_n(&r->inside_worker,t->inside_worker,__ATOMIC_RELAXED);
++    __atomic_store_n(&r->outside_worker,t->outside_worker,__ATOMIC_RELAXED);
++    __atomic_store_n(&r->abi_mismatch,t->abi_mismatch,__ATOMIC_RELAXED);
++    __atomic_store_n(&r->completed_workers,t->completed_workers,__ATOMIC_RELAXED);
++    __atomic_store_n(&r->exceptions,t->exceptions,__ATOMIC_RELAXED);
++    for(s=0;s<BCR_SITES;s++){
++        source=(const uint64_t *)&t->sites[s].stats;destination=(uint64_t *)&r->sites[s];
++        for(i=0;i<sizeof(struct cr_stats)/8;i++)__atomic_store_n(&destination[i],source[i],__ATOMIC_RELAXED);
++    }
++    __atomic_fetch_add(&r->sequence,1,__ATOMIC_RELEASE);
++}
++/* The constructor has the ordinary Win64 three-argument ABI and returns RCX.
++ * Call it exactly once; observe only after success. C-generated unwind info
++ * covers these frames if the original constructor throws; no TLS change here. */
++static void bcr_after_clone(unsigned site,uintptr_t destination,uintptr_t result)
++{
++    unsigned index=0;struct bcr_thread *t;
++    struct bfr_tls *frame_tls;uint64_t epoch=0,generation=0,token=0;
++    if(!bcr_control||__atomic_load_n(&bcr_control->armed,__ATOMIC_ACQUIRE)!=1)return;
++    t=bcr_current(&index);if(!t||t->calls>=BCR_CALL_LIMIT)return;
++    t->calls++;
++    if(t->depth)t->inside_worker++;else t->outside_worker++;
++    if(!destination||result!=destination){t->abi_mismatch++;bcr_publish(index,t);return;}
++    /* These clocks are known only under the existing proven frame lease.
++     * With CHUNK=0 both remain unknown; reused addresses are never a clock. */
++    frame_tls=bfr_tls_get();
++    memcpy(&token,(void *)result,sizeof(token));
++    if(frame_tls->active&&frame_tls->active->lease.pool&&token==frame_tls->active->token){
++        struct bfa_lease *lease=&frame_tls->active->lease;
++        epoch=lease->key.incarnation;
++        generation=__atomic_load_n(&lease->pool->slots[lease->key.slot].generation,__ATOMIC_RELAXED);
++    }
++    cr_observe_clone(&t->sites[site],bcr_return_rvas[site],0,epoch,generation,(void *)result);
++    if(!(t->calls&255)||t->calls==BCR_CALL_LIMIT)bcr_publish(index,t);
++}
++uintptr_t WINAPI bcr_clone_seed(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{uintptr_t result=bcr_original_clone(a,b,c,d);bcr_after_clone(0,a,result);return result;}
++uintptr_t WINAPI bcr_clone_prepared(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{uintptr_t result=bcr_original_clone(a,b,c,d);bcr_after_clone(1,a,result);return result;}
++uintptr_t WINAPI bcr_clone_render(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{uintptr_t result=bcr_original_clone(a,b,c,d);bcr_after_clone(2,a,result);return result;}
++struct bcr_worker_context {struct bcr_thread *thread;unsigned index,depth;uint64_t calls;};
++static void bcr_worker_finally(BOOL normal,void *context)
++{
++    struct bcr_worker_context *s=(struct bcr_worker_context *)context;
++    s->thread->depth=s->depth;
++    if(s->thread->calls!=s->calls||!normal){
++        s->thread->completed_workers++;if(!normal)s->thread->exceptions++;
++        bcr_publish(s->index,s->thread);
++    }
++}
++uintptr_t WINAPI bcr_worker(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{
++    struct bcr_worker_context state;uintptr_t result;unsigned index=0;
++    struct bcr_thread *t=bcr_current(&index);
++    if(!t||__atomic_load_n(&bcr_control->armed,__ATOMIC_ACQUIRE)!=1||t->calls>=BCR_CALL_LIMIT)
++        return bfr_worker(a,b,c,d);
++    state.thread=t;state.index=index;state.depth=t->depth;state.calls=t->calls;t->depth++;
++    __TRY {result=bfr_worker(a,b,c,d);}
++    __FINALLY_CTX(bcr_worker_finally,&state);
++    return result;
++}
+--- /dev/null
++++ b/dlls/ntdll/observer_control.h
+@@ -0,0 +1,21 @@
++#ifndef BEDROCK_OBSERVER_CONTROL_H
++#define BEDROCK_OBSERVER_CONTROL_H
++#include "clone_recurrence.h"
++#define BCR_THREADS 512
++#define BCR_SITES 3
++#define BCR_CALL_LIMIT UINT64_C(65536)
++#define BCR_MAGIC UINT64_C(0x3152525543455242)
++struct bcr_row {
++    uint64_t sequence,calls,inside_worker,outside_worker,abi_mismatch,completed_workers,exceptions;
++    uint64_t reserved[9];
++    struct cr_stats sites[BCR_SITES];
++} __attribute__((aligned(128)));
++struct bcr_control {
++    uint64_t magic,version,size,armed,threads_count,row_size,call_limit,sample_mask,payload_limit,cache_slots;
++    uint64_t reserved[6];
++    struct bcr_row threads[BCR_THREADS];
++};
++_Static_assert(sizeof(struct cr_stats)==128,"fixed snapshot stats");
++_Static_assert(sizeof(struct bcr_row)==512,"isolated perthread snapshot");
++_Static_assert(offsetof(struct bcr_control,threads)==128,"fixed header");
++#endif
+--- /dev/null
++++ b/dlls/ntdll/clone_recurrence.h
+@@ -0,0 +1,134 @@
++#ifndef BEDROCK_CLONE_RECURRENCE_H
++#define BEDROCK_CLONE_RECURRENCE_H
++/* Observation only. No game memory writes, no allocations, locks, logging, or
++ * retained game pointers. Call only after the original constructor succeeds.
++ * Storage is exclusively owned by one thread; export after quiescence only. */
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++#ifndef CR_SLOTS
++#define CR_SLOTS 32u
++#endif
++#ifndef CR_MAX_PAYLOAD
++#define CR_MAX_PAYLOAD 2048u
++#endif
++#ifndef CR_SAMPLE_MASK
++#define CR_SAMPLE_MASK 63u /* probabilistic 1/64 selection, avoids periodic phase lock */
++#endif
++struct cr_metadata {
++    uint64_t copied_18, copied_70;
++    uint32_t count_capacity[4]; /* exact copied +38/+48/+58/+68 dwords */
++};
++struct cr_entry {
++    uint64_t hash, caller_rva, descriptor_token, frame_id, scope_generation;
++    uint64_t sample_sequence;
++    size_t length;
++    struct cr_metadata metadata;
++    unsigned char payload[CR_MAX_PAYLOAD];
++    unsigned valid;
++};
++struct cr_stats {
++    uint64_t calls, bytes, zero, oversized, invalid, sampled, comparisons;
++    uint64_t exact_payload, exact_metadata, same_observed_token;
++    uint64_t different_known_frames, different_known_scopes, exact_repeated_bytes;
++    uint64_t replacements, comparison_misses, clock_unknown;
++};
++struct cr_observer {
++    struct cr_stats stats;
++    struct cr_entry entries[CR_SLOTS];
++    uint64_t rng;
++};
++static inline uint64_t cr_hash(const unsigned char *p, size_t size) {
++    uint64_t h = UINT64_C(14695981039346656037);
++    for (size_t i = 0; i < size; ++i) h = (h ^ p[i]) * UINT64_C(1099511628211);
++    return h;
++}
++#ifndef CR_HASH
++#define CR_HASH cr_hash
++#endif
++static inline int cr_selected_caller(uint64_t rva) {
++    return rva == UINT64_C(0x5f07d8b) || rva == UINT64_C(0x5f9e417) ||
++           rva == UINT64_C(0x5f06c0f);
++}
++/* descriptor_token is an opaque observed address, NOT a proved lifetime ID.
++ * frame_id=0 / scope_generation=0 means unknown; never fabricate either.
++ * payload must refer to the freshly copied output allocation, valid for length.
++ * Hash collisions are checked by full byte comparison of saved copies.
++ * Counts describe sampled recurrence in a bounded cache, NOT cache correctness
++ * or an unbiased estimate of all calls. Do not scale hit rates by sample period. */
++static inline void cr_observe(struct cr_observer *o, uint64_t caller_rva,
++                              uint64_t descriptor_token, uint64_t frame_id,
++                              uint64_t scope_generation,
++                              const struct cr_metadata *metadata,
++                              const void *payload, size_t length) {
++    if (!cr_selected_caller(caller_rva)) return;
++    ++o->stats.calls;
++    o->stats.bytes += length;
++    if (!length) { ++o->stats.zero; return; }
++    if (length > CR_MAX_PAYLOAD) { ++o->stats.oversized; return; }
++    if (!metadata || !payload) { ++o->stats.invalid; return; }
++    uint64_t random = o->rng ? o->rng : UINT64_C(0x9e3779b97f4a7c15);
++    random ^= random << 13; random ^= random >> 7; random ^= random << 17;
++    o->rng = random;
++    if (random & CR_SAMPLE_MASK) return;
++    ++o->stats.sampled;
++    if (!frame_id) ++o->stats.clock_unknown;
++    const unsigned char *bytes = (const unsigned char *)payload;
++    uint64_t hash = CR_HASH(bytes, length);
++    /* Fully associative tiny cache avoids one frequently changing key pinning
++     * a bucket. LRU replacement gives a bounded and explicitly reported window. */
++    struct cr_entry *replacement = &o->entries[0];
++    for (size_t i = 0; i < CR_SLOTS; ++i) {
++        struct cr_entry *entry = &o->entries[i];
++        if (!entry->valid) replacement = entry;
++        else if (replacement->valid && entry->sample_sequence < replacement->sample_sequence)
++            replacement = entry;
++        if (!entry->valid || entry->caller_rva != caller_rva || entry->length != length || entry->hash != hash)
++            continue;
++        ++o->stats.comparisons;
++        if (memcmp(entry->payload, bytes, length)) { ++o->stats.comparison_misses; continue; }
++        ++o->stats.exact_payload;
++        if (!memcmp(&entry->metadata, metadata, sizeof(*metadata))) {
++            ++o->stats.exact_metadata;
++            o->stats.exact_repeated_bytes += length;
++            if (descriptor_token && descriptor_token == entry->descriptor_token)
++                ++o->stats.same_observed_token;
++            if (frame_id && entry->frame_id && frame_id != entry->frame_id)
++                ++o->stats.different_known_frames;
++            if (scope_generation && entry->scope_generation && scope_generation != entry->scope_generation)
++                ++o->stats.different_known_scopes;
++            replacement = entry;
++            break;
++        }
++        /* Count payload equality once even if cached under multiple metadata. */
++        replacement = entry;
++        break;
++    }
++    if (replacement->valid) ++o->stats.replacements;
++    replacement->hash = hash; replacement->caller_rva = caller_rva;
++    replacement->descriptor_token = descriptor_token; replacement->frame_id = frame_id;
++    replacement->scope_generation = scope_generation; replacement->length = length;
++    replacement->metadata = *metadata;
++    memcpy(replacement->payload, bytes, length);
++    replacement->sample_sequence = o->stats.sampled; replacement->valid = 1;
++}
++/* Extraction for this exact game's successfully returned 0x78-byte clone.
++ * output must already be proved valid by the constructor-return ABI; this helper
++ * deliberately does not chase the original source, allocator or caller frames. */
++static inline void cr_observe_clone(struct cr_observer *o, uint64_t caller_rva,
++                                    uint64_t descriptor_token, uint64_t frame_id,
++                                    uint64_t scope_generation, const void *output) {
++    if (!cr_selected_caller(caller_rva)) return;
++    if (!output) { ++o->stats.invalid; return; }
++    const unsigned char *p = (const unsigned char *)output;
++    uint64_t length = 0, address = 0;
++    struct cr_metadata metadata = {0, 0, {0, 0, 0, 0}};
++    memcpy(&length, p + 0x08, 8); memcpy(&address, p + 0x10, 8);
++    memcpy(&metadata.copied_18, p + 0x18, 8);
++    memcpy(&metadata.copied_70, p + 0x70, 8);
++    for (unsigned i = 0; i < 4; ++i)
++        memcpy(&metadata.count_capacity[i], p + 0x38 + i * 0x10, 4);
++    cr_observe(o, caller_rva, descriptor_token, frame_id, scope_generation,
++               &metadata, (const void *)(uintptr_t)address, (size_t)length);
++}
++#endif

@@ -1,0 +1,284 @@
+--- a/dlls/ntdll/frame_adapter.h
++++ b/dlls/ntdll/frame_adapter.h
+@@ -203,12 +203,13 @@
+     "subq $40,%rsp\n\t" __ASM_SEH(".seh_stackalloc 40\n\t") __ASM_SEH(".seh_endprologue\n\t")
+     "movq %r15,32(%rsp)\n\t"
+     "call " __ASM_NAME("bfr_allocate") "\n\t" "addq $40,%rsp\n\t" "ret")
++#include "binding_adapter.h"
+ static int bfr_verify(const struct brm_spec *spec,const unsigned char *raw,void *image,SIZE_T image_size,int game)
+ {
+     unsigned i;
+     if(!bad_exact_verify(spec,raw,image,image_size,game))return 0;
+     for(i=0;i<spec->edit_count;i++){
+-        const struct brm_edit *e=&spec->edits[i];unsigned kind=game?bfr_game_kinds[i]:bfr_sentinel_kinds[i];
++        const struct brm_edit *e=&spec->edits[i];unsigned kind=game?(spec==&bbr_game_spec?bbr_game_kinds[i]:bfr_game_kinds[i]):bfr_sentinel_kinds[i];
+         if(kind==5){if(bfr_word((uintptr_t)image+e->rva)!=(uintptr_t)image+(game?0x5e220e0:BFR_SENTINEL_BEGIN))return 0;}
+         else if(memcmp((char *)image+e->rva,e->before,e->size))return 0;
+     }
+@@ -224,8 +225,8 @@
+     HANDLE file=0,section=0,output=0,output_section=0;
+     void *raw=NULL,*page=NULL;SIZE_T raw_size=0,page_size=0,map_size=0;LARGE_INTEGER total;
+     ULONG old=0,ignored;int n,i,start=0,game=1;unsigned applied=0;
+-    const char *failure="unknown";void *targets[6];unsigned char patches[32][10];struct bfa_api api;
+-    uint64_t initial_chunk=0;
++    const char *failure="unknown";void *targets[9];unsigned char patches[32][10];struct bfa_api api;
++    uint64_t initial_chunk=0;int observe=0;
+     for(i=0;i<path->Length/sizeof(WCHAR);i++)if(path->Buffer[i]=='\\'||path->Buffer[i]=='/')start=i+1;
+     basename.Buffer=path->Buffer+start;basename.Length=basename.MaximumLength=path->Length-start*sizeof(WCHAR);
+     RtlInitUnicodeString(&expected,L"Minecraft.Windows.exe");
+@@ -233,8 +234,15 @@
+         RtlInitUnicodeString(&expected,L"frame-sentinel.exe");if(!RtlEqualUnicodeString(&basename,&expected,TRUE))return;
+         spec=&bfr_sentinel_spec;game=0;
+     }
++    n=bad_environment(L"BEDROCK_BINDING_RECURRENCE",setting,1024);
++    failure="invalid binding observer opt-in (expected0 or1; exact game only)";
++    if(n&&!(n==1&&setting[0]=='0')){if(!game||n!=1||setting[0]!='1')goto failed;observe=1;spec=&bbr_game_spec;}
++    if(observe){
++        failure="binding observer requires clone observer off";
++        n=bad_environment(L"BEDROCK_CLONE_RECURRENCE",setting,1024);if(n&&!(n==1&&setting[0]=='0'))goto failed;
++    }
+     n=bad_environment(L"BEDROCK_FRAME_SLAB",setting,1024);
+-    if(!n||(n==1&&setting[0]=='0'))return;
++    if(!n||(n==1&&setting[0]=='0')){if(observe){failure="binding observer requires frame-slab control";goto failed;}return;}
+     failure="invalid BEDROCK_FRAME_SLAB (expected1)";if(n!=1||setting[0]!='1')goto failed;
+     failure="frame slab requires other allocator experiments off";
+     n=bad_environment(L"BEDROCK_ALLOC_DIAG",setting,1024);if(n&&!(n==3&&!memcmp(setting,L"off",6)))goto failed;
+@@ -264,9 +272,13 @@
+     bfr_original_worker=(void *)((char *)image+(game?0x5e4b4f0:BFR_SENTINEL_WORKER));
+     bfr_scope_vtable=(uintptr_t)image+(game?0xe977000:BFR_SENTINEL_SCOPE_VTABLE);
+     targets[0]=bfr_allocation_shim;targets[1]=bfr_transfer;targets[2]=bfr_reset;targets[3]=bfr_destroy;targets[4]=bfr_worker;targets[5]=bfr_begin;
++    if(observe){
++        bbr_original_copy=(void *)((char *)image+0xe5a64d0);
++        targets[4]=bbr_worker;targets[6]=bbr_copy_site0;targets[7]=bbr_copy_site1;targets[8]=bbr_copy_site2;
++    }
+     failure="frame-slab relay allocation";
+     for(i=0;i<spec->edit_count;i++){
+-        const struct brm_edit *e=&spec->edits[i];unsigned kind=game?bfr_game_kinds[i]:bfr_sentinel_kinds[i];uintptr_t target;
++        const struct brm_edit *e=&spec->edits[i];unsigned kind=game?(spec==&bbr_game_spec?bbr_game_kinds[i]:bfr_game_kinds[i]):bfr_sentinel_kinds[i];uintptr_t target;
+         if(kind==5){target=(uintptr_t)targets[5];memcpy(patches[i],&target,8);}
+         else {void *relay=bad_allocate_relay((char *)image+e->rva+5,targets[kind]);intptr_t distance;
+             if(!relay)goto failed;distance=(intptr_t)relay-((intptr_t)image+e->rva+5);
+@@ -287,6 +299,7 @@
+     api.context=NULL;api.allocate=bfr_heap_allocate;api.deallocate=bfr_heap_free;api.lock=bfr_lock_enter;api.unlock=bfr_lock_leave;api.process_serial=&bfr_serial;
+     for(i=0;i<3;i++)if(!bfa_init(&bfr_pools[i],api,i==0?4096:i==1?16384:65536,64*1024*1024,128*1024*1024))goto failed;
+     bfr_tls_index=RtlFindClearBitsAndSet(NtCurrentTeb()->Peb->TlsBitmap,1,1);if(bfr_tls_index>=64)goto failed;
++    if(observe){failure="fresh binding observer control path required";if(!bbr_open_control())goto failed;}
+     failure="final transactional frame-slab guard";if(!bfr_verify(spec,raw,image,image_size,game))goto failed;
+     for(i=0;i<spec->edit_count;i++){
+         const struct brm_edit *e=&spec->edits[i];page=(char *)image+e->rva;page_size=e->size;
+--- a/dlls/ntdll/frame_manifest.h
++++ b/dlls/ntdll/frame_manifest.h
+@@ -19,3 +19,8 @@
+ #define BFR_SENTINEL_WORKER 0x1880
+ #define BFR_SENTINEL_BEGIN 0x13e0
+ #define BFR_SENTINEL_SCOPE_VTABLE 0x8080
++
++static const struct brm_region bbr_game_regions[]={{0x2fa310,0x2f9710,0x67},{0x433000,0x432400,0x203},{0x443e40,0x443240,0x89},{0x6b11f0,0x6b05f0,0xea},{0x6b1310,0x6b0710,0x2cf},{0xcd1570,0xcd0970,0x167},{0x52f5c70,0x52f5070,0x564},{0x52f6320,0x52f5720,0xd7},{0x52f6a50,0x52f5e50,0x17a},{0x530c860,0x530bc60,0x603},{0x530cf20,0x530c320,0x2b6},{0x530d1e0,0x530c5e0,0x33e},{0x5330cc0,0x53300c0,0x50e},{0x5351190,0x5350590,0x624},{0x53597b0,0x5358bb0,0x6c9},{0x535b290,0x535a690,0x102f},{0x535c970,0x535bd70,0x74},{0x535d000,0x535c400,0x98},{0x535d0a0,0x535c4a0,0x21a},{0x535d770,0x535cb70,0x1bc3},{0x5960b30,0x595ff30,0x11},{0x59616b0,0x5960ab0,0x28},{0x5e0bc90,0x5e0b090,0x8b1},{0x5e0c900,0x5e0bd00,0x1d2},{0x5e0cc20,0x5e0c020,0x13c},{0x5e165e0,0x5e159e0,0x46e},{0x5e16aa0,0x5e15ea0,0x23b1},{0x5e220e0,0x5e214e0,0x2c55},{0x5e25450,0x5e24850,0x73},{0x5e256e0,0x5e24ae0,0x243},{0x5e25960,0x5e24d60,0x5e5},{0x5e26090,0x5e25490,0xb7d9},{0x5e3d0e0,0x5e3c4e0,0x18f},{0x5e4b240,0x5e4a640,0x224},{0x5e4b4f0,0x5e4a8f0,0xa370},{0x5f06140,0x5f05540,0xe852},{0x5f8d8b0,0x5f8ccb0,0x245},{0x5f9e3b0,0x5f9d7b0,0x2e4},{0x5fb4900,0x5fb3d00,0x2d},{0x5fb4c80,0x5fb4080,0xed},{0x5fb4de0,0x5fb41e0,0x2e},{0x5fb4e10,0x5fb4210,0x103},{0x5fb4f20,0x5fb4320,0x19d},{0x5fb50e0,0x5fb44e0,0x834},{0x5fb7cd0,0x5fb70d0,0x26},{0x5fb7d20,0x5fb7120,0x4e},{0x5fb7d70,0x5fb7170,0x2d},{0x5fb7da0,0x5fb71a0,0x779},{0x5fb8560,0x5fb7960,0x237},{0x5fbe1b0,0x5fbd5b0,0x6e8},{0x5fbeac0,0x5fbdec0,0x10e},{0x5fd7250,0x5fd6650,0x2e7},{0x8d6f530,0x8d6e930,0x5bf},{0x8d71390,0x8d70790,0x5b3},{0x8d78ce0,0x8d780e0,0x624},{0x8d9cd30,0x8d9c130,0x55b},{0x8d9d7d0,0x8d9cbd0,0x5f2},{0x8d9e330,0x8d9d730,0x5f2},{0x8d9eb20,0x8d9df20,0x5f2},{0x8d9f310,0x8d9e710,0x5d4},{0x8d9faa0,0x8d9eea0,0x537},{0x8da0350,0x8d9f750,0x5cc},{0x8da1020,0x8da0420,0x51a},{0x8da1930,0x8da0d30,0x805},{0x8da90e0,0x8da84e0,0x56f},{0x8dabf10,0x8dab310,0xdc8},{0xb71daa0,0xb71cea0,0x1980},{0xb7201c0,0xb71f5c0,0xc1},{0xb72f9a0,0xb72eda0,0x16c},{0xb72ff20,0xb72f320,0x22e},{0xb73ba40,0xb73ae40,0x3cc},{0xb741220,0xb740620,0xcbc},{0xb742750,0xb741b50,0xa68},{0xb752a70,0xb751e70,0x1767},{0xb75c780,0xb75bb80,0x4b1},{0xb75d1b0,0xb75c5b0,0x4c1},{0xb75d930,0xb75cd30,0x47f},{0xb76ea40,0xb76de40,0x8d0},{0xb76f7d0,0xb76ebd0,0xad9},{0xb770b30,0xb76ff30,0x980},{0xb77e440,0xb77d840,0x3c1},{0xb77ece0,0xb77e0e0,0x408},{0xb788fb0,0xb7883b0,0x208},{0xb789c30,0xb789030,0x736},{0xb78a370,0xb789770,0xce},{0xb78eae0,0xb78dee0,0x777b},{0xbca79c0,0xbca6dc0,0x18b},{0xbca7d00,0xbca7100,0x2f2},{0xbca80b0,0xbca74b0,0x3ef},{0xbca8520,0xbca7920,0x260},{0xbca8860,0xbca7c60,0x906},{0xbcac860,0xbcabc60,0x357},{0xbcacd80,0xbcac180,0x195},{0xbcacfe0,0xbcac3e0,0x250},{0xbcad6c0,0xbcacac0,0x6b7},{0xbcae0c0,0xbcad4c0,0x50b},{0xbcae5d0,0xbcad9d0,0x40a},{0xbcafa40,0xbcaee40,0x1ad},{0xbcafc80,0xbcaf080,0x130},{0xbcafec0,0xbcaf2c0,0x238},{0xbcb07f0,0xbcafbf0,0xc7},{0xbcb0a80,0xbcafe80,0x169},{0xbcb0da0,0xbcb01a0,0x3f8},{0xbcb11a0,0xbcb05a0,0x268},{0xbcb1870,0xbcb0c70,0xf7},{0xbcb4c40,0xbcb4040,0x630},{0xbcbd9c0,0xbcbcdc0,0x2a2},{0xbcbf7f0,0xbcbebf0,0xb8},{0xbcc0800,0xbcbfc00,0x6332},{0xc570fa0,0xc5703a0,0x900c},{0xd7d5710,0xd7d4b10,0x1c7},{0xdff1ee0,0xdff12e0,0x1024},{0xdff3180,0xdff2580,0x296},{0xdff55c0,0xdff49c0,0x105e},{0xdff6620,0xdff5a20,0x25c},{0xdff6880,0xdff5c80,0x4ca},{0xdff6d90,0xdff6190,0x5e3},{0xdff7580,0xdff6980,0x473},{0xdff7a40,0xdff6e40,0x19d},{0xdff7c30,0xdff7030,0x169},{0xe0051c0,0xe0045c0,0xf0c},{0xe0068c0,0xe005cc0,0xb7},{0xe00b700,0xe00ab00,0xbbf},{0xe00c4a0,0xe00b8a0,0x2583},{0xe29d8e0,0xe29cce0,0x6},{0xb722470,0xb721870,0x602},{0xb722ee0,0xb7222e0,0x456},{0xb723340,0xb722740,0x56a},{0xe5a64d0,0xe5a58d0,0x6}};
++static const struct brm_edit bbr_game_edits[]={{0xdff31e4,5,{0xe8,0x87,0x2a,0x30,0xf7},{0}},{0x5e229ca,5,{0xe8,0x11,0x2d,0x0,0x0},{0}},{0x5e1680d,5,{0xe8,0x8e,0x2,0x0,0x0},{0}},{0x5e25cb2,5,{0xe8,0xe9,0xd,0xff,0xff},{0}},{0x5e27159,5,{0xe8,0x42,0xf9,0xfe,0xff},{0}},{0x5e22394,5,{0xe8,0x47,0x2d,0x19,0x0},{0}},{0x5fb4df0,5,{0xe8,0xeb,0x2,0x0,0x0},{0}},{0x5fb4ec4,5,{0xe8,0x17,0x2,0x0,0x0},{0}},{0x5fb4ee2,5,{0xe8,0xf9,0x1,0x0,0x0},{0}},{0x5fb4fe4,5,{0xe8,0xf7,0x0,0x0,0x0},{0}},{0x5fb5008,5,{0xe8,0xd3,0x0,0x0,0x0},{0}},{0x5fb83e4,5,{0xe8,0xf7,0xcc,0xff,0xff},{0}},{0x5fb8449,5,{0xe8,0x92,0xcc,0xff,0xff},{0}},{0x5fb86dd,5,{0xe8,0xfe,0xc9,0xff,0xff},{0}},{0x5e4b3b6,5,{0xe8,0x35,0x1,0x0,0x0},{0}},{0xe976640,8,{0xe0,0x20,0xe2,0x45,0x1,0x0,0x0,0x0},{0}},{0xb722884,5,{0xe8,0x47,0x3c,0xe8,0x02},{0}},{0xb723187,5,{0xe8,0x44,0x33,0xe8,0x02},{0}},{0xb7235dc,5,{0xe8,0xef,0x2e,0xe8,0x02},{0}}};
++static const unsigned bbr_game_kinds[]={0,1,2,2,2,3,3,3,3,3,3,3,3,3,4,5,6,7,8};
++static const struct brm_spec bbr_game_spec={311215984,314576896,bfr_game_sha256,bbr_game_regions,129,bbr_game_edits,19};
+--- /dev/null
++++ b/dlls/ntdll/binding_adapter.h
+@@ -0,0 +1,25 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++#include "binding_hooks.h"
++static int bbr_open_control(void)
++{
++    WCHAR setting[1024];UNICODE_STRING path={0};OBJECT_ATTRIBUTES attr;IO_STATUS_BLOCK io;
++    HANDLE file=0,section=0;SIZE_T size=0;LARGE_INTEGER total;FILE_END_OF_FILE_INFORMATION eof;
++    int success=0;
++    if(bad_environment(L"BEDROCK_BINDING_RECURRENCE_CONTROL",setting,1024)<=0)return 0;
++    if(RtlDosPathNameToNtPathName_U_WithStatus(setting,&path,NULL,NULL))return 0;
++    InitializeObjectAttributes(&attr,&path,OBJ_CASE_INSENSITIVE,NULL,NULL);
++    if(NtCreateFile(&file,GENERIC_READ|GENERIC_WRITE|SYNCHRONIZE,&attr,&io,NULL,FILE_ATTRIBUTE_NORMAL,
++       FILE_SHARE_READ|FILE_SHARE_WRITE,FILE_CREATE,FILE_SYNCHRONOUS_IO_NONALERT|FILE_NON_DIRECTORY_FILE,NULL,0))goto done;
++    eof.EndOfFile.QuadPart=sizeof(*bbr_control);
++    if(NtSetInformationFile(file,&io,&eof,sizeof(eof),FileEndOfFileInformation))goto done;
++    total.QuadPart=sizeof(*bbr_control);
++    if(NtCreateSection(&section,SECTION_MAP_READ|SECTION_MAP_WRITE,NULL,&total,PAGE_READWRITE,SEC_COMMIT,file))goto done;
++    if(NtMapViewOfSection(section,NtCurrentProcess(),(void **)&bbr_control,0,0,NULL,&size,ViewShare,0,PAGE_READWRITE))goto done;
++    memset(bbr_control,0,sizeof(*bbr_control));bbr_control->magic=BBR_MAGIC;bbr_control->version=1;
++    bbr_control->size=sizeof(*bbr_control);bbr_control->threads_count=BBR_THREADS;
++    bbr_control->row_size=sizeof(struct bbr_row);bbr_control->call_limit=BBR_CALL_LIMIT;
++    bbr_control->record_bytes=BBR_RECORD_BYTES;bbr_control->cache_slots=BBR_SLOTS;bbr_control->site_count=BBR_SITES;
++    /* Remains disarmed until the external native controller arms a bounded run. */
++    success=1;
++done:if(section)NtClose(section);if(file)NtClose(file);RtlFreeUnicodeString(&path);return success;
++}
+--- /dev/null
++++ b/dlls/ntdll/binding_hooks.h
+@@ -0,0 +1,71 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later
++ * Included after the unchanged frame-slab worker/allocation wrappers. */
++#include "binding_control.h"
++static struct bbr_control *bbr_control;
++struct bbr_thread {
++    struct bbr_history history;
++    uint64_t inside_worker,outside_worker,completed_workers,exceptions;
++    unsigned depth;
++};
++static struct bbr_thread bbr_threads[BBR_THREADS];
++static bfr_native4 bbr_original_copy;
++static struct bbr_thread *bbr_current(unsigned *index)
++{
++    struct bfr_tls *t=bfr_tls_get();
++    if(!bbr_control||!t)return NULL;
++    *index=(unsigned)(t-bfr_threads);
++    return *index<BBR_THREADS?&bbr_threads[*index]:NULL;
++}
++static void bbr_publish(unsigned index,struct bbr_thread *t)
++{
++    struct bbr_row *r=&bbr_control->threads[index];unsigned i,s;
++    __atomic_fetch_add(&r->sequence,1,__ATOMIC_SEQ_CST);
++    __atomic_store_n(&r->calls,t->history.calls,__ATOMIC_RELAXED);
++    __atomic_store_n(&r->inside_worker,t->inside_worker,__ATOMIC_RELAXED);
++    __atomic_store_n(&r->outside_worker,t->outside_worker,__ATOMIC_RELAXED);
++    __atomic_store_n(&r->completed_workers,t->completed_workers,__ATOMIC_RELAXED);
++    __atomic_store_n(&r->exceptions,t->exceptions,__ATOMIC_RELAXED);
++    for(s=0;s<BBR_SITES;s++){
++        const uint64_t *source=(const uint64_t *)&t->history.sites[s];uint64_t *destination=(uint64_t *)&r->sites[s];
++        for(i=0;i<sizeof(struct bbr_stats)/8;i++)__atomic_store_n(&destination[i],source[i],__ATOMIC_RELAXED);
++    }
++    __atomic_fetch_add(&r->sequence,1,__ATOMIC_RELEASE);
++}
++static void bbr_after_copy(unsigned site,uintptr_t destination,uintptr_t source,size_t length,uintptr_t result)
++{
++    unsigned index=0;struct bbr_thread *t=bbr_current(&index);
++    if(!t)return;
++    if(__atomic_load_n(&bbr_control->armed,__ATOMIC_ACQUIRE)!=1){bbr_break_sequence(&t->history);return;}
++    if(!bbr_observe(&t->history,site,source,(void *)destination,(void *)result,length))return;
++    if(t->depth)t->inside_worker++;else t->outside_worker++;
++    if(!(t->history.calls&255)||t->history.calls==BBR_CALL_LIMIT)bbr_publish(index,t);
++}
++/* Original import thunk executes exactly once with unchanged four argument
++ * registers. Observe destination only after normal return, then return original
++ * RAX. Compiler-generated Win64 unwind metadata covers copy exceptions. */
++uintptr_t WINAPI bbr_copy_site0(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{uintptr_t result=bbr_original_copy(a,b,c,d);bbr_after_copy(0,a,b,c,result);return result;}
++uintptr_t WINAPI bbr_copy_site1(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{uintptr_t result=bbr_original_copy(a,b,c,d);bbr_after_copy(1,a,b,c,result);return result;}
++uintptr_t WINAPI bbr_copy_site2(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{uintptr_t result=bbr_original_copy(a,b,c,d);bbr_after_copy(2,a,b,c,result);return result;}
++struct bbr_worker_context {struct bbr_thread *thread;unsigned index,depth;uint64_t calls;};
++static void bbr_worker_finally(BOOL normal,void *context)
++{
++    struct bbr_worker_context *s=(struct bbr_worker_context *)context;
++    s->thread->depth=s->depth;
++    if(s->thread->history.calls!=s->calls||!normal){
++        s->thread->completed_workers++;if(!normal)s->thread->exceptions++;
++        bbr_publish(s->index,s->thread);
++    }
++}
++uintptr_t WINAPI bbr_worker(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{
++    unsigned index=0;struct bbr_thread *t=bbr_current(&index);struct bbr_worker_context state;uintptr_t result;
++    if(!t||__atomic_load_n(&bbr_control->armed,__ATOMIC_ACQUIRE)!=1||t->history.calls>=BBR_CALL_LIMIT)
++        return bfr_worker(a,b,c,d);
++    state.thread=t;state.index=index;state.depth=t->depth;state.calls=t->history.calls;t->depth++;
++    __TRY {result=bfr_worker(a,b,c,d);}
++    __FINALLY_CTX(bbr_worker_finally,&state);
++    return result;
++}
+--- /dev/null
++++ b/dlls/ntdll/binding_control.h
+@@ -0,0 +1,20 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++#ifndef BEDROCK_BINDING_CONTROL_H
++#define BEDROCK_BINDING_CONTROL_H
++#include "binding_core.h"
++#define BBR_THREADS 512u
++#define BBR_MAGIC UINT64_C(0x31444e4942524242)
++struct bbr_row {
++    uint64_t sequence,calls,inside_worker,outside_worker,completed_workers,exceptions;
++    uint64_t reserved[10];
++    struct bbr_stats sites[BBR_SITES];
++} __attribute__((aligned(128)));
++struct bbr_control {
++    uint64_t magic,version,size,armed,threads_count,row_size,call_limit,record_bytes,cache_slots,site_count;
++    uint64_t reserved[6];
++    struct bbr_row threads[BBR_THREADS];
++};
++_Static_assert(sizeof(struct bbr_stats)==128,"fixed numeric counters");
++_Static_assert(sizeof(struct bbr_row)==512,"thread snapshot ABI");
++_Static_assert(offsetof(struct bbr_control,threads)==128,"control header ABI");
++#endif
+--- /dev/null
++++ b/dlls/ntdll/binding_core.h
+@@ -0,0 +1,77 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later */
++#ifndef BEDROCK_BINDING_CORE_H
++#define BEDROCK_BINDING_CORE_H
++#include <stdint.h>
++#include <stddef.h>
++#include <string.h>
++#define BBR_RECORD_BYTES 1044u
++#define BBR_HASH_OFFSET 1040u
++#define BBR_SITES 3u
++#ifndef BBR_SLOTS
++#define BBR_SLOTS 32u
++#endif
++#ifndef BBR_CALL_LIMIT
++#define BBR_CALL_LIMIT UINT64_C(16384)
++#endif
++struct bbr_stats {
++    uint64_t calls,bytes,valid,unexpected_size,abi_mismatch;
++    uint64_t history_exact,history_same_source,consecutive_exact,consecutive_same_source,consecutive_source_equal;
++    uint64_t hash_collisions,history_misses,evictions,run_max,comparison_bytes,reserved;
++};
++struct bbr_entry {
++    uint64_t source_token,last_call;
++    uint32_t hash,valid;
++    unsigned char payload[BBR_RECORD_BYTES];
++};
++struct bbr_history {
++    struct bbr_stats sites[BBR_SITES];
++    struct bbr_entry entries[BBR_SLOTS];
++    uint64_t calls,last_source,run;
++    unsigned last_index,last_valid;
++};
++/* Source values are opaque observed addresses, never dereferenced or exported.
++ * A match does not establish encoder incarnation, frame identity or ownership.
++ * All three callsites use ONE history; the payload includes the original hash.
++ * Caller provides a successfully copied, valid destination; this core writes only
++ * its own bounded snapshots and numeric counters, never game memory. */
++static inline void bbr_break_sequence(struct bbr_history *h)
++{h->last_valid=0;h->last_source=0;h->run=0;}
++static inline int bbr_observe(struct bbr_history *h,unsigned site,uint64_t source_token,
++                             const void *destination,const void *result,size_t length)
++{
++    struct bbr_stats *s;unsigned i,selected=0,found=0;uint32_t hash;
++    struct bbr_entry *entry,*replacement;uint64_t run;
++    if(site>=BBR_SITES||h->calls>=BBR_CALL_LIMIT)return 0;
++    h->calls++;s=&h->sites[site];s->calls++;s->bytes+=length;
++    if(length!=BBR_RECORD_BYTES){s->unexpected_size++;bbr_break_sequence(h);return 1;}
++    if(!destination||result!=destination){s->abi_mismatch++;bbr_break_sequence(h);return 1;}
++    s->valid++;memcpy(&hash,(const unsigned char *)destination+BBR_HASH_OFFSET,sizeof(hash));
++    if(h->last_valid&&source_token&&source_token==h->last_source)s->consecutive_source_equal++;
++    replacement=&h->entries[0];
++    for(i=0;i<BBR_SLOTS;i++){
++        entry=&h->entries[i];
++        if(!entry->valid)replacement=entry;
++        else if(replacement->valid&&entry->last_call<replacement->last_call)replacement=entry;
++        if(!entry->valid||entry->hash!=hash)continue;
++        s->comparison_bytes+=BBR_RECORD_BYTES;
++        if(memcmp(entry->payload,destination,BBR_RECORD_BYTES)){s->hash_collisions++;continue;}
++        found=1;selected=i;replacement=entry;s->history_exact++;
++        if(source_token&&source_token==entry->source_token)s->history_same_source++;
++        break;
++    }
++    if(found&&h->last_valid&&selected==h->last_index){
++        s->consecutive_exact++;run=h->run+1;
++        if(source_token&&source_token==h->last_source)s->consecutive_same_source++;
++    }else run=1;
++    if(run>s->run_max)s->run_max=run;
++    if(!found){
++        s->history_misses++;if(replacement->valid)s->evictions++;
++        memcpy(replacement->payload,destination,BBR_RECORD_BYTES);
++        replacement->hash=hash;replacement->valid=1;
++    }
++    replacement->source_token=source_token;replacement->last_call=h->calls;
++    h->last_index=(unsigned)(replacement-h->entries);h->last_valid=1;
++    h->last_source=source_token;h->run=run;
++    return 1;
++}
++#endif

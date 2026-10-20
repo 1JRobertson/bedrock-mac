@@ -1,0 +1,877 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-05",
+  "status": "validated_and_installed_after_memory_control",
+  "change": "Avoid redundant IASetInputLayout invalidation when the canonical immutable input layout is unchanged, VS and PS are bound, and GS/HS/DS are absent.",
+  "source_commit": "589adb780354b461645b29999cefaf533594ee99",
+  "patch": {
+    "path": "patches/standalone-dxmt-input-layout-reuse.patch",
+    "sha256": "9bdc5fc30ce83e7c52f07d892c8ba7ba52b1fd9475bc4018dd5ef633d035a19f",
+    "bytes": 1029
+  },
+  "diagnostic_d3d11_sha256": "cda524427efd83e616e978aa558648acd808f64d61571bff1ab0ba3623321281",
+  "fixed_ntdll_sha256": "1cfaab9891fcaa0668d94a819e8840d0b911b7f9216dc52f51b352520b18f06f",
+  "comparison": {
+    "control": "Previously optimized shared buffers + packed/write-combined DEFAULT constants, layout shortcut off.",
+    "candidate": "Same process and DLLs with only the layout shortcut enabled.",
+    "fixed_wine_binary_note": "The recorded Wine heap-experiment binary is identical across these runs; these results do not establish a Wine heap optimization benefit.",
+    "order": [
+      "layout-a1",
+      "layout-b1",
+      "layout-a2",
+      "layout-b2",
+      "layout-b2-steady"
+    ],
+    "machine": "Apple M4 Pro, 24 GiB unified memory (session context)",
+    "scene": "Same fully loaded paused copied world and camera; graphics quality/settings unchanged.",
+    "drawable_dimensions": [
+      1683,
+      951
+    ],
+    "minimum_present_duration_seconds": 0.01,
+    "measurement": "Metal actual-presentation callback timestamps for displayed FPS; process CPU includes Minecraft and wineserver. CPU utilization can exceed 100% across cores. Per-thread CPU uses stable kernel thread IDs.",
+    "frontend_instrumentation": "Counts-only throughout compared intervals. Sparse per-API elapsed timings were rejected because timer overhead dominated; they are not used for performance conclusions.",
+    "limits": [
+      "Single scene and machine, approximate 100 FPS presentation ceiling; not a game-wide FPS claim.",
+      "Encoder prepare/flush are wall-time diagnostics; flush includes waiting for drawables. They are distinct from kernel per-thread CPU time.",
+      "GPU command durations may overlap and are not GPU utilization or power measurements.",
+      "Frontend counters/diagnostic profiles cover log windows that are not exactly aligned to the process/presentation sampling interval."
+    ]
+  },
+  "runs": [
+    {
+      "name": "layout-a1",
+      "shortcut_enabled": false,
+      "raw": {
+        "path": "build/performance/layout-a1.json",
+        "sha256": "47dc216ae35a7d5effd8ea92bbbdd5974a54e93db65369bfa6287963fcb2ac52",
+        "bytes": 704694
+      },
+      "summary": {
+        "name": "layout-a1",
+        "seconds": 30.097228708,
+        "displayed_fps": 94.03688232374267,
+        "displayed_fps_window": 94.0285758795889,
+        "presentation_window_seconds": 30.09723345830571,
+        "displayed_frames": 2830,
+        "dimensions": [
+          1683,
+          951
+        ],
+        "frame_p50_ms": 9.991333994548768,
+        "frame_p95_ms": 19.9826669995673,
+        "frame_p99_ms": 19.982750003691763,
+        "first_present_delay_ms": 4.586166876833886,
+        "last_present_gap_ms": 8.706500404514372,
+        "zero_present_callbacks": 0,
+        "invalid_present_callbacks": 0,
+        "cpu_percent": 598.5540746606425,
+        "cpu_ms_per_displayed_frame": 63.65660381330977,
+        "ram_GiB": 4.0467433386272,
+        "profile": {
+          "frame": 21842.0,
+          "frame_ms": 10.63644,
+          "p95_ms": 11.65328,
+          "present_ms": 0.05504,
+          "encode_prepare_ms": 4.6608,
+          "encode_flush_ms": 1.66576,
+          "drawable_ms": 0.06276,
+          "latency_ms": 0.001,
+          "sync_ms": 0.0,
+          "commit_ms": 0.004,
+          "chunks": 3.0,
+          "syncs": 0.0,
+          "gpu_ms": 7.21912,
+          "metal_MiB": 559.616,
+          "buffers_MiB": 346.6,
+          "buffers": 4814.88,
+          "ring_host_MiB": 12.0,
+          "ring_upload_MiB": 8.0,
+          "ring_private_MiB": 0.0,
+          "update_MiB": 408.17,
+          "updates": 1684800.0,
+          "bridged": 0.0,
+          "direct": 1.0,
+          "fast": 0.0,
+          "packed": 2.0,
+          "focused": 1.0
+        },
+        "thread_cpu_coverage_percent": 583.3291353942293,
+        "game_cpu_percent": 583.3273781726416,
+        "thread_identity": "stable kernel thread id (flavors 28/15)",
+        "ntdll_sha256": "1cfaab9891fcaa0668d94a819e8840d0b911b7f9216dc52f51b352520b18f06f",
+        "d3d11_sha256": "cda524427efd83e616e978aa558648acd808f64d61571bff1ab0ba3623321281"
+      },
+      "frontend_modes": [
+        "counts"
+      ],
+      "recorded_layout_skip_states": [
+        0
+      ],
+      "encoder_thread": {
+        "thread": 9175965,
+        "name": "dxmt-encode-thr",
+        "cpu_percent": 59.02804597845833,
+        "cpu_ms_per_displayed_frame": 6.277116437701675
+      },
+      "footprint_MiB": {
+        "start": 4143.008071899414,
+        "end": 4145.847915649414,
+        "minimum": 4138.496353149414,
+        "maximum": 4150.086196899414,
+        "mean": 4143.865178754253,
+        "linear_slope_MiB_per_second": 0.05891162961185862,
+        "samples": 31
+      },
+      "diagnostic_profile_ranges": {
+        "metal_MiB": {
+          "min": 559.6,
+          "max": 559.7
+        },
+        "buffers_MiB": {
+          "min": 346.6,
+          "max": 346.6
+        },
+        "buffers": {
+          "min": 4812.0,
+          "max": 4830.0
+        },
+        "ring_host_MiB": {
+          "min": 12.0,
+          "max": 12.0
+        },
+        "drawable_ms": {
+          "min": 0.057,
+          "max": 0.072
+        },
+        "latency_ms": {
+          "min": 0.001,
+          "max": 0.001
+        }
+      }
+    },
+    {
+      "name": "layout-b1",
+      "shortcut_enabled": true,
+      "raw": {
+        "path": "build/performance/layout-b1.json",
+        "sha256": "0dc0b390a7c88b5cb07884d5bb18fbf90aee9d9dea2088369d6e8ab1b4fbd168",
+        "bytes": 739744
+      },
+      "summary": {
+        "name": "layout-b1",
+        "seconds": 30.092049083,
+        "displayed_fps": 99.6877264253012,
+        "displayed_fps_window": 99.6940511418581,
+        "presentation_window_seconds": 30.092066333338153,
+        "displayed_frames": 3000,
+        "dimensions": [
+          1683,
+          951
+        ],
+        "frame_p50_ms": 9.991333994548768,
+        "frame_p95_ms": 9.99141699867323,
+        "frame_p99_ms": 9.991458035074174,
+        "first_present_delay_ms": 7.8030419535934925,
+        "last_present_gap_ms": 0.3190833958797157,
+        "zero_present_callbacks": 0,
+        "invalid_present_callbacks": 0,
+        "cpu_percent": 616.4954867202366,
+        "cpu_ms_per_displayed_frame": 61.83870815277778,
+        "ram_GiB": 4.1521975611967425,
+        "profile": {
+          "frame": 27662.0,
+          "frame_ms": 10.019115384615384,
+          "p95_ms": 10.770653846153847,
+          "present_ms": 0.06311538461538461,
+          "encode_prepare_ms": 1.5326923076923076,
+          "encode_flush_ms": 2.803769230769231,
+          "drawable_ms": 1.295923076923077,
+          "latency_ms": 0.01426923076923077,
+          "sync_ms": 0.0,
+          "commit_ms": 0.003923076923076923,
+          "chunks": 3.0,
+          "syncs": 0.0,
+          "gpu_ms": 7.050153846153846,
+          "metal_MiB": 570.0307692307692,
+          "buffers_MiB": 349.2,
+          "buffers": 5485.846153846154,
+          "ring_host_MiB": 12.615384615384615,
+          "ring_upload_MiB": 8.0,
+          "ring_private_MiB": 0.0,
+          "update_MiB": 408.17,
+          "updates": 1684800.0,
+          "bridged": 0.0,
+          "direct": 1.0,
+          "fast": 0.0,
+          "packed": 2.0,
+          "focused": 1.0
+        },
+        "thread_cpu_coverage_percent": 599.2826427425907,
+        "game_cpu_percent": 599.2658023307399,
+        "thread_identity": "stable kernel thread id (flavors 28/15)",
+        "ntdll_sha256": "1cfaab9891fcaa0668d94a819e8840d0b911b7f9216dc52f51b352520b18f06f",
+        "d3d11_sha256": "cda524427efd83e616e978aa558648acd808f64d61571bff1ab0ba3623321281"
+      },
+      "frontend_modes": [
+        "counts"
+      ],
+      "recorded_layout_skip_states": [
+        1
+      ],
+      "encoder_thread": {
+        "thread": 9175965,
+        "name": "dxmt-encode-thr",
+        "cpu_percent": 31.809821171027096,
+        "cpu_ms_per_displayed_frame": 3.190946600117627
+      },
+      "footprint_MiB": {
+        "start": 4574.152717590332,
+        "end": 4574.309013366699,
+        "minimum": 4160.512092590332,
+        "maximum": 4592.898811340332,
+        "mean": 4251.850302665464,
+        "linear_slope_MiB_per_second": 2.8099221151165525,
+        "samples": 31
+      },
+      "diagnostic_profile_ranges": {
+        "metal_MiB": {
+          "min": 570.0,
+          "max": 570.2
+        },
+        "buffers_MiB": {
+          "min": 349.2,
+          "max": 349.2
+        },
+        "buffers": {
+          "min": 5480.0,
+          "max": 5518.0
+        },
+        "ring_host_MiB": {
+          "min": 12.0,
+          "max": 16.0
+        },
+        "drawable_ms": {
+          "min": 0.058,
+          "max": 6.611
+        },
+        "latency_ms": {
+          "min": 0.001,
+          "max": 0.161
+        }
+      }
+    },
+    {
+      "name": "layout-a2",
+      "shortcut_enabled": false,
+      "raw": {
+        "path": "build/performance/layout-a2.json",
+        "sha256": "7dc902fd59775b7f86cce6cd86eb0d5c1cb721d2f525101a3c95a1b473865621",
+        "bytes": 1197568
+      },
+      "summary": {
+        "name": "layout-a2",
+        "seconds": 30.120459416000003,
+        "cpu_seconds": 176.855506125,
+        "cpu_percent": 587.1607191723454,
+        "ram_GiB": 4.061372613233905,
+        "profile": {
+          "frame": 42302.0,
+          "frame_ms": 10.370153846153846,
+          "p95_ms": 10.973923076923077,
+          "present_ms": 0.04996153846153846,
+          "encode_prepare_ms": 4.522846153846154,
+          "encode_flush_ms": 1.6337692307692309,
+          "drawable_ms": 0.05880769230769231,
+          "latency_ms": 0.001,
+          "sync_ms": 0.0,
+          "commit_ms": 0.004,
+          "chunks": 3.0,
+          "syncs": 0.0,
+          "gpu_ms": 7.227769230769231,
+          "metal_MiB": 570.1076923076923,
+          "buffers_MiB": 349.2,
+          "buffers": 5483.384615384615,
+          "ring_host_MiB": 16.1,
+          "ring_upload_MiB": 8.0,
+          "ring_private_MiB": 0.0,
+          "update_MiB": 408.17,
+          "updates": 1684800.0,
+          "bridged": 0.0,
+          "direct": 1.0,
+          "fast": 0.0,
+          "packed": 2.0,
+          "focused": 1.0
+        },
+        "thread_cpu_coverage_percent": 584.1188328838736,
+        "game_cpu_percent": 584.1445400780867,
+        "thread_identity": "stable kernel thread id (flavors 28/15)",
+        "ntdll_sha256": "1cfaab9891fcaa0668d94a819e8840d0b911b7f9216dc52f51b352520b18f06f",
+        "d3d11_sha256": "cda524427efd83e616e978aa558648acd808f64d61571bff1ab0ba3623321281",
+        "displayed_fps": 96.39971187373527,
+        "displayed_fps_window": 96.37964896559461,
+        "presentation_window_seconds": 30.120466625026893,
+        "displayed_frames": 2903,
+        "dimensions": [
+          1683,
+          951
+        ],
+        "positive_present_callbacks": 2903,
+        "coincident_present_callbacks": 0,
+        "coincident_present_timestamp_groups": 0,
+        "frame_p50_ms": 9.991332946810871,
+        "frame_p95_ms": 9.99141699867323,
+        "frame_p99_ms": 19.982665951829404,
+        "first_present_delay_ms": 9.747833595611155,
+        "last_present_gap_ms": 6.894375430420041,
+        "zero_present_callbacks": 0,
+        "invalid_present_callbacks": 0,
+        "cpu_ms_per_displayed_frame": 60.92163490354806
+      },
+      "frontend_modes": [
+        "counts"
+      ],
+      "recorded_layout_skip_states": [
+        0
+      ],
+      "encoder_thread": {
+        "thread": 9175965,
+        "name": "dxmt-encode-thr",
+        "cpu_percent": 59.77492159510691,
+        "cpu_ms_per_displayed_frame": 6.200736540934929
+      },
+      "footprint_MiB": {
+        "start": 4156.94157409668,
+        "end": 4159.23454284668,
+        "minimum": 4156.67594909668,
+        "maximum": 4161.05094909668,
+        "mean": 4158.845555951519,
+        "linear_slope_MiB_per_second": 0.0092788719918424,
+        "samples": 31
+      },
+      "diagnostic_profile_ranges": {
+        "metal_MiB": {
+          "min": 570.1,
+          "max": 570.2
+        },
+        "buffers_MiB": {
+          "min": 349.2,
+          "max": 349.2
+        },
+        "buffers": {
+          "min": 5482.0,
+          "max": 5500.0
+        },
+        "ring_host_MiB": {
+          "min": 16.1,
+          "max": 16.1
+        },
+        "drawable_ms": {
+          "min": 0.055,
+          "max": 0.068
+        },
+        "latency_ms": {
+          "min": 0.001,
+          "max": 0.001
+        }
+      }
+    },
+    {
+      "name": "layout-b2",
+      "shortcut_enabled": true,
+      "raw": {
+        "path": "build/performance/layout-b2.json",
+        "sha256": "8b23e9f95e1d048e8164b5e3cb47cfc862636565c927b1ef92745198d2663dcf",
+        "bytes": 1232828
+      },
+      "summary": {
+        "name": "layout-b2",
+        "seconds": 30.108006916999997,
+        "cpu_seconds": 171.319182375,
+        "cpu_percent": 569.0153547768298,
+        "ram_GiB": 4.306627745109219,
+        "profile": {
+          "frame": 48002.0,
+          "frame_ms": 10.006481481481481,
+          "p95_ms": 11.067666666666666,
+          "present_ms": 0.20737037037037037,
+          "encode_prepare_ms": 1.4852222222222222,
+          "encode_flush_ms": 7.1445185185185185,
+          "drawable_ms": 5.756333333333333,
+          "latency_ms": 0.18918518518518518,
+          "sync_ms": 0.0,
+          "commit_ms": 0.003925925925925926,
+          "chunks": 3.0,
+          "syncs": 0.0,
+          "gpu_ms": 6.313185185185185,
+          "metal_MiB": 570.1925925925926,
+          "buffers_MiB": 349.2,
+          "buffers": 5513.333333333333,
+          "ring_host_MiB": 16.1,
+          "ring_upload_MiB": 8.0,
+          "ring_private_MiB": 0.0,
+          "update_MiB": 408.17,
+          "updates": 1684800.0,
+          "bridged": 0.0,
+          "direct": 1.0,
+          "fast": 0.0,
+          "packed": 2.0,
+          "focused": 1.0
+        },
+        "thread_cpu_coverage_percent": 565.8430279681073,
+        "game_cpu_percent": 565.8432827452951,
+        "thread_identity": "stable kernel thread id (flavors 28/15)",
+        "ntdll_sha256": "1cfaab9891fcaa0668d94a819e8840d0b911b7f9216dc52f51b352520b18f06f",
+        "d3d11_sha256": "cda524427efd83e616e978aa558648acd808f64d61571bff1ab0ba3623321281",
+        "displayed_fps": 99.9205826025632,
+        "displayed_fps_window": 99.90694947495787,
+        "presentation_window_seconds": 30.108015666657593,
+        "displayed_frames": 3008,
+        "dimensions": [
+          1683,
+          951
+        ],
+        "positive_present_callbacks": 3008,
+        "coincident_present_callbacks": 0,
+        "coincident_present_timestamp_groups": 0,
+        "frame_p50_ms": 9.991333005018532,
+        "frame_p95_ms": 9.99141699867323,
+        "frame_p99_ms": 9.991457976866513,
+        "first_present_delay_ms": 5.654249573126435,
+        "last_present_gap_ms": 8.461625082418323,
+        "zero_present_callbacks": 0,
+        "invalid_present_callbacks": 0,
+        "cpu_ms_per_displayed_frame": 56.95451541722074
+      },
+      "frontend_modes": [
+        "counts"
+      ],
+      "recorded_layout_skip_states": [
+        1
+      ],
+      "encoder_thread": {
+        "thread": 9175965,
+        "name": "dxmt-encode-thr",
+        "cpu_percent": 31.131582458577263,
+        "cpu_ms_per_displayed_frame": 3.1156326001824834
+      },
+      "footprint_MiB": {
+        "start": 4568.50016784668,
+        "end": 4154.37126159668,
+        "minimum": 4154.36735534668,
+        "maximum": 4588.91032409668,
+        "mean": 4409.986810991841,
+        "linear_slope_MiB_per_second": -11.719192157789488,
+        "samples": 31
+      },
+      "diagnostic_profile_ranges": {
+        "metal_MiB": {
+          "min": 570.1,
+          "max": 570.2
+        },
+        "buffers_MiB": {
+          "min": 349.2,
+          "max": 349.2
+        },
+        "buffers": {
+          "min": 5482.0,
+          "max": 5518.0
+        },
+        "ring_host_MiB": {
+          "min": 16.1,
+          "max": 16.1
+        },
+        "drawable_ms": {
+          "min": 0.061,
+          "max": 6.62
+        },
+        "latency_ms": {
+          "min": 0.001,
+          "max": 0.404
+        }
+      }
+    },
+    {
+      "name": "layout-b2-steady",
+      "shortcut_enabled": true,
+      "raw": {
+        "path": "build/performance/layout-b2-steady.json",
+        "sha256": "7308a97b34ddfdeb7ba0df544f50117d242d70efdf9590674509c57f256a1736",
+        "bytes": 1222807
+      },
+      "summary": {
+        "name": "layout-b2-steady",
+        "seconds": 30.101556958,
+        "cpu_seconds": 172.24872270833333,
+        "cpu_percent": 572.2252936905156,
+        "ram_GiB": 4.31283155035588,
+        "profile": {
+          "frame": 54182.0,
+          "frame_ms": 10.211153846153847,
+          "p95_ms": 11.35323076923077,
+          "present_ms": 0.04823076923076923,
+          "encode_prepare_ms": 1.5563461538461538,
+          "encode_flush_ms": 1.925576923076923,
+          "drawable_ms": 0.37680769230769234,
+          "latency_ms": 0.001,
+          "sync_ms": 0.0,
+          "commit_ms": 0.004,
+          "chunks": 3.0,
+          "syncs": 0.0,
+          "gpu_ms": 7.185461538461539,
+          "metal_MiB": 570.1,
+          "buffers_MiB": 349.2,
+          "buffers": 5482.0,
+          "ring_host_MiB": 16.1,
+          "ring_upload_MiB": 8.0,
+          "ring_private_MiB": 0.0,
+          "update_MiB": 408.17,
+          "updates": 1684800.0,
+          "bridged": 0.0,
+          "direct": 1.0,
+          "fast": 0.0,
+          "packed": 2.0,
+          "focused": 1.0
+        },
+        "thread_cpu_coverage_percent": 568.9942092994645,
+        "game_cpu_percent": 569.0433169475747,
+        "thread_identity": "stable kernel thread id (flavors 28/15)",
+        "ntdll_sha256": "1cfaab9891fcaa0668d94a819e8840d0b911b7f9216dc52f51b352520b18f06f",
+        "d3d11_sha256": "cda524427efd83e616e978aa558648acd808f64d61571bff1ab0ba3623321281",
+        "displayed_fps": 97.85955383540885,
+        "displayed_fps_window": 97.83540522466517,
+        "presentation_window_seconds": 30.101577166642528,
+        "displayed_frames": 2945,
+        "dimensions": [
+          1683,
+          951
+        ],
+        "positive_present_callbacks": 2945,
+        "coincident_present_callbacks": 0,
+        "coincident_present_timestamp_groups": 0,
+        "frame_p50_ms": 9.991333994548768,
+        "frame_p95_ms": 9.99141699867323,
+        "frame_p99_ms": 19.9826669995673,
+        "first_present_delay_ms": 8.462583587970585,
+        "last_present_gap_ms": 9.184250084217638,
+        "zero_present_callbacks": 0,
+        "invalid_present_callbacks": 0,
+        "cpu_ms_per_displayed_frame": 58.48853063101301
+      },
+      "frontend_modes": [
+        "counts"
+      ],
+      "recorded_layout_skip_states": [
+        1
+      ],
+      "encoder_thread": {
+        "thread": 9175965,
+        "name": "dxmt-encode-thr",
+        "cpu_percent": 31.34918573536465,
+        "cpu_ms_per_displayed_frame": 3.203487498838511
+      },
+      "footprint_MiB": {
+        "start": 4574.34391784668,
+        "end": 4162.62516784668,
+        "minimum": 4160.22673034668,
+        "maximum": 4591.33610534668,
+        "mean": 4416.339507564421,
+        "linear_slope_MiB_per_second": -11.655946152876153,
+        "samples": 31
+      },
+      "diagnostic_profile_ranges": {
+        "metal_MiB": {
+          "min": 570.1,
+          "max": 570.1
+        },
+        "buffers_MiB": {
+          "min": 349.2,
+          "max": 349.2
+        },
+        "buffers": {
+          "min": 5482.0,
+          "max": 5482.0
+        },
+        "ring_host_MiB": {
+          "min": 16.1,
+          "max": 16.1
+        },
+        "drawable_ms": {
+          "min": 0.057,
+          "max": 6.98
+        },
+        "latency_ms": {
+          "min": 0.001,
+          "max": 0.001
+        }
+      }
+    }
+  ],
+  "paired_comparisons": [
+    {
+      "control": "layout-a1",
+      "candidate": "layout-b1",
+      "displayed_fps_increase_percent": 6.009178486058531,
+      "cpu_work_per_displayed_frame_reduction_percent": 2.855784870118838,
+      "encoder_thread_cpu_utilization_reduction_percent": 46.11066545784735,
+      "encoder_cpu_work_per_displayed_frame_reduction_percent": 49.16540689046114,
+      "encode_prepare_wall_time_reduction_percent": 67.115252581267,
+      "mean_footprint_increase_GiB": 0.10545422256954229,
+      "peak_footprint_increase_MiB": 442.81261444091797
+    },
+    {
+      "control": "layout-a2",
+      "candidate": "layout-b2",
+      "displayed_fps_increase_percent": 3.6523664442478676,
+      "cpu_work_per_displayed_frame_reduction_percent": 6.511840157619075,
+      "encoder_thread_cpu_utilization_reduction_percent": 47.91865613902261,
+      "encoder_cpu_work_per_displayed_frame_reduction_percent": 49.75383037782286,
+      "encode_prepare_wall_time_reduction_percent": 67.16177885115076,
+      "mean_footprint_increase_GiB": 0.24525513187531445,
+      "peak_footprint_increase_MiB": 427.859375
+    }
+  ],
+  "memory_assessment": {
+    "finding": "The same roughly 414 MiB owned-unmapped pulse occurs with shortcut disabled and enabled; the initial claim of shortcut-caused additional footprint is not supported.",
+    "observed_behavior": "Candidate footprint repeatedly rises by roughly 415 MiB and falls near the off-state level during the same enabled phase, including the additional steady run. Short traces show bounded oscillation rather than monotonic growth; this does not prove absence of every leak.",
+    "tracked_allocations": "After initial warmup, tracked Metal allocation stays about 570.1-570.2 MiB and tracked buffers about 349.2 MiB. Host command-ring allocation is about 16.1 MiB during both A2 and B2. These counters do not account for the roughly 415 MiB footprint pulses.",
+    "queue_correlation": "More drawable waiting is consistent with reaching the presentation ceiling. B2 footprint falls near baseline late in the run while drawable waits remain about 5.8 ms, so the memory pulses cannot be attributed confidently to queue depth alone.",
+    "source_review": "The early-return temporary is a Com RAII object and releases its QueryInterface reference; existing lock and scope destructors also run. GPU completion still resets command captures and reference trackers. The command queue has 32 chunk slots and a default max-latency value of 3 that the application may change. No new retained owner or unbounded container was introduced by the shortcut.",
+    "unresolved": "Owner of the shared owned-unmapped pulse and long-term behavior remain unresolved. No RAM reduction claim.",
+    "reviewed_sources": [
+      "src/util/com/com_pointer.hpp:100",
+      "src/d3d11/d3d11_context_impl.cpp:1895",
+      "src/dxmt/dxmt_command_queue.hpp:125",
+      "src/dxmt/dxmt_command_queue.hpp:240",
+      "src/dxmt/dxmt_command_queue.cpp:199",
+      "src/dxmt/dxmt_ring_bump_allocator.hpp:206"
+    ],
+    "initial_assessment": "Higher mean and transient peak process footprint with the shortcut; no RAM reduction claim.",
+    "followup_control": {
+      "date": "2026-10-05",
+      "captures": [
+        {
+          "shortcut_enabled": true,
+          "capture": "build/performance/workers/layout-memory-pulses/capture.json",
+          "capture_sha256": "4984f8298b9d6887c20d6e1c26ef4ef579953684c1653ceca567e23d32b2df65",
+          "snapshots": [
+            {
+              "band": "high",
+              "text_file": "01-high.txt",
+              "sha256": "0c6764023a68e57c9b623204d2512e0dedf998061fd2fdebe67e92b76161f2c7",
+              "valid_band": true
+            },
+            {
+              "band": "low",
+              "text_file": "02-low.txt",
+              "sha256": "dee6f64c7ad5378728554aa54b71d09e1d7bc0818611f65d0c0e5243446ddcf2",
+              "valid_band": true
+            },
+            {
+              "band": "high",
+              "text_file": "03-high.txt",
+              "sha256": "b99cd4561ca4169e1d8415b156ee87803aa4c131bfab05bd3cc5f20d57a729a5",
+              "valid_band": true
+            },
+            {
+              "band": "low",
+              "text_file": "04-low.txt",
+              "sha256": "489c518e94b8e22c75c6ff9a0aa310c39d7119f6c50c51c67e1538f5529a7a86",
+              "valid_band": true
+            }
+          ],
+          "pairs": [
+            {
+              "low": "02-low.txt",
+              "high": "01-high.txt",
+              "owned_unmapped_dirty_plus_swapped_delta_MiB": 413.8999996185303
+            },
+            {
+              "low": "02-low.txt",
+              "high": "03-high.txt",
+              "owned_unmapped_dirty_plus_swapped_delta_MiB": 413.8999996185303
+            },
+            {
+              "low": "04-low.txt",
+              "high": "03-high.txt",
+              "owned_unmapped_dirty_plus_swapped_delta_MiB": 413.9000005722046
+            }
+          ]
+        },
+        {
+          "shortcut_enabled": false,
+          "capture": "build/performance/workers/packed-memory-pulses/capture.json",
+          "capture_sha256": "36adbbd1e993ecf84530ce5d88a7b35fadd29004d58b66c5de09c355637912d8",
+          "snapshots": [
+            {
+              "band": "low",
+              "text_file": "01-low.txt",
+              "sha256": "895685453cf1ff865441ccfe8ec85371722045db95cb92f110dea4998c020b74",
+              "valid_band": true
+            },
+            {
+              "band": "high",
+              "text_file": "02-high.txt",
+              "sha256": "a213b4e95e40b0e9701b9a6d8f2db8a91287e6ee31c1e3c8ac12566117d7cc1b",
+              "valid_band": true
+            },
+            {
+              "band": "low",
+              "text_file": "03-low.txt",
+              "sha256": "5d52a1cba57ed822b1a6cd9cbc8411e6939a45f515defe4f6a8d227bad47bf82",
+              "valid_band": true
+            }
+          ],
+          "pairs": [
+            {
+              "low": "01-low.txt",
+              "high": "02-high.txt",
+              "owned_unmapped_dirty_plus_swapped_delta_MiB": 413.8999996185303
+            },
+            {
+              "low": "03-low.txt",
+              "high": "02-high.txt",
+              "owned_unmapped_dirty_plus_swapped_delta_MiB": 413.8999996185303
+            }
+          ]
+        }
+      ],
+      "limits": "Diagnostic snapshots perturb the process and are not CPU/FPS benchmarks. Separate processes; FOV70 in enabled attribution run versus restored FOV60 in packed control. Both exhibit the same owned-unmapped pulse, which does not establish identical total memory use."
+    }
+  },
+  "diagnostic_correctness": {
+    "status": "passed_off_and_on",
+    "results_file": {
+      "path": "build/performance/input-layout-correctness-results.json",
+      "sha256": "597734c0ab19ca68932f7858d18540f112a0922bf35af727d1a6cc9bb43a49aa",
+      "bytes": 342
+    },
+    "probe_source": {
+      "path": "tests/dxmt-input-layout.cpp",
+      "sha256": "d4e484b3a622768cc265607ad7dea089c98beb204ff2f5b890606f9ec76fe4cb",
+      "bytes": 18580
+    },
+    "runs": [
+      {
+        "shortcut": false,
+        "exit_code": 0,
+        "seconds": 6.646255292,
+        "d3d11_sha256": "cda524427efd83e616e978aa558648acd808f64d61571bff1ab0ba3623321281",
+        "checks": {
+          "result": "pass",
+          "pixel_checks": 31,
+          "pixels_per_check": 64,
+          "layout_state_checks": 7,
+          "immediate": true,
+          "deferred": true,
+          "replay": true
+        },
+        "log": {
+          "path": "build/performance/input-layout-0-correctness.log",
+          "sha256": "08a742281604b1735b983f19ca6b72439999673f6c31bed7a6878a46ed8f6001",
+          "bytes": 537
+        }
+      },
+      {
+        "shortcut": true,
+        "exit_code": 0,
+        "seconds": 6.404688500000001,
+        "d3d11_sha256": "cda524427efd83e616e978aa558648acd808f64d61571bff1ab0ba3623321281",
+        "checks": {
+          "result": "pass",
+          "pixel_checks": 31,
+          "pixels_per_check": 64,
+          "layout_state_checks": 7,
+          "immediate": true,
+          "deferred": true,
+          "replay": true
+        },
+        "log": {
+          "path": "build/performance/input-layout-1-correctness.log",
+          "sha256": "05357f314639beaa0d02c3f3ebb765e7cc6511607efa3a54252091fbfaabe709",
+          "bytes": 537
+        }
+      }
+    ],
+    "scope": "31 GPU pixel-readback checks of 64 pixels plus 7 layout-state checks per mode; immediate, deferred and command-list replay paths."
+  },
+  "release_verification": {
+    "status": "passed",
+    "dll_sha256": "e4086a6919b96013ecf2d70a291f087d5b3183d9412b1b45b1e1b73ab02db9cc",
+    "manifest": {
+      "path": "build/dxmt-input-layout-reuse/manifest.json",
+      "sha256": "c75f2ca62989ab395ce8140052ae9bfcb1fb79a3c2251258a5d639c594e65cd3",
+      "bytes": 995
+    },
+    "correctness": [
+      {
+        "shortcut": true,
+        "artifact": "clean release",
+        "exit_code": 0,
+        "seconds": 6.612366667,
+        "d3d11_sha256": "e4086a6919b96013ecf2d70a291f087d5b3183d9412b1b45b1e1b73ab02db9cc"
+      }
+    ],
+    "correctness_log": {
+      "path": "build/performance/input-layout-release-correctness.log",
+      "sha256": "f9610c01d70ce3bd50e7db6ea0986da046fb526f518e8055fea7b96da2d54dfe",
+      "bytes": 537
+    },
+    "pixel_checks": 31,
+    "layout_state_checks": 7,
+    "profiling_code_present": false,
+    "loaded_runtime_verified_with_lsof": true,
+    "gameplay": "Private copied world loaded and rendered correctly after more than 120 seconds of unpaused terrain warmup; saved successfully and returned to world list, then closed.",
+    "capture": {
+      "path": "build/performance/layout-release.json",
+      "sha256": "e3450b869b2dcec93edaa89f837c25d853490cb3f42ee4cef4de7ef4440f03a2",
+      "summary": {
+        "name": "layout-release",
+        "seconds": 30.096157166999998,
+        "cpu_seconds": 167.12073312500002,
+        "cpu_percent": 555.2892756296658,
+        "ram_GiB": 4.363486903809732,
+        "profile": {},
+        "thread_cpu_coverage_percent": 536.7810551479232,
+        "game_cpu_percent": 536.7716095898603,
+        "thread_identity": "stable kernel thread id (flavors 28/15)",
+        "ntdll_sha256": "1cfaab9891fcaa0668d94a819e8840d0b911b7f9216dc52f51b352520b18f06f",
+        "d3d11_sha256": "e4086a6919b96013ecf2d70a291f087d5b3183d9412b1b45b1e1b73ab02db9cc",
+        "displayed_fps": 99.68767878822194,
+        "displayed_fps_window": 99.68046733958646,
+        "presentation_window_seconds": 30.09616708336398,
+        "displayed_frames": 3000,
+        "dimensions": [
+          1683,
+          951
+        ],
+        "positive_present_callbacks": 3000,
+        "coincident_present_callbacks": 0,
+        "coincident_present_timestamp_groups": 0,
+        "frame_p50_ms": 9.991333994548768,
+        "frame_p95_ms": 9.99141699867323,
+        "frame_p99_ms": 9.991458966396749,
+        "first_present_delay_ms": 4.388666246086359,
+        "last_present_gap_ms": 7.8198331175372005,
+        "zero_present_callbacks": 0,
+        "invalid_present_callbacks": 0,
+        "cpu_ms_per_displayed_frame": 55.70691104166667
+      },
+      "footprint_min_GiB": 4.0738759487867355,
+      "footprint_max_GiB": 4.500717684626579,
+      "interpretation": "Release sanity check in a new process; not a paired estimate of improvement."
+    }
+  },
+  "deployment": {
+    "status": "installed",
+    "installed_paths": [
+      "runtime/standalone/wine/lib/wine/x86_64-windows/d3d11.dll",
+      "runtime/standalone/dxmt/x86_64-windows/d3d11.dll"
+    ],
+    "reason": "Follow-up clean packed control exhibits the same 413.9 MiB owned-unmapped pulse. Prior GPU correctness and paired CPU/frame gains support installation; no RAM improvement claim.",
+    "artifact": "build/dxmt-input-layout-reuse/d3d11.dll",
+    "stage_command": "python3 standalone-dxmt-shared.py stage --reuse-input-layout",
+    "rollback_command": "python3 standalone-dxmt-shared.py restore --reuse-input-layout",
+    "rollback_verified": "Private-runtime restore completed and matched the previous diagnostic DLL; original test runtime DLLs, native bridge, metadata and options then restored from checked backups."
+  }
+}

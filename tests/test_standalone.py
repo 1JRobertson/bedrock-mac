@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -15,6 +16,288 @@ spec.loader.exec_module(standalone)
 
 
 class IsolationTests(unittest.TestCase):
+    def test_helper_receipt_is_private_atomic_and_does_not_follow_existing_link(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / 'unrelated'
+            target.write_bytes(b'keep this file')
+            state = root / 'session.json'
+            state.symlink_to(target)
+            with patch.object(standalone, 'STATE', state), patch.object(standalone, 'HELPER', root / 'helper'):
+                previous_umask = os.umask(0)
+                try:
+                    standalone.record_account_process(43210)
+                finally:
+                    os.umask(previous_umask)
+            self.assertFalse(state.is_symlink())
+            self.assertEqual(state.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(json.loads(state.read_text()), {'pid': 43210, 'executable': str(root / 'helper')})
+            self.assertEqual(target.read_bytes(), b'keep this file')
+            self.assertEqual(list(root.glob('.helper-session-*')), [])
+
+    def test_failed_receipt_publish_preserves_previous_complete_record(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            state = root / 'session.json'
+            state.write_bytes(b'previous complete record')
+            with patch.object(standalone, 'STATE', state), \
+                 patch.object(standalone.os, 'replace', side_effect=OSError('fixture disk error')):
+                with self.assertRaises(OSError):
+                    standalone.record_account_process(43210)
+            self.assertEqual(state.read_bytes(), b'previous complete record')
+            self.assertEqual(list(root.glob('.helper-session-*')), [])
+
+    def test_owned_helper_gets_current_parent_and_receipt_before_readiness_poll(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            helper, state = root / 'helper', root / 'session.json'
+            helper.touch()
+            process = Mock(pid=43210)
+            process.poll.return_value = 0
+            polls = 0
+
+            def ready():
+                nonlocal polls
+                polls += 1
+                if polls == 1:
+                    self.assertFalse(state.exists())
+                    return False
+                self.assertEqual(json.loads(state.read_text())['pid'], process.pid)
+                self.assertEqual(state.stat().st_mode & 0o777, 0o600)
+                return True
+
+            with patch.object(standalone, 'ROOT', root), patch.object(standalone, 'HELPER', helper), \
+                 patch.object(standalone, 'STATE', state), patch.object(standalone, 'SOCKET', root / 'unused.sock'), \
+                 patch.object(standalone, 'recover_account_socket'), \
+                 patch.object(standalone, 'account_ready', side_effect=ready), \
+                 patch.object(standalone, 'account_pid', return_value=None), \
+                 patch.object(standalone.subprocess, 'Popen', return_value=process) as spawn, \
+                 patch.dict(os.environ, {'BEDROCK_HELPER_PARENT_PID': '2', 'BEDROCK_HELPER_SESSION_FILE': '/stale/session.json'}):
+                with standalone.account(root, progress=lambda _line: None):
+                    env = spawn.call_args.kwargs['env']
+                    self.assertEqual(env['BEDROCK_HELPER_PARENT_PID'], str(os.getpid()))
+                    self.assertEqual(env['BEDROCK_HELPER_SESSION_FILE'], str(state.absolute()))
+                self.assertEqual(os.environ['BEDROCK_HELPER_PARENT_PID'], '2')
+            self.assertEqual(polls, 2)
+
+    def test_receipt_failure_stops_only_newly_owned_helper(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            helper = root / 'helper'
+            helper.touch()
+            process = Mock(pid=43210)
+            process.poll.return_value = None
+            with patch.object(standalone, 'ROOT', root), patch.object(standalone, 'HELPER', helper), \
+                 patch.object(standalone, 'STATE', root / 'session.json'), \
+                 patch.object(standalone, 'SOCKET', root / 'unused.sock'), \
+                 patch.object(standalone, 'recover_account_socket'), \
+                 patch.object(standalone, 'account_ready', return_value=False), \
+                 patch.object(standalone, 'account_pid', return_value=None), \
+                 patch.object(standalone, 'record_account_process', side_effect=OSError('fixture disk error')), \
+                 patch.object(standalone.subprocess, 'Popen', return_value=process):
+                with self.assertRaises(OSError):
+                    with standalone.account(root, progress=lambda _line: None):
+                        self.fail('Receipt failure must prevent account use')
+            process.send_signal.assert_called_once_with(standalone.signal.SIGINT)
+
+    def test_interrupted_update_blocks_all_cli_mutation_under_lock_and_preserves_saves(self):
+        for journal in ('preparing', 'malformed', 'empty', 'file', 'dangling-link'):
+            for command in (['launch'], ['prepare'], ['probe', 'graphics'], ['probe', 'account']):
+                with self.subTest(journal=journal, command=command), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    transaction = root / '.minecraft-update'
+                    if journal == 'file':
+                        transaction.write_text('unexpected entry')
+                    elif journal == 'dangling-link':
+                        transaction.symlink_to(root / 'missing-journal')
+                    else:
+                        transaction.mkdir()
+                        if journal != 'empty':
+                            (transaction / 'transaction.json').write_text(
+                                '{broken' if journal == 'malformed' else json.dumps({'phase': 'preparing'}))
+                    prefix = root / 'bottles/Bedrock-Standalone'
+                    world = prefix / 'worlds/disposable/level.dat'
+                    world.parent.mkdir(parents=True)
+                    world.write_bytes(b'current saved world')
+                    previous_root = transaction / 'previous-prefix' if transaction.is_dir() else root / 'preserved-previous-prefix'
+                    previous = previous_root / 'worlds/disposable/level.dat'
+                    previous.parent.mkdir(parents=True)
+                    previous.write_bytes(b'previous saved world')
+                    original_guard = standalone.refuse_pending_update
+
+                    def guard_while_locked():
+                        with (root / 'runtime/standalone/launcher.lock').open('a') as other:
+                            with self.assertRaises(BlockingIOError):
+                                standalone.fcntl.flock(other, standalone.fcntl.LOCK_EX | standalone.fcntl.LOCK_NB)
+                        original_guard()
+
+                    with patch.object(standalone, 'ROOT', root), patch.object(standalone, 'PREFIX', prefix), \
+                         patch.object(standalone, 'refuse_pending_update', side_effect=guard_while_locked), \
+                         patch.object(standalone, 'prepare') as prepare, \
+                         patch.object(standalone, 'install_pending_hud') as hud, \
+                         patch.object(standalone, 'account') as account, \
+                         patch.object(standalone, 'wine_run') as wine, \
+                         patch.object(sys, 'argv', ['standalone.py', *command]):
+                        previous_umask = os.umask(0o077)
+                        try:
+                            with self.assertRaisesRegex(RuntimeError, 'update needs recovery'):
+                                standalone.main()
+                        finally:
+                            os.umask(previous_umask)
+                    for operation in (prepare, hud, account, wine):
+                        operation.assert_not_called()
+                    self.assertEqual(world.read_bytes(), b'current saved world')
+                    self.assertEqual(previous.read_bytes(), b'previous saved world')
+                    self.assertTrue(os.path.lexists(transaction))
+
+    def test_updater_can_prepare_directly_while_it_owns_transaction_lock(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prefix = root / 'bottles/Bedrock-Standalone'
+            (root / '.minecraft-update').mkdir()
+            lock_path = root / 'runtime/standalone/launcher.lock'
+            lock_path.parent.mkdir(parents=True)
+            with lock_path.open('w') as lock:
+                standalone.fcntl.flock(lock, standalone.fcntl.LOCK_EX)
+                with patch.object(standalone, 'ROOT', root), patch.object(standalone, 'PREFIX', prefix), \
+                     patch.object(standalone, 'prerequisites'), \
+                     patch.object(standalone, 'setup_signature', return_value={}), \
+                     patch.object(standalone, 'setup_matches', return_value=True), \
+                     patch.object(standalone, 'picker_bridge') as pickers, \
+                     patch.object(standalone, 'map_drive') as mapping:
+                    pickers.return_value.installed.return_value = True
+                    standalone.prepare(root / 'game')
+                self.assertEqual(mapping.call_count, 2)
+
+    def test_unstaged_runtime_needs_no_optional_allocator_sources(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.object(standalone, 'WINE', Path(temporary)), \
+                 patch.object(standalone.importlib.util, 'spec_from_file_location') as load:
+                self.assertFalse(standalone.verified_refmove_activation(Path('/owned-game')))
+                load.assert_not_called()
+
+    def test_unknown_picker_registration_stops_prepare_before_wineboot(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prefix = root / 'bottles/Bedrock-Standalone'
+            prefix.mkdir(parents=True)
+            registry = ('WINE REGISTRY Version 2\n[Software\\\\Microsoft\\\\WindowsRuntime\\\\ActivatableClassId'
+                        '\\\\Windows.Storage.Pickers.FileOpenPicker] 123\n"DllPath"="custom.dll"\n')
+            (prefix / 'system.reg').write_text(registry)
+            with patch.object(standalone, 'ROOT', root), patch.object(standalone, 'PREFIX', prefix), \
+                 patch.object(standalone, 'prerequisites'), \
+                 patch.object(standalone, 'setup_signature', return_value={}), \
+                 patch.object(standalone, 'wait_for_idle_prefix'), \
+                 patch.object(standalone, 'wine_run') as wine:
+                with self.assertRaisesRegex(RuntimeError, 'registration must be preserved'):
+                    standalone.prepare(root / 'game')
+                wine.assert_not_called()
+            self.assertEqual((prefix / 'system.reg').read_text(), registry)
+            self.assertFalse((prefix / 'drive_c').exists())
+
+    def test_inherited_allocator_and_sentinel_gates_are_removed(self):
+        with patch.dict(os.environ, {'BEDROCK_PRIVATE_REFMOVE_15203': '1',
+                                     'BEDROCK_PRIVATE_REFMOVE_SENTINEL': '1',
+                                     'BEDROCK_FRAME_SLAB': '1',
+                                     'BEDROCK_FRAME_SLAB_CONTROL': 'Z:\\old.bin',
+                                     'BEDROCK_FRAME_SLAB_SENTINEL': '1',
+                                     'BEDROCK_CLONE_RECURRENCE': '1',
+                                     'BEDROCK_BINDING_RECURRENCE': '1',
+                                     'BEDROCK_EXACT_CURRENT': 'fast',
+                                     'BEDROCK_ALLOC_DIAG': '1',
+                                     'BEDROCK_ALLOCATOR_DIAGNOSTIC': '1'}):
+            env = standalone.environment()
+        self.assertFalse(any(key.startswith(('BEDROCK_PRIVATE_REFMOVE', 'BEDROCK_FRAME_SLAB',
+            'BEDROCK_CLONE_RECURRENCE', 'BEDROCK_BINDING_RECURRENCE', 'BEDROCK_EXACT_CURRENT',
+            'BEDROCK_ALLOC_DIAG', 'BEDROCK_ALLOCATOR_')) for key in env))
+
+    def test_frame_profile_uses_unique_private_controls_only_for_game(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            wine = root / 'wine'; wine.mkdir()
+            (wine / 'bedrock-frame-slab.json').write_text('{}')
+            helper = Mock()
+            helper.verified_activation.return_value = True
+            game = root / 'game'
+            with patch.object(standalone, 'ROOT', root), patch.object(standalone, 'WINE', wine), \
+                 patch.object(standalone, 'require'), \
+                 patch.object(standalone.importlib.util, 'module_from_spec', return_value=helper), \
+                 patch.object(standalone.importlib.util, 'spec_from_file_location'), \
+                 patch.object(standalone, 'verified_refmove_activation') as old_verify, \
+                 patch.object(standalone.subprocess, 'run') as run:
+                standalone.wine_run(['G:\\Minecraft.Windows.exe'], game)
+                first = run.call_args.kwargs['env']
+                standalone.wine_run(['G:\\Minecraft.Windows.exe'], game)
+                second = run.call_args.kwargs['env']
+                self.assertNotEqual(first['BEDROCK_FRAME_SLAB_CONTROL'], second['BEDROCK_FRAME_SLAB_CONTROL'])
+                helper.verified_activation.assert_called_with(wine, game)
+                old_verify.assert_not_called()
+                for env in (first, second):
+                    self.assertEqual(env['BEDROCK_FRAME_SLAB_CHUNK'], '16384')
+                    self.assertEqual(env['BEDROCK_PRIVATE_REFMOVE_15203'], '1')
+                    control = Path(env['BEDROCK_FRAME_SLAB_CONTROL'][2:].replace('\\', '/'))
+                    self.assertFalse(control.exists())
+                    self.assertEqual(control.parent.stat().st_mode & 0o777, 0o700)
+                    self.assertEqual(control.parent.parent, root / 'logs/standalone/frame-slab')
+                helper.verified_activation.reset_mock()
+                standalone.wine_run(['wineboot', '-u'], game)
+                helper.verified_activation.assert_not_called()
+                self.assertNotIn('BEDROCK_FRAME_SLAB', run.call_args.kwargs['env'])
+
+    def test_invalid_frame_install_never_launches_or_falls_back(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            (root / 'bedrock-frame-slab.json').write_text('{}')
+            helper = Mock()
+            with patch.object(standalone, 'ROOT', root), patch.object(standalone, 'WINE', root), \
+                 patch.object(standalone, 'require'), \
+                 patch.object(standalone.importlib.util, 'module_from_spec', return_value=helper), \
+                 patch.object(standalone.importlib.util, 'spec_from_file_location'), \
+                 patch.object(standalone, 'verified_refmove_activation') as old_verify, \
+                 patch.object(standalone.subprocess, 'run') as run:
+                for failure in (False, RuntimeError('Changed runtime')):
+                    helper.verified_activation.side_effect = failure if isinstance(failure, Exception) else None
+                    helper.verified_activation.return_value = False
+                    with self.assertRaises(RuntimeError):
+                        standalone.wine_run(['G:\\Minecraft.Windows.exe'], root / 'game')
+                    run.assert_not_called()
+                    old_verify.assert_not_called()
+                self.assertFalse((root / 'logs').exists())
+
+    def test_unstaged_frame_profile_loads_no_optional_module(self):
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.object(standalone, 'WINE', Path(temporary)), \
+             patch.object(standalone.importlib.util, 'spec_from_file_location') as load:
+            self.assertFalse(standalone.apply_frame_slab({}, Path('/owned-game')))
+            load.assert_not_called()
+
+    def test_only_verified_game_launch_receives_allocator_gate(self):
+        game = Path('/owned-game')
+        with patch.object(standalone, 'require'), \
+             patch.object(standalone, 'apply_frame_slab', return_value=False), \
+             patch.object(standalone, 'verified_refmove_activation', return_value=True) as verify, \
+             patch.object(standalone.subprocess, 'run') as run:
+            standalone.wine_run(['G:\\Minecraft.Windows.exe'], game)
+            verify.assert_called_once_with(game)
+            self.assertEqual(run.call_args.kwargs['env']['BEDROCK_PRIVATE_REFMOVE_15203'], '1')
+            verify.reset_mock()
+            standalone.wine_run(['wineboot', '-u'], game)
+            verify.assert_not_called()
+            self.assertNotIn('BEDROCK_PRIVATE_REFMOVE_15203', run.call_args.kwargs['env'])
+
+    def test_disabled_or_failed_allocator_stage_cannot_activate(self):
+        with patch.object(standalone, 'require'), \
+             patch.object(standalone, 'apply_frame_slab', return_value=False), \
+             patch.object(standalone, 'verified_refmove_activation', return_value=False) as verify, \
+             patch.object(standalone.subprocess, 'run') as run:
+            standalone.wine_run(['G:\\Minecraft.Windows.exe'], Path('/owned-game'))
+            self.assertNotIn('BEDROCK_PRIVATE_REFMOVE_15203', run.call_args.kwargs['env'])
+            run.reset_mock()
+            verify.side_effect = RuntimeError('Corrupt stage')
+            with self.assertRaisesRegex(RuntimeError, 'Corrupt stage'):
+                standalone.wine_run(['G:\\Minecraft.Windows.exe'], Path('/owned-game'))
+            run.assert_not_called()
+
     def test_network_diagnostics_are_explicit_and_do_not_enable_http_payload_tracing(self):
         with patch.dict(os.environ, {'WINEDEBUG': '+all', 'WINEGDK_HTTP_STATUS_TRACE': '1'}):
             normal = standalone.environment()
@@ -54,6 +337,36 @@ class IsolationTests(unittest.TestCase):
             (prefix / '.bedrock-setup.json').write_text('{interrupted')
             with patch.object(standalone, 'PREFIX', prefix):
                 self.assertFalse(standalone.setup_matches({'setup_version': 2}))
+
+    def test_dll_only_app_update_invalidates_setup_without_changing_wine_executable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            wine, dxmt, game = root / 'wine', root / 'dxmt', root / 'game'
+            files = [wine / 'bin/wine', dxmt / 'x86_64-windows/d3d11.dll',
+                     game / 'Installers/GameInputRedist.msi', wine / 'file-pickers-build.json']
+            modules = ('x86_64-windows/ntdll.dll', 'x86_64-unix/ntdll.so',
+                       'x86_64-windows/xgameruntime.dll', 'x86_64-windows/d3d11.dll',
+                       'x86_64-windows/dxgi.dll', 'x86_64-windows/d3d10core.dll',
+                       'x86_64-windows/winemetal.dll', 'x86_64-unix/winemetal.so',
+                       'x86_64-windows/bedrock-pickers.dll')
+            files.extend(wine / 'lib/wine' / name for name in modules)
+            for path in files:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'original')
+            with patch.object(standalone, 'WINE', wine), patch.object(standalone, 'DXMT', dxmt), \
+                 patch.object(standalone, 'PREFIX', root):
+                original = standalone.setup_signature(game)
+                (root / '.bedrock-setup.json').write_text(json.dumps(original))
+                self.assertTrue(standalone.setup_matches(standalone.setup_signature(game)))
+                for name in modules:
+                    with self.subTest(module=name):
+                        module = wine / 'lib/wine' / name
+                        module.write_bytes(b'updated')
+                        changed = standalone.setup_signature(game)
+                        self.assertEqual(original['wine'], changed['wine'])
+                        self.assertFalse(standalone.setup_matches(changed))
+                        module.write_bytes(b'original')
+                self.assertTrue(standalone.setup_matches(standalone.setup_signature(game)))
 
     def test_account_timeout_stops_owned_helper_and_preserves_error(self):
         with tempfile.TemporaryDirectory() as temporary:

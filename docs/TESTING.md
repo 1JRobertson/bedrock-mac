@@ -3,7 +3,7 @@
 Run checks from the repository root. Prefer tests that reproduce a failure at
 its real boundary; avoid tests that only restate implementation. Documentation
 changes need link, command, export, and checksum checks, not a fresh game install.
-Test counts below describe the October 5, 2026 source snapshot.
+Test counts below are dated snapshots, not the current suite's required count.
 
 ## Choose the relevant checks
 
@@ -28,7 +28,7 @@ shasum -a 256 -c SOURCE-SHA256.txt
 git diff --check
 ```
 
-The Python suite currently has 77 tests. Coverage includes source isolation,
+An earlier October 7 Python snapshot passed 190 tests. Coverage includes source isolation,
 one helper across download/preparation/launch, safe account error messages,
 process cancellation, setup-marker corruption, runtime relinking, reduced
 download verification, and packaged minimum OS detection. The count is a dated
@@ -44,6 +44,62 @@ That check is offline; the initial `bootstrap-sources.py` fetch is not. If an
 exported source file changed, first regenerate `SOURCE-SHA256.txt` following
 [PUBLISHING.md](PUBLISHING.md#update-the-source-inventory).
 
+## Release-preparation source snapshot, October 7
+
+The coordinator's 23:56 UTC run passed **289 Python tests, zero skips**. The
+source export check covered **181 explicitly allowed files**, including only the
+exact fingerprint-pinned 539-byte production public verification key as a binary
+exception. This does not authorize game payloads, private keys or arbitrary
+binaries. The inventory is a dated working-source snapshot, not a release freeze.
+
+These are source/fixture checks. Actual RC3 packaged GPU probes separately passed
+in a disposable prefix and preserved all 1,959 payload hashes plus the signature.
+Neither result establishes authentication, acquisition, gameplay, saves, M1 or
+soak acceptance. See [current readiness](RELEASE.md).
+
+## Frame allocator installation
+
+The frozen frame-slab installation has offline transaction and launcher checks:
+
+```sh
+python3 -m unittest discover -s tests -p 'test_standalone_bedrock_frame_profile.py'
+python3 -m unittest discover -s tests -p 'test_standalone.py'
+```
+
+These use temporary fake runtimes. Live qualification separately checks the
+exact DLL, guarded normal launch path, a copied world's load/movement/save/reload,
+new control mappings on repeat launches, and post-exit retirement counters.
+Before installing into a regular runtime, exercise stage/restore and verify the
+previous DLL/manifest return byte-for-byte. Never replace a mapped runtime.
+
+The October 7 local rollout passed all 32 profile transaction tests, exact
+stage/restore/restage on both the copied and regular runtimes, two copied-world
+sessions with normal exits, terrain transitions, and save/reload. A controlled
+OFF transition drained all 8,535 registered scopes before the second exit.
+The regular `Launch Standalone.command` then loaded the installed 16 KiB profile
+and passed its 16-site game guard. See the graphics notes for scope and counters.
+
+## Native architecture probe
+
+For the standalone M4 native-batch experiment (Apple Silicon, Rosetta and Command
+Line Tools required), use a fresh output directory:
+
+```sh
+python3 tests/run-m4-native-batch.py --output build/m4-batch-verify
+# After quitting Minecraft, with no competing benchmark/build:
+python3 tests/run-m4-native-batch.py --output build/m4-batch-timing --benchmark
+# Stronger target-specific comparison on an M4-family Mac:
+python3 tests/run-m4-native-batch.py --output build/m4-batch-tuned --tuned-m4 --benchmark
+```
+
+The default verifies 64 fixtures of 65,536 AABBs against the identical kernel
+running in a separate native ARM64 process. The timed mode adds 11 alternating
+pairs at each batch size, including semaphore communication. It refuses a
+running game and never changes a game process or runtime. Retained synthetic
+geometry excludes extraction, updates, draw submission and GPU work; these
+results cannot establish a game speedup. See the
+[architecture evidence](m4-architecture-results.json).
+
 ## Native app and helper
 
 Compile the interface on a Mac with Command Line Tools:
@@ -57,24 +113,109 @@ retry, error, and running-game states without touching a real account. Keep
 fixtures in ignored build output. A fixture proves UI behavior only. The worker
 protocol and ownership model are in [CONTEXT.md](../CONTEXT.md).
 
+The portable lifecycle regression requires Apple Silicon, macOS 15+ and Command
+Line Tools. Choose a new output directory:
+
+```sh
+python3 tests/check-launcher-lifecycle.py --output build/launcher-lifecycle-check
+```
+
+It exercises the production controller/delegate with a dummy local worker and
+intercepted sheet presentation. It uses no real account, game or visible UI.
+The recorded local run passed; actual SwiftUI red-close/reopen and sheet behavior
+have separate native fixture evidence. Neither qualifies RC4 gameplay.
+
 Prepare the current standalone helper example and run its tests after quitting
 Minecraft and letting its helper stop. The builder rejects any active
 `standalone_helper`, including one in a packaged app:
 
 ```sh
 python3 standalone-setup.py --build-helper
-cargo +1.98.0 test --release --locked --manifest-path sources/xodus/Cargo.toml \
-  -p xodus-cli --example standalone_helper
+cargo +1.98.0 test --release --locked --no-default-features \
+  --manifest-path sources/xodus/Cargo.toml -p xodus-cli --example standalone_helper
 ```
 
-There are currently 12 default helper tests and two ignored live fixtures.
-Default tests use fake/in-memory token storage and check cache reads, denied
-reads, failed writes, sign-out, package paths, and URL policy. Do not add
-`--include-ignored` to routine tests: the ignored Keychain fixture creates its
-own random entry, and the ignored CDN fixture makes a live request. Neither
-proves the prompt behavior of a user's saved account.
+Use `--no-default-features` to match the minimal shipping helper. Bootstrap
+copies all three helper inputs: the example, XVD verifier module and pinned
+public key; no separate manual copy is needed.
+
+Default tests use fake/in-memory credentials. Coverage includes credential
+cache and denial handling, sign-out, paths/URL policy, signature rejection,
+hash-tree corruption and identity checks, and verified local-reader bounds,
+reopen and changed-backing-file rejection. Test counts change with the source;
+record the actual command, source hashes and result for each run.
+
+Do not use `--include-ignored` routinely. Select opt-in fixtures individually:
+the parent-death child needs its isolated controller; the Keychain fixture uses
+only its own random entry; the live CDN fixture requests a two-byte endpoint;
+owned-package and cached-header/metadata fixtures require the documented
+`XVD_TEST_*` inputs. Cached/header-only checks and the CDN probe do not prove
+complete package acquisition. Real account sign-in is a separate, explicit
+live test with the user handling credentials and security prompts.
+
+## File picker compatibility
+
+The Wine builder includes the source-built PNG/world picker bridge. Prefix setup
+checks its source receipt, preserves previous DLL/registry evidence, and refuses
+to replace an unknown provider. Its installation fixtures run in the Python
+suite; Windows CI independently compiles the DLL and runs the mocked-dialog ABI
+contracts against the Windows SDK. Neither needs Minecraft or an account.
+
+These checks do not prove that Minecraft imports a skin. Native acceptance must
+open and cancel **Dressing Room → Choose New Skin**, select a valid PNG, handle an
+invalid image, restart to check persistence, and regress world import/export.
+Use an isolated prefix and disposable worlds; retain the existing installation.
+See [bridge build and ABI notes](../file-pickers/README.md).
+
+### October 19 native skin check
+
+Source revision `4470fb5` was tested on an Apple M4 Pro, macOS 15.3.1, with the
+owned Bedrock 26.52 game and Wine 11.8. The picker DLL was built from this source;
+all **206 contract checks passed under Wine on this Mac**. Its exact DLL and four
+prefix registrations verified before gameplay.
+
+The game ran through the resource guard in a fresh, isolated prefix with a
+cloned existing development runtime and the existing authorized helper. Optional
+performance hooks were not activated. This tests the picker integration in that
+local baseline; it does not qualify a reconstructed runtime, packaged RC4, the
+reporter's M5 Pro/macOS 27 setup, or a clean Mac.
+
+Observed results:
+
+- **Pass:** Choose New Skin opened the PNG dialog; cancellation returned to
+  Dressing Room without a crash.
+- **Pass:** the invalid-dimension PNG produced Minecraft's supported-size message.
+- **Pass:** a generated 64×64 RGBA PNG showed both model previews and rendered as
+  the current skin. Selecting `Skin QA α.png` by browsing also succeeded.
+- **Fail:** the current skin reset to the default character after restart,
+  including after returning to the main menu and using Minecraft's own exit
+  confirmation. Both completed game sessions exited with code 0.
+- **Pending:** world import/export regression. The guard stopped the next session
+  after app memory exceeded 8 GiB. Its owned game, helper and Wine server exited;
+  the regular installation and saves were preserved.
+
+Do not close issue #4 on the strength of successful dialog/import checks.
+Persistence needs a separate diagnosis. Trace only profile-storage function names
+and result codes during save/restart when the guard permits; neither the picker
+nor normal prefix preparation contains skin-file deletion. A local GameSave
+opt-in or broader storage implementation is not a verified fix.
 
 ## Wine and graphics
+
+The opt-in allocator source has an additional local differential check:
+
+```sh
+python3 tests/run-bedrock-exact-differential.py \
+  --game /absolute/path/to/owned/Minecraft.Windows.exe \
+  --output build/allocator-differential
+```
+
+It accepts only the exact reviewed executable digest and extracts reference
+instructions into ignored output. It does not modify or launch the game.
+The regular Python suite tests the synthetic allocator and build boundaries
+without requiring a game. Building a candidate, passing these tests and measuring
+game performance remain separate checks; see the
+[render-allocation notes](../standalone-graphics-notes.md#october-6-render-allocation-candidates).
 
 After building standalone Wine, run:
 

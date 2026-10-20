@@ -1,5 +1,6 @@
 """Exercise the real worker entry point without network, Keychain, or game access."""
 import contextlib
+import fcntl
 import importlib.util
 import io
 import json
@@ -11,6 +12,7 @@ import socket
 import os
 import signal
 import time
+import textwrap
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
@@ -24,6 +26,560 @@ runtime_spec.loader.exec_module(runtime)
 
 
 class OnboardingTests(unittest.TestCase):
+    def test_dangling_update_transaction_routes_to_preserving_recovery(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            transaction = root / '.minecraft-update'
+            transaction.symlink_to(root / 'missing-transaction')
+            session = SimpleNamespace(game_running=lambda: False, account_pid=lambda: None,
+                                      recover_account_socket=lambda: None, wait_for_idle_prefix=lambda: None)
+            with patch.object(worker, 'ROOT', root), patch.object(worker, 'BUNDLE', None), \
+                    patch.object(worker, 'load', return_value=session), \
+                    patch.object(worker, 'initialize_bundle') as initialize, \
+                    patch('sys.argv', ['setup.py', '--status']), contextlib.redirect_stdout(io.StringIO()) as output:
+                worker.main()
+                self.assertEqual(json.loads(output.getvalue())['state'], 'update')
+                with patch('sys.argv', ['setup.py']):
+                    with self.assertRaisesRegex(RuntimeError, 'unexpected link'):
+                        worker.main()
+            initialize.assert_not_called()
+            self.assertTrue(transaction.is_symlink())
+
+    def test_update_parent_guard_environment_is_scoped_even_on_failure(self):
+        @contextlib.contextmanager
+        def account(_destination, **_kwargs):
+            self.assertEqual(os.environ['BEDROCK_HELPER_PARENT_PID'], str(os.getpid()))
+            self.assertEqual(os.environ['BEDROCK_HELPER_SESSION_FILE'], '/fixture/session.json')
+            yield
+
+        session = SimpleNamespace(STATE=Path('/fixture/session.json'), account=account)
+        with patch.dict(os.environ, {'BEDROCK_HELPER_PARENT_PID': 'previous-owner'}, clear=False):
+            original_state = os.environ.get('BEDROCK_HELPER_SESSION_FILE')
+            with self.assertRaises(worker.Cancelled):
+                with worker.update_account(session, Path('/fixture/download')):
+                    raise worker.Cancelled()
+            self.assertEqual(os.environ['BEDROCK_HELPER_PARENT_PID'], 'previous-owner')
+            self.assertEqual(os.environ.get('BEDROCK_HELPER_SESSION_FILE'), original_state)
+
+    def test_killed_update_worker_releases_guarded_helper_and_allows_recovery_retry(self):
+        for stage in ('before-session-record', 'preparing'):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                _, _, prefix = self.update_fixture(root)
+                helper = root / 'sources/xodus/target/release/examples/standalone_helper'
+                helper.parent.mkdir(parents=True)
+                state = root / 'runtime/standalone/helper-session.json'
+                endpoint = root / 'account.sock'
+                spawned, stopped = root / 'helper-spawned', root / 'helper-stopped'
+                helper.write_text('#!' + sys.executable + '\n' + textwrap.dedent('''
+                    import json, os, pathlib, socket, sys, time
+                    root = pathlib.Path(os.environ['BEDROCK_HOME'])
+                    parent = int(os.environ['BEDROCK_HELPER_PARENT_PID'])
+                    record = pathlib.Path(os.environ['BEDROCK_HELPER_SESSION_FILE'])
+                    assert os.getppid() == parent
+                    (root / 'helper-spawned').write_text(str(os.getpid()))
+                    server = None
+                    try:
+                        # Mirror the production guardian contract, without
+                        # credentials, network access or any real game process.
+                        while os.getppid() == parent:
+                            try:
+                                data = json.loads(record.read_text())
+                                if data['pid'] == os.getpid() and pathlib.Path(data['executable']).resolve() == pathlib.Path(sys.argv[0]).resolve():
+                                    break
+                            except (OSError, ValueError, KeyError):
+                                pass
+                            time.sleep(0.01)
+                        if os.getppid() == parent:
+                            destination = pathlib.Path(sys.argv[2])
+                            destination.mkdir()
+                            (destination / 'Minecraft.Windows.exe').write_bytes(b'MZnew')
+                            server = socket.socket(socket.AF_UNIX)
+                            server.bind(str(root / 'account.sock'))
+                            os.chmod(root / 'account.sock', 0o600)
+                            server.listen()
+                            while os.getppid() == parent:
+                                time.sleep(0.01)
+                    finally:
+                        if server:
+                            server.close()  # Deliberately leave a dead socket.
+                        (root / 'helper-stopped').touch()
+                '''))
+                helper.chmod(0o700)
+                wrapper = root / 'fixture-worker.py'
+                wrapper.write_text(textwrap.dedent('''
+                    import importlib.util, os, pathlib, time, fcntl
+                    from types import SimpleNamespace
+                    root = pathlib.Path(ROOT_VALUE)
+                    os.environ['BEDROCK_HOME'] = str(root)
+                    def load(name, path):
+                        spec = importlib.util.spec_from_file_location(name, path)
+                        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+                        return module
+                    worker = load('worker', WORKER_VALUE)
+                    runtime = load('runtime', RUNTIME_VALUE)
+                    runtime.SOCKET = root / 'account.sock'
+                    def account_pid():
+                        import json
+                        try:
+                            pid = json.loads(runtime.STATE.read_text())['pid']
+                            os.kill(pid, 0)
+                            return pid
+                        except (OSError, ValueError):
+                            return None
+                    runtime.account_pid = account_pid
+                    runtime.game_running = lambda: False
+                    runtime.wait_for_idle_prefix = lambda: None
+                    runtime.prerequisites = lambda _: None
+                    runtime.setup_signature = lambda _: {}
+                    runtime.setup_matches = lambda _: True
+                    def prepare(_):
+                        (root / 'preparing').touch()
+                        time.sleep(60)
+                    runtime.prepare = prepare
+                    worker.run = lambda *a, **kw: None
+                    worker.shutil.disk_usage = lambda _: SimpleNamespace(free=100 * 1024**3)
+                    if STAGE_VALUE == 'before-session-record':
+                        original = runtime.subprocess.Popen
+                        def delayed_popen(*args, **kwargs):
+                            process = original(*args, **kwargs)
+                            while not (root / 'helper-spawned').exists():
+                                time.sleep(0.01)
+                            time.sleep(60)  # Kill between spawn and STATE write.
+                            return process
+                        runtime.subprocess.Popen = delayed_popen
+                    with (root / 'onboarding.lock').open('a') as lock, (root / 'fixture.log').open('ab') as log:
+                        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        with worker.maintenance_lock(runtime):
+                            worker.update_minecraft(runtime, log)
+                ''').replace('ROOT_VALUE', repr(str(root))).replace('WORKER_VALUE', repr(worker.__file__))
+                   .replace('RUNTIME_VALUE', repr(runtime.__file__)).replace('STAGE_VALUE', repr(stage)))
+                process = subprocess.Popen([sys.executable, str(wrapper)], stdout=subprocess.DEVNULL,
+                                           stderr=subprocess.PIPE)
+                try:
+                    marker = spawned if stage == 'before-session-record' else root / 'preparing'
+                    deadline = time.monotonic() + 10
+                    while not marker.exists() and process.poll() is None and time.monotonic() < deadline:
+                        time.sleep(0.02)
+                    self.assertTrue(marker.exists(), 'Synthetic worker did not reach kill boundary')
+                    process.kill()
+                    process.wait(timeout=5)
+                    deadline = time.monotonic() + 5
+                    while not stopped.exists() and time.monotonic() < deadline:
+                        time.sleep(0.02)
+                    self.assertTrue(stopped.exists(), 'Guarded helper did not stop after worker death')
+                    helper_pid = int(spawned.read_text())
+                    while time.monotonic() < deadline:
+                        try:
+                            os.kill(helper_pid, 0)
+                        except ProcessLookupError:
+                            break
+                        time.sleep(0.02)
+                    else:
+                        self.fail('Synthetic orphan was not reaped')
+                    if stage == 'before-session-record':
+                        self.assertFalse(state.exists())
+                        self.assertFalse(endpoint.exists())
+                    else:
+                        # A bypassing entry point writes newer world progress.
+                        subprocess.run([sys.executable, '-c', 'from pathlib import Path; Path(' + repr(str(prefix / 'world')) + ').write_bytes(b"newer progress")'], check=True)
+                    with patch.object(worker, 'ROOT', root), patch.object(worker, 'BUNDLE', None), \
+                            patch.object(runtime, 'ROOT', root), patch.object(runtime, 'STATE', state), \
+                            patch.object(runtime, 'HELPER', helper), patch.object(runtime, 'SOCKET', endpoint), \
+                            patch.object(runtime, 'game_running', return_value=False), \
+                            patch.object(runtime, 'wait_for_idle_prefix'), \
+                            patch.object(worker, 'run'), \
+                            patch.object(worker.shutil, 'disk_usage', return_value=SimpleNamespace(free=100 * 1024**3)), \
+                            tempfile.TemporaryFile() as log, contextlib.redirect_stdout(io.StringIO()):
+                        with worker.maintenance_lock(runtime):
+                            recovery = worker.recover_update()
+                            self.assertFalse(endpoint.exists())
+                            self.assertEqual((root / 'game/Minecraft.Windows.exe').read_bytes(), b'MZold')
+                            if stage == 'preparing':
+                                self.assertEqual((prefix / 'world').read_bytes(), b'original world')
+                                self.assertEqual((recovery / 'discarded-prefix/world').read_bytes(), b'newer progress')
+
+                            @contextlib.contextmanager
+                            def retry_account(destination, **_kwargs):
+                                destination.mkdir()
+                                (destination / 'Minecraft.Windows.exe').write_bytes(b'MZretry')
+                                yield
+                            retry = SimpleNamespace(STATE=state, account=retry_account, prerequisites=lambda _: None,
+                                                    prepare=lambda _: None, setup_signature=lambda _: {}, setup_matches=lambda _: True)
+                            worker.update_minecraft(retry, log)
+                            self.assertEqual((root / 'game/Minecraft.Windows.exe').read_bytes(), b'MZretry')
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                        process.wait(timeout=5)
+                    process.stderr.close()
+
+    def update_fixture(self, root, fail=None):
+        game = root / 'game'
+        game.mkdir()
+        (game / 'Minecraft.Windows.exe').write_bytes(b'MZold')
+        prefix = root / 'bottles/Bedrock-Standalone'
+        prefix.mkdir(parents=True)
+        (prefix / 'world').write_bytes(b'original world')
+        (prefix / 'settings').write_bytes(b'original settings')
+        sessions = []
+
+        @contextlib.contextmanager
+        def account(destination, **kwargs):
+            self.assertTrue(kwargs['download'])
+            self.assertFalse(destination.exists())
+            sessions.append('start')
+            try:
+                if fail == 'download':
+                    raise RuntimeError('download failure')
+                if fail == 'cancel-download':
+                    raise worker.Cancelled()
+                destination.mkdir()
+                (destination / 'Minecraft.Windows.exe').write_bytes(b'MZnew')
+                yield
+            finally:
+                sessions.append('stop')
+
+        def prerequisites(destination):
+            self.assertEqual((destination / 'Minecraft.Windows.exe').read_bytes(), b'MZnew')
+            if fail == 'verification':
+                raise RuntimeError('verification failure')
+
+        def prepare(destination):
+            self.assertEqual(sessions, ['start'], 'Keep the same account helper through preparation')
+            self.assertEqual(destination, game)
+            (prefix / 'settings').write_bytes(b'new settings')
+            if fail in ('prepare', 'cancel-prepare'):
+                # Prove whole-prefix rollback, even if a failing preparation
+                # unexpectedly changes world data in addition to settings.
+                (prefix / 'world').write_bytes(b'modified world')
+                if fail == 'cancel-prepare':
+                    raise worker.Cancelled()
+                raise RuntimeError('prepare failure')
+
+        return SimpleNamespace(STATE=root / 'runtime/standalone/helper-session.json', account=account, prepare=prepare, prerequisites=prerequisites,
+                               setup_signature=lambda _: {}, setup_matches=lambda _: True), sessions, prefix
+
+    def test_update_keeps_previous_game_and_world_backup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            session, events, prefix = self.update_fixture(root)
+            external = root / 'external'
+            external.mkdir()
+            (external / 'data').write_bytes(b'external data')
+            (prefix / 'external-link').symlink_to(external, target_is_directory=True)
+            with patch.object(worker, 'ROOT', root), patch.object(worker, 'run'), \
+                    patch.object(worker.shutil, 'disk_usage', return_value=SimpleNamespace(free=100 * 1024**3)), \
+                    tempfile.TemporaryFile() as log, contextlib.redirect_stdout(io.StringIO()):
+                worker.update_minecraft(session, log)
+            self.assertEqual(events, ['start', 'stop'])
+            self.assertEqual((root / 'game/Minecraft.Windows.exe').read_bytes(), b'MZnew')
+            self.assertEqual((prefix / 'world').read_bytes(), b'original world')
+            backup, = (root / 'game-backups').iterdir()
+            self.assertEqual((backup / 'previous-game/Minecraft.Windows.exe').read_bytes(), b'MZold')
+            self.assertEqual((backup / 'previous-prefix/settings').read_bytes(), b'original settings')
+            self.assertTrue((backup / 'previous-prefix/external-link').is_symlink())
+            self.assertEqual((external / 'data').read_bytes(), b'external data')
+            self.assertFalse((root / '.minecraft-update').exists())
+
+    def test_update_failure_and_cancellation_restore_game_and_entire_prefix(self):
+        for failure in ('download', 'cancel-download', 'verification', 'prepare', 'cancel-prepare'):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                session, events, prefix = self.update_fixture(root, fail=failure)
+                with patch.object(worker, 'ROOT', root), patch.object(worker, 'run'), \
+                        patch.object(worker.shutil, 'disk_usage', return_value=SimpleNamespace(free=100 * 1024**3)), \
+                        tempfile.TemporaryFile() as log, contextlib.redirect_stdout(io.StringIO()):
+                    with self.assertRaises(worker.Cancelled if failure.startswith('cancel') else RuntimeError):
+                        worker.update_minecraft(session, log)
+                self.assertEqual(events, ['start', 'stop'])
+                self.assertEqual((root / 'game/Minecraft.Windows.exe').read_bytes(), b'MZold')
+                self.assertEqual((prefix / 'world').read_bytes(), b'original world')
+                self.assertEqual((prefix / 'settings').read_bytes(), b'original settings')
+                self.assertFalse((root / '.minecraft-update').exists())
+
+    def test_update_retry_after_preparation_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            session, events, prefix = self.update_fixture(root, fail='prepare')
+            with patch.object(worker, 'ROOT', root), patch.object(worker, 'run'), \
+                    patch.object(worker.shutil, 'disk_usage', return_value=SimpleNamespace(free=100 * 1024**3)), \
+                    tempfile.TemporaryFile() as log, contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaisesRegex(RuntimeError, 'prepare failure'):
+                    worker.update_minecraft(session, log)
+                session.prepare = lambda _: None
+                worker.update_minecraft(session, log)
+            self.assertEqual(events, ['start', 'stop', 'start', 'stop'])
+            self.assertEqual((root / 'game/Minecraft.Windows.exe').read_bytes(), b'MZnew')
+            self.assertEqual((prefix / 'world').read_bytes(), b'original world')
+
+    def test_update_uses_one_real_account_context_for_download_and_prepare(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            session, _, _ = self.update_fixture(root)
+            helper = root / 'helper'
+            helper.touch()
+            state, endpoint = root / 'session.json', root / 'account.sock'
+            started = []
+
+            class Helper:
+                pid = 32124
+                def __init__(self, command, **kwargs):
+                    started.append(command)
+                    self.returncode = None
+                    destination = Path(command[2])
+                    destination.mkdir()
+                    (destination / 'Minecraft.Windows.exe').write_bytes(b'MZnew')
+                    self.socket = socket.socket(socket.AF_UNIX)
+                    self.socket.bind(str(endpoint))
+                    endpoint.chmod(0o600)
+                    kwargs['stdout'].write(b'Starting Xbox account service.\n')
+                    kwargs['stdout'].flush()
+                def poll(self): return self.returncode
+                def send_signal(self, _):
+                    self.socket.close()
+                    endpoint.unlink()
+                    self.returncode = 0
+                def wait(self, **_): return self.returncode
+
+            def account_pid():
+                return json.loads(state.read_text())['pid'] if state.exists() else None
+
+            session.account = runtime.account
+            session.STATE = state
+            session.prepare = lambda _: self.assertTrue(runtime.account_ready())
+            with patch.object(worker, 'ROOT', root), patch.object(runtime, 'ROOT', root), \
+                    patch.object(runtime, 'HELPER', helper), patch.object(runtime, 'STATE', state), \
+                    patch.object(runtime, 'SOCKET', endpoint), patch.object(runtime, 'account_pid', account_pid), \
+                    patch.object(runtime.subprocess, 'Popen', Helper), patch.object(worker, 'run'), \
+                    patch.object(worker.shutil, 'disk_usage', return_value=SimpleNamespace(free=100 * 1024**3)), \
+                    tempfile.TemporaryFile() as log, contextlib.redirect_stdout(io.StringIO()):
+                worker.update_minecraft(session, log)
+            self.assertEqual(len(started), 1)
+            self.assertIn('--download', started[0])
+            self.assertIn('--serve-after', started[0])
+            self.assertEqual(Path(started[0][2]), root / '.minecraft-update/download')
+            self.assertFalse(endpoint.exists())
+            self.assertFalse(state.exists())
+
+    def test_cancel_during_prefix_snapshot_keeps_original_prefix(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            session, events, prefix = self.update_fixture(root)
+
+            def partial_copy(_source, destination, **_kwargs):
+                destination.mkdir()
+                (destination / 'world').write_bytes(b'incomplete snapshot')
+                raise worker.Cancelled()
+
+            with patch.object(worker, 'ROOT', root), patch.object(worker, 'run'), \
+                    patch.object(worker.shutil, 'copytree', side_effect=partial_copy), \
+                    patch.object(worker.shutil, 'disk_usage', return_value=SimpleNamespace(free=100 * 1024**3)), \
+                    tempfile.TemporaryFile() as log, contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(worker.Cancelled):
+                    worker.update_minecraft(session, log)
+            self.assertEqual(events, ['start', 'stop'])
+            self.assertEqual((root / 'game/Minecraft.Windows.exe').read_bytes(), b'MZold')
+            self.assertEqual((prefix / 'world').read_bytes(), b'original world')
+            self.assertFalse((root / '.minecraft-update').exists())
+
+    def test_update_repairs_incomplete_game_without_deleting_old_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            session, _, prefix = self.update_fixture(root)
+            (root / 'game/Minecraft.Windows.exe').unlink()
+            (root / 'game/partial-file').write_bytes(b'old incomplete download')
+            with patch.object(worker, 'ROOT', root), patch.object(worker, 'run'), \
+                    patch.object(worker.shutil, 'disk_usage', return_value=SimpleNamespace(free=100 * 1024**3)), \
+                    tempfile.TemporaryFile() as log, contextlib.redirect_stdout(io.StringIO()):
+                worker.update_minecraft(session, log)
+            backup, = (root / 'game-backups').iterdir()
+            self.assertEqual((backup / 'previous-game/partial-file').read_bytes(), b'old incomplete download')
+            self.assertEqual((root / 'game/Minecraft.Windows.exe').read_bytes(), b'MZnew')
+            self.assertEqual((prefix / 'world').read_bytes(), b'original world')
+
+    def test_recovery_at_each_activation_and_rollback_rename_boundary(self):
+        for boundary in ('before-game', 'after-old-game', 'after-new-game', 'preparing', 'rollback-game', 'rollback-prefix', 'after-prefix-restored'):
+            with self.subTest(boundary=boundary), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                _, _, prefix = self.update_fixture(root)
+                transaction = root / '.minecraft-update'
+                transaction.mkdir()
+                (transaction / 'download').mkdir()
+                (transaction / 'download/Minecraft.Windows.exe').write_bytes(b'MZnew')
+                import shutil
+                shutil.copytree(prefix, transaction / 'previous-prefix')
+                record = {'phase': 'activating', 'had_game': True, 'had_prefix': True,
+                          'backup': 'minecraft-' + '1' * 32}
+                if boundary != 'before-game':
+                    (root / 'game').rename(transaction / 'previous-game')
+                if boundary not in ('before-game', 'after-old-game'):
+                    (transaction / 'download').rename(root / 'game')
+                if boundary in ('preparing', 'rollback-game', 'rollback-prefix', 'after-prefix-restored'):
+                    record['phase'] = 'preparing'
+                    (prefix / 'world').write_bytes(b'changed')
+                if boundary in ('rollback-game', 'rollback-prefix', 'after-prefix-restored'):
+                    (root / 'game').rename(transaction / 'discarded-game')
+                    (transaction / 'previous-game').rename(root / 'game')
+                if boundary in ('rollback-prefix', 'after-prefix-restored'):
+                    prefix.rename(transaction / 'discarded-prefix')
+                if boundary == 'after-prefix-restored':
+                    (transaction / 'previous-prefix').rename(prefix)
+                worker.write_update(transaction, record)
+                with patch.object(worker, 'ROOT', root):
+                    worker.recover_update()
+                    worker.recover_update()  # Idempotent after completion.
+                self.assertEqual((root / 'game/Minecraft.Windows.exe').read_bytes(), b'MZold')
+                self.assertEqual((prefix / 'world').read_bytes(), b'original world')
+                self.assertFalse(transaction.exists())
+
+    def test_recovery_finishes_committed_update_without_rolling_back(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _, _, prefix = self.update_fixture(root)
+            transaction = root / '.minecraft-update'
+            transaction.mkdir()
+            (root / 'game').rename(transaction / 'previous-game')
+            (root / 'game').mkdir()
+            (root / 'game/Minecraft.Windows.exe').write_bytes(b'MZnew')
+            record = {'phase': 'committed', 'had_game': True, 'had_prefix': True,
+                      'backup': 'minecraft-' + '2' * 32}
+            worker.write_update(transaction, record)
+            with patch.object(worker, 'ROOT', root):
+                worker.recover_update()
+            self.assertEqual((root / 'game/Minecraft.Windows.exe').read_bytes(), b'MZnew')
+            self.assertTrue((root / 'game-backups' / record['backup'] / 'previous-game').is_dir())
+
+    def test_recovery_refuses_unrecognized_journal_without_deleting_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            transaction = root / '.minecraft-update'
+            transaction.mkdir()
+            (transaction / 'transaction.json').write_text('{broken')
+            (transaction / 'private-file').write_bytes(b'preserve me')
+            with patch.object(worker, 'ROOT', root):
+                with self.assertRaisesRegex(RuntimeError, 'record could not be read'):
+                    worker.recover_update()
+            self.assertEqual((transaction / 'private-file').read_bytes(), b'preserve me')
+
+    def test_update_requires_space_for_prefix_backup_before_starting_account(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            session, events, _ = self.update_fixture(root)
+            with patch.object(worker, 'ROOT', root), \
+                    patch.object(worker.shutil, 'disk_usage', return_value=SimpleNamespace(free=8 * 1024**3)), \
+                    tempfile.TemporaryFile() as log:
+                with self.assertRaisesRegex(RuntimeError, 'copy of your worlds'):
+                    worker.update_minecraft(session, log)
+            self.assertEqual(events, [])
+            self.assertFalse((root / '.minecraft-update').exists())
+
+    def test_game_bound_profiles_block_update_before_download_or_data_changes(self):
+        for marker, tool in (('bedrock-frame-slab.json', 'standalone-bedrock-frame-profile.py'),
+                             ('bedrock-refmove.json', 'standalone-bedrock-refmove.py')):
+            for dangling in (False, True):
+                with self.subTest(marker=marker, dangling=dangling), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    session, events, prefix = self.update_fixture(root)
+                    profile = root / 'runtime/standalone/wine' / marker
+                    profile.parent.mkdir(parents=True)
+                    if dangling:
+                        profile.symlink_to(root / 'missing-profile')
+                    else:
+                        profile.write_text('{"requested_gate": false}')
+                    with patch.object(worker, 'ROOT', root), \
+                            patch.object(worker.shutil, 'disk_usage') as disk_usage, \
+                            tempfile.TemporaryFile() as log:
+                        with self.assertRaisesRegex(RuntimeError, tool + ' restore --wine'):
+                            worker.update_minecraft(session, log)
+                    disk_usage.assert_not_called()
+                    self.assertEqual(events, [])
+                    self.assertEqual((root / 'game/Minecraft.Windows.exe').read_bytes(), b'MZold')
+                    self.assertEqual((prefix / 'world').read_bytes(), b'original world')
+                    self.assertFalse((root / '.minecraft-update').exists())
+                    self.assertFalse((root / 'game-backups').exists())
+
+    def test_play_and_signout_preserve_bundle_inputs_while_standalone_lock_is_owned(self):
+        for argv in (['setup.py'], ['setup.py', '--sign-out']):
+            with self.subTest(argv=argv), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                home, old, new = root / 'data', root / 'old-app', root / 'new-app'
+                home.mkdir()
+                (home / 'standalone.py').write_bytes(b'previous script')
+                for relative, bundled in worker.BUNDLE_LINKS.items():
+                    link = home / relative
+                    link.parent.mkdir(parents=True, exist_ok=True)
+                    link.symlink_to(old / bundled)
+                session = SimpleNamespace(game_running=unittest.mock.Mock())
+                with (home / 'runtime/standalone/launcher.lock').open('a') as lock:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    with patch.object(worker, 'ROOT', home), patch.object(worker, 'BUNDLE', new), \
+                            patch.object(worker, 'load', return_value=session), \
+                            patch.object(worker, 'initialize_bundle') as initialize, \
+                            patch('sys.argv', argv):
+                        with self.assertRaisesRegex(RuntimeError, 'Close Minecraft'):
+                            worker.main()
+                initialize.assert_not_called()
+                session.game_running.assert_not_called()
+                self.assertEqual((home / 'standalone.py').read_bytes(), b'previous script')
+                for relative, bundled in worker.BUNDLE_LINKS.items():
+                    self.assertEqual((home / relative).readlink(), old / bundled)
+
+    def test_bundle_refresh_holds_standalone_lock_and_checks_idle_before_writes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            order = []
+            session = SimpleNamespace(game_running=lambda: False, account_pid=lambda: None,
+                                      recover_account_socket=lambda: None,
+                                      WINE=root / 'runtime/standalone/wine',
+                                      wait_for_idle_prefix=lambda: order.append('idle'))
+
+            def initialize():
+                order.append('write')
+                with (root / 'runtime/standalone/launcher.lock').open('a') as lock:
+                    with self.assertRaises(BlockingIOError):
+                        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+            with patch.object(worker, 'ROOT', root), patch.object(worker, 'BUNDLE', root / 'app'), \
+                    patch.object(worker, 'load', return_value=session), \
+                    patch.object(worker, 'initialize_bundle', side_effect=initialize):
+                worker.initialize_session_bundle()
+            self.assertEqual(order, ['idle', 'write'])
+            with (root / 'runtime/standalone/launcher.lock').open('a') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_maintenance_rejects_live_game_or_account_and_releases_lock(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(worker, 'ROOT', Path(temporary)):
+            for game_active, account_pid in ((True, None), (False, 123)):
+                session = SimpleNamespace(game_running=lambda: game_active, account_pid=lambda: account_pid,
+                                          wait_for_idle_prefix=unittest.mock.Mock(), recover_account_socket=lambda: None)
+                with self.assertRaisesRegex(RuntimeError, 'Close Minecraft|account helper is still running'):
+                    with worker.maintenance_lock(session):
+                        self.fail('Maintenance cannot reuse a live account')
+                session.wait_for_idle_prefix.assert_not_called()
+            session = SimpleNamespace(game_running=lambda: False, account_pid=lambda: None,
+                                      wait_for_idle_prefix=lambda: None, recover_account_socket=lambda: None)
+            with worker.maintenance_lock(session):
+                with self.assertRaisesRegex(RuntimeError, 'Close Minecraft'):
+                    with worker.maintenance_lock(session):
+                        self.fail('Maintenance lock must be exclusive')
+
+    def test_moved_app_maintenance_checks_idle_using_new_runtime_before_relink(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bundle = root / 'new-app'
+            old_wine = root / 'runtime/standalone/wine'
+            old_wine.parent.mkdir(parents=True)
+            old_wine.symlink_to(root / 'deleted-app/runtime/wine')
+            checked = []
+            session = SimpleNamespace(WINE=old_wine, game_running=lambda: False, account_pid=lambda: None, recover_account_socket=lambda: None)
+            session.wait_for_idle_prefix = lambda: checked.append(session.WINE)
+            with patch.object(worker, 'ROOT', root), patch.object(worker, 'BUNDLE', bundle):
+                with worker.maintenance_lock(session):
+                    self.assertEqual(session.WINE, old_wine)
+            self.assertEqual(checked, [bundle / 'runtime/wine'])
+            self.assertEqual(old_wine.readlink(), root / 'deleted-app/runtime/wine')
+
     def test_install_and_launch_share_one_account_process(self):
         self.run_account_flow()
 
@@ -125,8 +681,11 @@ class OnboardingTests(unittest.TestCase):
             (home / 'game').mkdir(parents=True)
             world = home / 'game/world.save'
             world.write_text('existing world')
+            saved_world = home / 'bottles/Bedrock-Standalone/drive_c/users/player/AppData/Roaming/Minecraft Bedrock/account/games/com.mojang/minecraftWorlds/world/db'
+            saved_world.mkdir(parents=True)
+            (saved_world / 'CURRENT').write_bytes(b'world database')
             (bundle / 'scripts').mkdir(parents=True)
-            for name in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'winrt.reg'):
+            for name in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'standalone-pickers.py', 'winrt.reg'):
                 (bundle / 'scripts' / name).write_text('bundled script')
             with patch.object(worker, 'ROOT', home), patch.object(worker, 'BUNDLE', bundle):
                 worker.initialize_bundle()
@@ -136,7 +695,46 @@ class OnboardingTests(unittest.TestCase):
             with patch.object(worker, 'ROOT', home), patch.object(worker, 'BUNDLE', moved):
                 worker.initialize_bundle()
             self.assertEqual(world.read_text(), 'existing world')
+            self.assertEqual((saved_world / 'CURRENT').read_bytes(), b'world database')
             self.assertEqual((home / 'runtime/standalone/wine').resolve(), (moved / 'runtime/wine').resolve())
+
+    def test_upgrade_status_requires_this_apps_links_without_changing_them(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home, old, new = root / 'data', root / 'old-app', root / 'new-app'
+            home.mkdir()
+            (home / 'standalone.py').touch()
+            fixture_runtime = SimpleNamespace(prerequisites=lambda _: None, HELPER=home / 'standalone.py',
+                                              setup_signature=lambda _: {}, setup_matches=lambda _: True)
+            for relative, bundled in worker.BUNDLE_LINKS.items():
+                link = home / relative
+                link.parent.mkdir(parents=True, exist_ok=True)
+                link.symlink_to(old / bundled)
+            with patch.object(worker, 'ROOT', home), patch.object(worker, 'BUNDLE', new), \
+                    patch.object(worker, 'load', return_value=fixture_runtime):
+                self.assertFalse(worker.installed())
+                self.assertEqual((home / 'runtime/standalone/wine').readlink(), old / 'runtime/wine')
+                for relative, bundled in worker.BUNDLE_LINKS.items():
+                    link = home / relative
+                    link.unlink()
+                    link.symlink_to(new / bundled)
+                self.assertTrue(worker.installed())
+
+    def test_upgrade_preserves_conflicting_runtime_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            home, bundle = root / 'data', root / 'app'
+            saved = home / 'runtime/standalone/wine/local-file'
+            saved.parent.mkdir(parents=True)
+            saved.write_bytes(b'preserve installation')
+            (bundle / 'scripts').mkdir(parents=True)
+            for name in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'standalone-pickers.py', 'winrt.reg'):
+                (bundle / 'scripts' / name).write_text('bundled script')
+            with patch.object(worker, 'ROOT', home), patch.object(worker, 'BUNDLE', bundle):
+                with self.assertRaisesRegex(RuntimeError, 'existing installation blocks'):
+                    worker.initialize_bundle()
+            self.assertEqual(saved.read_bytes(), b'preserve installation')
+            self.assertFalse(saved.parent.is_symlink())
 
     def test_first_install_uses_only_bundled_components(self):
         with tempfile.TemporaryDirectory() as folder, patch.object(worker, 'ROOT', Path(folder)), \
@@ -184,13 +782,19 @@ class OnboardingTests(unittest.TestCase):
 
     def test_download_progress_advances_and_rejects_invalid_counts(self):
         with contextlib.redirect_stdout(io.StringIO()) as output:
+            worker.account_update(b'Checking the signed Minecraft package header.\n')
+            worker.account_update(b"Checking this account's Minecraft ownership.\n")
+            worker.account_update(b'Downloading Minecraft into private staging.\n')
+            worker.account_update(b"Checking Microsoft's game signature and package integrity.\n")
             worker.account_update(b'Downloading Minecraft 1.26 (1000 files).\n')
             worker.account_update(b'Downloaded 500/1000 files.\n')
             worker.account_update(b'Downloaded 1000/1000 files.\n')
             worker.account_update(b'Downloaded 1/0 files.\n')
             worker.account_update(b'Downloaded 2/1 files.\n')
         statuses = [json.loads(line) for line in output.getvalue().splitlines()]
-        self.assertEqual(len(statuses), 3)
+        self.assertEqual([status['title'] for status in statuses], [
+            'Checking download', 'Checking your Minecraft purchase', 'Downloading Minecraft',
+            'Checking download', 'Preparing Minecraft', 'Preparing Minecraft', 'Preparing Minecraft'])
         self.assertEqual([status['progress'] for status in statuses], sorted(status['progress'] for status in statuses))
         self.assertTrue(all(0 <= event['progress'] <= 1 for event in statuses))
 
@@ -204,6 +808,69 @@ class OnboardingTests(unittest.TestCase):
             with self.assertRaises(worker.Cancelled):
                 worker.run(['fake-download'], log, 'Failed')
         kill.assert_called_once_with(98765, worker.signal.SIGTERM)
+
+    def test_cleanup_accepts_child_exiting_after_timeout(self):
+        child = unittest.mock.Mock(pid=98765)
+        child.poll.return_value = None
+        child.wait.side_effect = [subprocess.TimeoutExpired('fixture', 15), 0]
+        with patch.object(worker.os, 'killpg', side_effect=[None, ProcessLookupError]):
+            worker.stop_command(child)
+        self.assertEqual(child.wait.call_count, 2)
+
+    def test_cancel_releases_setup_lock_and_retry_preserves_world(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'game').mkdir()
+            (root / 'game/Minecraft.Windows.exe').touch()
+            world = root / 'bottles/Bedrock-Standalone/fixture-world'
+            world.parent.mkdir(parents=True)
+            world.write_bytes(b'existing world')
+            sessions = []
+
+            @contextlib.contextmanager
+            def account(*_args, **_kwargs):
+                sessions.append('start')
+                try:
+                    yield
+                finally:
+                    sessions.append('stop')
+
+            fixture_runtime = SimpleNamespace(account=account, AccountError=runtime.AccountError)
+            with patch.object(worker, 'ROOT', root), patch.object(worker, 'BUNDLE', None), \
+                    patch.object(worker, 'installed', return_value=False), \
+                    patch.object(worker, 'validate_install'), patch.object(worker, 'load', return_value=fixture_runtime), \
+                    patch.object(worker, 'install', side_effect=[worker.Cancelled(), None]), \
+                    patch.object(worker, 'run') as run, patch('sys.argv', ['setup.py']), \
+                    contextlib.redirect_stdout(io.StringIO()) as output:
+                with self.assertRaises(worker.Cancelled):
+                    worker.main()
+                run.assert_not_called()
+                worker.main()
+                self.assertEqual(run.call_args.args[0][-1], 'launch')
+            self.assertEqual(sessions, ['start', 'stop', 'start', 'stop'])
+            self.assertEqual(world.read_bytes(), b'existing world')
+            self.assertEqual(json.loads(output.getvalue().splitlines()[-1])['state'], 'ready')
+
+    def test_failed_setup_can_retry_without_redownloading_existing_game(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'game').mkdir()
+            game = root / 'game/Minecraft.Windows.exe'
+            game.write_bytes(b'MZexisting game')
+            account = unittest.mock.Mock(side_effect=lambda *a, **kw: contextlib.nullcontext())
+            fixture_runtime = SimpleNamespace(account=account, AccountError=runtime.AccountError)
+            with patch.object(worker, 'ROOT', root), patch.object(worker, 'BUNDLE', None), \
+                    patch.object(worker, 'installed', return_value=False), patch.object(worker, 'validate_install'), \
+                    patch.object(worker, 'load', return_value=fixture_runtime), \
+                    patch.object(worker, 'install', side_effect=[RuntimeError('fixture failure'), None]), \
+                    patch.object(worker, 'run') as run, patch('sys.argv', ['setup.py']), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaisesRegex(RuntimeError, 'fixture failure'):
+                    worker.main()
+                run.assert_not_called()
+                worker.main()
+            self.assertEqual([call.kwargs['download'] for call in account.call_args_list], [False, False])
+            self.assertEqual(game.read_bytes(), b'MZexisting game')
 
     def test_cancel_terminates_a_real_download_process(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -256,6 +923,20 @@ class OnboardingTests(unittest.TestCase):
             self.assertEqual(json.loads(output.getvalue())['state'], 'new')
             install.assert_not_called()
             run.assert_not_called()
+
+    def test_status_offers_existing_game_setup_without_mutation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'game').mkdir()
+            (root / 'game/Minecraft.Windows.exe').write_bytes(b'MZfixture')
+            with patch.object(worker, 'ROOT', root), patch.object(worker, 'installed', return_value=False), \
+                    patch.object(worker, 'initialize_bundle') as initialize, patch.object(worker, 'run') as run, \
+                    patch('sys.argv', ['setup.py', '--status']), contextlib.redirect_stdout(io.StringIO()) as output:
+                worker.main()
+            self.assertEqual(json.loads(output.getvalue())['state'], 'update')
+            initialize.assert_not_called()
+            run.assert_not_called()
+            self.assertFalse((root / 'logs').exists())
 
     def test_command_failure_does_not_leak_process_output_to_ui(self):
         with tempfile.TemporaryFile() as log, \

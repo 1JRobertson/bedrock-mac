@@ -1,0 +1,582 @@
+--- a/dlls/ntdll/loader.c
++++ b/dlls/ntdll/loader.c
+@@ -46,6 +46,7 @@
+ #include "bedrock_private_refmove.h"
+ #include "bedrock_exact_support.h"
+ #include "exact_adapter.h"
++#include "frame_adapter.h"
+ 
+ #ifdef _WIN64
+ #define DEFAULT_SECURITY_COOKIE_64  (((ULONGLONG)0x00002b99 << 32) | 0x2ddfa232)
+@@ -4479,6 +4480,7 @@
+         build_ntdll_module();
+         bedrock_private_refmove_pre_entry( wm->ldr.DllBase, wm->ldr.SizeOfImage );
+         bad_exact_pre_entry( wm->ldr.DllBase, wm->ldr.SizeOfImage );
++        bfr_pre_entry( wm->ldr.DllBase, wm->ldr.SizeOfImage );
+ #ifdef __arm64ec__
+         load_arm64ec_module();
+         update_load_config( wm->ldr.DllBase );
+@@ -4529,6 +4531,7 @@
+         wm = get_modref( NtCurrentTeb()->Peb->ImageBaseAddress );
+     }
+ 
++    bfr_register_thread();
+     NtCurrentTeb()->FlsSlots = fls_alloc_data();
+ 
+     if (!attach_done)  /* first time around */
+--- /dev/null
++++ b/dlls/ntdll/frame_adapter.h
+@@ -0,0 +1,306 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later
++ * Copyright (C) 2026 Bedrock for Mac contributors.
++ * Optional local adapter; not an upstream Wine component.
++ */
++/* PRIVATE exact-build frame-owned external slabs; no game on-disk writes.
++ * Only proven frame tokens inside a verified worker task may allocate here. */
++#include "frame_slab_core.h"
++#include "frame_manifest.h"
++#define BFR_THREADS 512
++struct bfr_thread_counts {uint64_t calls,hits,bytes,fallbacks,tasks,leased_tasks,exceptions;} __attribute__((aligned(128)));
++struct bfr_control {
++    uint64_t magic,version,size,requested_chunk,applied_chunk;
++    uint64_t frames_registered,frames_retired,frames_unregistered,closed,quarantined;
++    uint64_t registered_threads,overflow_threads,reserved,peak,refills,live_scopes;
++    struct bfr_thread_counts threads[BFR_THREADS];
++};
++_Static_assert(sizeof(struct bfr_thread_counts)==128,"isolated counter cacheline");
++_Static_assert(offsetof(struct bfr_control,threads)==128,"aligned counter array");
++struct bfr_saved_key {struct bfa_pool *pool;struct bfa_key key;};
++struct bfr_begin_state {
++    struct bfr_begin_state *previous;void *f;struct bfr_saved_key keys[3];unsigned count;
++};
++struct bfr_worker_state;
++struct bfr_tls {
++    struct bfa_worker_cache cache;
++    struct bfr_worker_state *active;
++    struct bfr_begin_state *begin;
++    struct bfr_thread_counts *counts;
++} __attribute__((aligned(128)));
++struct bfr_worker_state {
++    struct bfr_tls *tls;struct bfr_worker_state *previous;
++    struct bfa_lease lease;uintptr_t token,allocator,frame;
++};
++static struct bfa_pool bfr_pools[3];
++static struct bfr_tls bfr_threads[BFR_THREADS];
++static struct bfr_control *bfr_control;
++static RTL_SRWLOCK bfr_lock;
++static uint64_t bfr_serial;
++static unsigned bfr_tls_index=~0u;
++static uintptr_t bfr_scope_vtable;
++static void *(WINAPI *bfr_original_allocate)(void *,void *,SIZE_T,SIZE_T);
++typedef uintptr_t (WINAPI *bfr_native4)(uintptr_t,uintptr_t,uintptr_t,uintptr_t);
++static bfr_native4 bfr_original_begin,bfr_original_transfer,bfr_original_reset,bfr_original_destroy,bfr_original_worker;
++
++static void *bfr_heap_allocate(void *context,size_t size){return RtlAllocateHeap(NtCurrentTeb()->Peb->ProcessHeap,0,size);}
++static void bfr_heap_free(void *context,void *p){RtlFreeHeap(NtCurrentTeb()->Peb->ProcessHeap,0,p);}
++static void bfr_lock_enter(void *context){RtlAcquireSRWLockExclusive(&bfr_lock);}
++static void bfr_lock_leave(void *context){RtlReleaseSRWLockExclusive(&bfr_lock);}
++static uintptr_t bfr_word(uintptr_t address){return *(uintptr_t *)address;}
++static struct bfr_tls *bfr_tls_get(void){return bfr_tls_index<64?NtCurrentTeb()->TlsSlots[bfr_tls_index]:NULL;}
++static void bfr_register_thread(void)
++{
++    struct bfr_tls *t;uint64_t n;
++    if(!bfr_control || bfr_tls_index>=64 || NtCurrentTeb()->TlsSlots[bfr_tls_index])return;
++    n=bfr_control->registered_threads;
++    if(n>=BFR_THREADS){bfr_control->overflow_threads++;return;}
++    bfr_control->registered_threads=n+1;t=&bfr_threads[n];t->counts=&bfr_control->threads[n];
++    NtCurrentTeb()->TlsSlots[bfr_tls_index]=t;
++}
++static void bfr_publish(void)
++{
++    unsigned i;uint64_t reserved=0,peak=0,refills=0,live=0;
++    for(i=0;i<3;i++){struct bfa_statistics s=bfa_get_statistics(&bfr_pools[i]);reserved+=s.reserved_bytes;peak+=s.peak_bytes;refills+=s.refills;live+=s.live_scopes;}
++    __atomic_store_n(&bfr_control->reserved,reserved,__ATOMIC_RELAXED);
++    __atomic_store_n(&bfr_control->peak,peak,__ATOMIC_RELAXED);
++    __atomic_store_n(&bfr_control->refills,refills,__ATOMIC_RELAXED);
++    __atomic_store_n(&bfr_control->live_scopes,live,__ATOMIC_RELAXED);
++}
++static unsigned bfr_capture_close(uintptr_t frame,struct bfr_saved_key keys[3])
++{
++    unsigned i,n=0;uintptr_t c,token;
++    if(!frame)return 0;c=bfr_word(frame+0x510);if(!c)return 0;token=c+0x40;
++    for(i=0;i<3;i++){
++        struct bfa_key key=bfa_capture_key(&bfr_pools[i],frame,token);
++        if(key.incarnation && bfa_close(&bfr_pools[i],key)){
++            keys[n].pool=&bfr_pools[i];keys[n++].key=key;
++            __atomic_fetch_add(&bfr_control->closed,1,__ATOMIC_RELAXED);
++        }
++    }
++    if(n)bfr_publish();
++    return n;
++}
++static void bfr_retire(struct bfr_saved_key *keys,unsigned n)
++{
++    unsigned i;for(i=0;i<n;i++){
++        if(bfa_retire_after_quiescence(keys[i].pool,keys[i].key))__atomic_fetch_add(&bfr_control->frames_retired,1,__ATOMIC_RELAXED);
++        else __atomic_fetch_add(&bfr_control->quarantined,1,__ATOMIC_RELAXED);
++    }
++    bfr_publish();
++}
++static void bfr_register_frame(uintptr_t f)
++{
++    uintptr_t s,c,w,allocator;uint64_t generation,chunk;unsigned at;struct bfa_key key;
++    s=bfr_word(f+0x378);if(!s)goto rejected;c=bfr_word(s+0x510);w=bfr_word(f+0xf0);
++    if(!c||!w||bfr_word(s+0x518)!=w||bfr_word(c)!=bfr_scope_vtable||bfr_word(c+0x38)!=c||
++       bfr_word(c+0x40)!=c+0x50||bfr_word(w)!=c+0x40)goto rejected;
++    allocator=bfr_word(c+0x50);generation=bfr_word(c+0x58);
++    if(!allocator || bfr_word(c+0x48)!=allocator || bfr_word(c+8)!=generation || bfr_word(c+0x60)!=generation)goto rejected;
++    chunk=__atomic_load_n(&bfr_control->requested_chunk,__ATOMIC_ACQUIRE);
++    if(chunk==4096)at=0;else if(chunk==16384)at=1;else if(chunk==65536)at=2;else {__atomic_store_n(&bfr_control->applied_chunk,0,__ATOMIC_RELEASE);goto rejected;}
++    key=bfa_register_frame(&bfr_pools[at],s,c+0x40,generation,allocator);
++    if(!key.incarnation)goto rejected;
++    __atomic_fetch_add(&bfr_control->frames_registered,1,__ATOMIC_RELAXED);
++    __atomic_store_n(&bfr_control->applied_chunk,chunk,__ATOMIC_RELEASE);bfr_publish();return;
++rejected:__atomic_fetch_add(&bfr_control->frames_unregistered,1,__ATOMIC_RELAXED);bfr_publish();
++}
++static void bfr_begin_finally(BOOL normal,void *context)
++{
++    struct bfr_begin_state *s=context;struct bfr_tls *t=bfr_tls_get();
++    if(t)t->begin=s->previous;
++    if(normal){bfr_retire(s->keys,s->count);bfr_register_frame((uintptr_t)s->f);}
++    else if(s->count)__atomic_fetch_add(&bfr_control->quarantined,s->count,__ATOMIC_RELAXED);
++}
++uintptr_t WINAPI bfr_begin(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{
++    uintptr_t result;struct bfr_tls *t=bfr_tls_get();struct bfr_begin_state state;
++    if(!t)return bfr_original_begin(a,b,c,d);
++    memset(&state,0,sizeof(state));state.previous=t->begin;state.f=(void *)a;t->begin=&state;
++    __TRY {result=bfr_original_begin(a,b,c,d);}
++    __FINALLY_CTX(bfr_begin_finally,&state);
++    return result;
++}
++uintptr_t WINAPI bfr_transfer(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{
++    uintptr_t f=b-0x450,frame,result;struct bfr_saved_key keys[3];unsigned n;
++    struct bfr_tls *t=bfr_tls_get();
++    result=bfr_original_transfer(a,b,c,d);frame=bfr_word(f+0x378);
++    n=bfr_capture_close(frame,keys);
++    if(t && t->begin && t->begin->f==(void *)f && !t->begin->count){
++        memcpy(t->begin->keys,keys,n*sizeof(keys[0]));t->begin->count=n;
++    } else if(n)__atomic_fetch_add(&bfr_control->quarantined,n,__ATOMIC_RELAXED);
++    return result;
++}
++struct bfr_retire_state {struct bfr_saved_key keys[3];unsigned count;};
++static void bfr_native_finally(BOOL normal,void *context)
++{
++    struct bfr_retire_state *state=context;
++    if(normal)bfr_retire(state->keys,state->count);
++    else {if(state->count)__atomic_fetch_add(&bfr_control->quarantined,state->count,__ATOMIC_RELAXED);bfr_publish();}
++}
++uintptr_t WINAPI bfr_reset(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{
++    struct bfr_retire_state state;uintptr_t result;
++    state.count=bfr_capture_close(a,state.keys);
++    __TRY {result=bfr_original_reset(a,b,c,d);}
++    __FINALLY_CTX(bfr_native_finally,&state);
++    return result;
++}
++uintptr_t WINAPI bfr_destroy(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{
++    struct bfr_retire_state state;uintptr_t result;
++    state.count=bfr_capture_close(a,state.keys);
++    __TRY {result=bfr_original_destroy(a,b,c,d);}
++    __FINALLY_CTX(bfr_native_finally,&state);
++    return result;
++}
++static int bfr_enter_worker(struct bfr_worker_state *state,uintptr_t token,uintptr_t frame)
++{
++    unsigned i,n;
++    for(i=0;i<3;i++)for(n=0;n<BFA_PROBES;n++){
++        struct bfa_slot *slot=&bfr_pools[i].slots[(bfa_hash(token)+n)%BFA_SLOTS];uintptr_t allocator;uint64_t gen;
++        if(__atomic_load_n(&slot->token,__ATOMIC_ACQUIRE)!=token||__atomic_load_n(&slot->frame,__ATOMIC_RELAXED)!=frame)continue;
++        allocator=__atomic_load_n(&slot->allocator,__ATOMIC_RELAXED);gen=__atomic_load_n(&slot->generation,__ATOMIC_RELAXED);
++        if(bfa_enter(&bfr_pools[i],token,gen,allocator,&state->lease)){
++            if(__atomic_load_n(&state->lease.pool->slots[state->lease.key.slot].frame,__ATOMIC_RELAXED)!=frame){bfa_leave(&state->lease);continue;}
++            state->token=token;state->allocator=allocator;state->frame=frame;return 1;
++        }
++    }
++    return 0;
++}
++static void bfr_worker_finally(BOOL normal,void *context)
++{
++    struct bfr_worker_state *s=context;
++    bfa_leave(&s->lease);s->tls->active=s->previous;if(!normal)s->tls->counts->exceptions++;
++}
++uintptr_t WINAPI bfr_worker(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d)
++{
++    struct bfr_tls *t=bfr_tls_get();struct bfr_worker_state state;uintptr_t w,token,frame,result;
++    if(!t)return bfr_original_worker(a,b,c,d);
++    t->counts->tasks++;w=bfr_word(b);frame=bfr_word(b+0x10);
++    if(!w||!frame)return bfr_original_worker(a,b,c,d);token=bfr_word(w);
++    memset(&state,0,sizeof(state));state.tls=t;state.previous=t->active;
++    if(!token||!bfr_enter_worker(&state,token,frame))return bfr_original_worker(a,b,c,d);
++    t->counts->leased_tasks++;t->active=&state;
++    __TRY {result=bfr_original_worker(a,b,c,d);}
++    __FINALLY_CTX(bfr_worker_finally,&state);
++    return result;
++}
++void *WINAPI bfr_allocate(void *allocator,void *descriptor,SIZE_T size,SIZE_T alignment,void *token)
++{
++    struct bfr_tls *t=bfr_tls_get();struct bfr_worker_state *s=t?t->active:NULL;
++    if(t)t->counts->calls++;
++    if(s && s->lease.pool && s->token==(uintptr_t)token && s->allocator==(uintptr_t)allocator &&
++       size && size<=1024 && alignment==1 && !*(volatile unsigned int *)((char *)allocator+0x90) &&
++       bfa_allocate(&s->lease,&t->cache,size,alignment,descriptor)){
++        t->counts->hits++;t->counts->bytes+=size;return descriptor;
++    }
++    if(t)t->counts->fallbacks++;
++    return bfr_original_allocate(allocator,descriptor,size,alignment);
++}
++void WINAPI bfr_allocation_shim(void);
++__ASM_GLOBAL_FUNC(bfr_allocation_shim,
++    "subq $40,%rsp\n\t" __ASM_SEH(".seh_stackalloc 40\n\t") __ASM_SEH(".seh_endprologue\n\t")
++    "movq %r15,32(%rsp)\n\t"
++    "call " __ASM_NAME("bfr_allocate") "\n\t" "addq $40,%rsp\n\t" "ret")
++static int bfr_verify(const struct brm_spec *spec,const unsigned char *raw,void *image,SIZE_T image_size,int game)
++{
++    unsigned i;
++    if(!bad_exact_verify(spec,raw,image,image_size,game))return 0;
++    for(i=0;i<spec->edit_count;i++){
++        const struct brm_edit *e=&spec->edits[i];unsigned kind=game?bfr_game_kinds[i]:bfr_sentinel_kinds[i];
++        if(kind==5){if(bfr_word((uintptr_t)image+e->rva)!=(uintptr_t)image+(game?0x5e220e0:BFR_SENTINEL_BEGIN))return 0;}
++        else if(memcmp((char *)image+e->rva,e->before,e->size))return 0;
++    }
++    return 1;
++}
++static void bfr_pre_entry(void *image,SIZE_T image_size)
++{
++    const UNICODE_STRING *path=&NtCurrentTeb()->Peb->ProcessParameters->ImagePathName;
++    UNICODE_STRING basename,expected,nt_path={0},out_path={0};WCHAR setting[1024];
++    const struct brm_spec *spec=&bfr_game_spec;
++    OBJECT_ATTRIBUTES attr;IO_STATUS_BLOCK io;FILE_STANDARD_INFORMATION info;
++    FILE_END_OF_FILE_INFORMATION eof;MEMORY_BASIC_INFORMATION memory;
++    HANDLE file=0,section=0,output=0,output_section=0;
++    void *raw=NULL,*page=NULL;SIZE_T raw_size=0,page_size=0,map_size=0;LARGE_INTEGER total;
++    ULONG old=0,ignored;int n,i,start=0,game=1;unsigned applied=0;
++    const char *failure="unknown";void *targets[6];unsigned char patches[32][10];struct bfa_api api;
++    uint64_t initial_chunk=0;
++    for(i=0;i<path->Length/sizeof(WCHAR);i++)if(path->Buffer[i]=='\\'||path->Buffer[i]=='/')start=i+1;
++    basename.Buffer=path->Buffer+start;basename.Length=basename.MaximumLength=path->Length-start*sizeof(WCHAR);
++    RtlInitUnicodeString(&expected,L"Minecraft.Windows.exe");
++    if(!RtlEqualUnicodeString(&basename,&expected,TRUE)){
++        RtlInitUnicodeString(&expected,L"frame-sentinel.exe");if(!RtlEqualUnicodeString(&basename,&expected,TRUE))return;
++        spec=&bfr_sentinel_spec;game=0;
++    }
++    n=bad_environment(L"BEDROCK_FRAME_SLAB",setting,1024);
++    if(!n||(n==1&&setting[0]=='0'))return;
++    failure="invalid BEDROCK_FRAME_SLAB (expected1)";if(n!=1||setting[0]!='1')goto failed;
++    failure="frame slab requires other allocator experiments off";
++    n=bad_environment(L"BEDROCK_ALLOC_DIAG",setting,1024);if(n&&!(n==3&&!memcmp(setting,L"off",6)))goto failed;
++    n=bad_environment(L"BEDROCK_EXACT_CURRENT",setting,1024);if(n&&!(n==3&&!memcmp(setting,L"off",6)))goto failed;
++    if(game){failure="frame slab requires refmove=1";if(bad_environment(L"BEDROCK_PRIVATE_REFMOVE_15203",setting,1024)!=1||setting[0]!='1')goto failed;}
++    failure="invalid initial chunk (expected0,4096,16384,65536)";
++    n=bad_environment(L"BEDROCK_FRAME_SLAB_CHUNK",setting,1024);
++    if(!n||(n==1&&setting[0]=='0'))initial_chunk=0;
++    else if(n==4&&!memcmp(setting,L"4096",8))initial_chunk=4096;
++    else if(n==5&&!memcmp(setting,L"16384",10))initial_chunk=16384;
++    else if(n==5&&!memcmp(setting,L"65536",10))initial_chunk=65536;
++    else goto failed;
++    failure="exact executable/refmove-loaded-byte guard";
++    if(RtlDosPathNameToNtPathName_U_WithStatus(path->Buffer,&nt_path,NULL,NULL))goto failed;
++    InitializeObjectAttributes(&attr,&nt_path,OBJ_CASE_INSENSITIVE,NULL,NULL);
++    if(NtOpenFile(&file,GENERIC_READ|SYNCHRONIZE,&attr,&io,FILE_SHARE_READ,FILE_SYNCHRONOUS_IO_NONALERT|FILE_NON_DIRECTORY_FILE))goto failed;
++    if(NtQueryInformationFile(file,&io,&info,sizeof(info),FileStandardInformation))goto failed;
++    if(info.EndOfFile.QuadPart!=spec->file_size||image_size!=spec->image_size||spec->edit_count>32)goto failed;
++    if(NtCreateSection(&section,SECTION_MAP_READ,NULL,NULL,PAGE_READONLY,SEC_COMMIT,file))goto failed;
++    if(NtMapViewOfSection(section,NtCurrentProcess(),&raw,0,0,NULL,&raw_size,ViewShare,0,PAGE_READONLY))goto failed;
++    if(raw_size<spec->file_size||!bfr_verify(spec,raw,image,image_size,game))goto failed;
++    bfr_original_allocate=(void *)((char *)image+(game?0x52f5c70:BFR_SENTINEL_ALLOC));
++    bfr_original_begin=(void *)((char *)image+(game?0x5e220e0:BFR_SENTINEL_BEGIN));
++    bfr_original_transfer=(void *)((char *)image+(game?0x5e256e0:BFR_SENTINEL_TRANSFER));
++    bfr_original_reset=(void *)((char *)image+(game?0x5e16aa0:BFR_SENTINEL_RESET));
++    bfr_original_destroy=(void *)((char *)image+(game?0x5fb50e0:BFR_SENTINEL_DESTROY));
++    bfr_original_worker=(void *)((char *)image+(game?0x5e4b4f0:BFR_SENTINEL_WORKER));
++    bfr_scope_vtable=(uintptr_t)image+(game?0xe977000:BFR_SENTINEL_SCOPE_VTABLE);
++    targets[0]=bfr_allocation_shim;targets[1]=bfr_transfer;targets[2]=bfr_reset;targets[3]=bfr_destroy;targets[4]=bfr_worker;targets[5]=bfr_begin;
++    failure="frame-slab relay allocation";
++    for(i=0;i<spec->edit_count;i++){
++        const struct brm_edit *e=&spec->edits[i];unsigned kind=game?bfr_game_kinds[i]:bfr_sentinel_kinds[i];uintptr_t target;
++        if(kind==5){target=(uintptr_t)targets[5];memcpy(patches[i],&target,8);}
++        else {void *relay=bad_allocate_relay((char *)image+e->rva+5,targets[kind]);intptr_t distance;
++            if(!relay)goto failed;distance=(intptr_t)relay-((intptr_t)image+e->rva+5);
++            if(distance<(intptr_t)(-2147483647-1)||distance>2147483647)goto failed;
++            patches[i][0]=0xe8;memcpy(patches[i]+1,&distance,4);}
++    }
++    failure="fresh frame slab control path required";
++    if(bad_environment(L"BEDROCK_FRAME_SLAB_CONTROL",setting,1024)<=0)goto failed;
++    if(RtlDosPathNameToNtPathName_U_WithStatus(setting,&out_path,NULL,NULL))goto failed;
++    InitializeObjectAttributes(&attr,&out_path,OBJ_CASE_INSENSITIVE,NULL,NULL);
++    if(NtCreateFile(&output,GENERIC_READ|GENERIC_WRITE|SYNCHRONIZE,&attr,&io,NULL,FILE_ATTRIBUTE_NORMAL,FILE_SHARE_READ|FILE_SHARE_WRITE,FILE_CREATE,FILE_SYNCHRONOUS_IO_NONALERT|FILE_NON_DIRECTORY_FILE,NULL,0))goto failed;
++    eof.EndOfFile.QuadPart=sizeof(*bfr_control);
++    if(NtSetInformationFile(output,&io,&eof,sizeof(eof),FileEndOfFileInformation))goto failed;
++    total.QuadPart=sizeof(*bfr_control);
++    if(NtCreateSection(&output_section,SECTION_MAP_READ|SECTION_MAP_WRITE,NULL,&total,PAGE_READWRITE,SEC_COMMIT,output))goto failed;
++    if(NtMapViewOfSection(output_section,NtCurrentProcess(),(void **)&bfr_control,0,0,NULL,&map_size,ViewShare,0,PAGE_READWRITE))goto failed;
++    memset(bfr_control,0,sizeof(*bfr_control));bfr_control->magic=0x3142414c53465242;bfr_control->version=1;bfr_control->size=sizeof(*bfr_control);bfr_control->requested_chunk=initial_chunk;
++    api.context=NULL;api.allocate=bfr_heap_allocate;api.deallocate=bfr_heap_free;api.lock=bfr_lock_enter;api.unlock=bfr_lock_leave;api.process_serial=&bfr_serial;
++    for(i=0;i<3;i++)if(!bfa_init(&bfr_pools[i],api,i==0?4096:i==1?16384:65536,64*1024*1024,128*1024*1024))goto failed;
++    bfr_tls_index=RtlFindClearBitsAndSet(NtCurrentTeb()->Peb->TlsBitmap,1,1);if(bfr_tls_index>=64)goto failed;
++    failure="final transactional frame-slab guard";if(!bfr_verify(spec,raw,image,image_size,game))goto failed;
++    for(i=0;i<spec->edit_count;i++){
++        const struct brm_edit *e=&spec->edits[i];page=(char *)image+e->rva;page_size=e->size;
++        failure="frame-slab memory protection";
++        if(NtQueryVirtualMemory(NtCurrentProcess(),page,MemoryBasicInformation,&memory,sizeof(memory),NULL))goto failed;
++        if(memory.State!=MEM_COMMIT||memory.Type!=MEM_IMAGE||(char *)memory.BaseAddress+memory.RegionSize<(char *)page+e->size)goto failed;
++        if(NtProtectVirtualMemory(NtCurrentProcess(),&page,&page_size,PAGE_READWRITE,&old))goto failed;
++        memcpy((char *)image+e->rva,patches[i],e->size);applied++;
++        if(NtFlushInstructionCache(NtCurrentProcess(),page,page_size))goto failed;
++        if(NtProtectVirtualMemory(NtCurrentProcess(),&page,&page_size,old,&ignored))goto failed;
++    }
++    MESSAGE("[bedrock-frame-slab] enabled chunk=%I64u sites=%Iu verified_refmove=%d task_leases=1 max_reserved_mib=384\n",initial_chunk,spec->edit_count,game);
++    NtUnmapViewOfSection(NtCurrentProcess(),raw);NtClose(section);NtClose(file);NtClose(output_section);NtClose(output);RtlFreeUnicodeString(&nt_path);RtlFreeUnicodeString(&out_path);return;
++failed:
++    MESSAGE("[bedrock-frame-slab] REFUSED: %s applied=%u; game entry will not run\n",failure,applied);
++    NtTerminateProcess(NtCurrentProcess(),STATUS_INVALID_IMAGE_FORMAT);for(;;){}
++}
+--- /dev/null
++++ b/dlls/ntdll/frame_slab_core.h
+@@ -0,0 +1,220 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later
++ * Copyright (C) 2026 Bedrock for Mac contributors.
++ * Optional local adapter; not an upstream Wine component.
++ */
++/* C implementation intended for a guarded Wine ntdll adapter. This file installs
++ * no hooks. Backing memory, lifecycle locking and a process-lifetime serial are
++ * supplied by callbacks; there is no C++ runtime dependency.
++ * Retirement requires external quiescence of ALL producers and raw-pointer
++ * consumers, after the complete verified frame reset/destructor has returned.
++ */
++#ifndef BEDROCK_FRAME_SLAB_CORE_H
++#define BEDROCK_FRAME_SLAB_CORE_H
++#include <stdint.h>
++#include <stddef.h>
++#include <string.h>
++#define BFA_SLOTS 64u
++#define BFA_PROBES 4u
++#define BFA_CLOSED (UINT64_C(1)<<63)
++struct bfa_descriptor { void *backing,*control;uint64_t offset,size,padding,generation; };
++/* Backend allocations must have at least the Windows x64 heap's 16B alignment. */
++struct bfa_chunk { unsigned char *data;struct bfa_chunk *next;size_t allocation_size; } __attribute__((aligned(16)));
++struct bfa_key { size_t slot;uint64_t incarnation; };
++struct bfa_slot {
++    uintptr_t token,frame,allocator;
++    uint64_t generation,incarnation,gate;
++    struct bfa_chunk *chunks;
++    size_t reserved;
++} __attribute__((aligned(128)));
++struct bfa_api {
++    void *context;
++    void *(*allocate)(void *,size_t);
++    void (*deallocate)(void *,void *);
++    void (*lock)(void *);
++    void (*unlock)(void *);
++    /* One aligned counter shared by every pool instance that may share caches.
++     * Initialize once to zero; NEVER reset while the process is running. */
++    uint64_t *process_serial;
++};
++struct bfa_pool {
++    struct bfa_slot slots[BFA_SLOTS];
++    struct bfa_api api;
++    size_t chunk_size,scope_limit,total_limit;
++    size_t reserved,peak,refills;
++};
++struct bfa_cache_entry {size_t slot;uint64_t incarnation;struct bfa_chunk *chunk;size_t used;};
++/* Zero-initialize once. One cache per worker thread, never simultaneously shared. */
++struct bfa_worker_cache {struct bfa_cache_entry entries[8];size_t next,last;} __attribute__((aligned(128)));
++/* Zero-initialize before the first enter. Never copy a live lease. */
++struct bfa_lease {struct bfa_pool *pool;struct bfa_key key;};
++struct bfa_statistics {size_t reserved_bytes,peak_bytes,refills,live_scopes;};
++
++static size_t bfa_hash(uintptr_t token)
++{uint64_t x=token>>4;x^=x>>30;x*=UINT64_C(0xbf58476d1ce4e5b9);x^=x>>27;return (size_t)x;}
++static int bfa_charge(size_t *counter,size_t amount,size_t limit,size_t *total)
++{
++    size_t old=__atomic_load_n(counter,__ATOMIC_RELAXED);
++    do {if(old>limit||amount>limit-old)return 0;}
++    while(!__atomic_compare_exchange_n(counter,&old,old+amount,1,__ATOMIC_RELAXED,__ATOMIC_RELAXED));
++    if(total)*total=old+amount;return 1;
++}
++static uint64_t bfa_next_serial(uint64_t *serial)
++{
++    uint64_t old=__atomic_load_n(serial,__ATOMIC_RELAXED);
++    do {if(old==UINT64_MAX)return 0;}
++    while(!__atomic_compare_exchange_n(serial,&old,old+1,1,__ATOMIC_RELAXED,__ATOMIC_RELAXED));
++    return old+1;
++}
++static int bfa_init(struct bfa_pool *p,struct bfa_api api,size_t chunk,size_t scope_limit,size_t total_limit)
++{
++    size_t i;
++    if(!p||!api.allocate||!api.deallocate||!api.lock||!api.unlock||!api.process_serial||
++       chunk<1024||chunk>SIZE_MAX-sizeof(struct bfa_chunk))return 0;
++    /* Caller ensures p has no live scopes or leases before initialization. */
++    memset(p,0,sizeof(*p));p->api=api;p->chunk_size=chunk;p->scope_limit=scope_limit;p->total_limit=total_limit;
++    for(i=0;i<BFA_SLOTS;++i)p->slots[i].gate=BFA_CLOSED;
++    return 1;
++}
++static struct bfa_key bfa_register_frame(struct bfa_pool *p,uintptr_t frame,uintptr_t token,uint64_t gen,uintptr_t allocator)
++{
++    struct bfa_key result={BFA_SLOTS,0};size_t n;
++    if(!p||!frame||!token||!allocator)return result;
++    p->api.lock(p->api.context);
++    for(n=0;n<BFA_PROBES;++n){
++        struct bfa_slot *s=&p->slots[(bfa_hash(token)+n)%BFA_SLOTS];
++        if(__atomic_load_n(&s->token,__ATOMIC_ACQUIRE)==token)goto done;
++    }
++    for(n=0;n<BFA_PROBES;++n){
++        size_t at=(bfa_hash(token)+n)%BFA_SLOTS;struct bfa_slot *s=&p->slots[at];uint64_t serial;
++        if(__atomic_load_n(&s->token,__ATOMIC_ACQUIRE))continue;
++        serial=bfa_next_serial(p->api.process_serial);if(!serial)goto done;
++        __atomic_store_n(&s->frame,frame,__ATOMIC_RELAXED);
++        __atomic_store_n(&s->allocator,allocator,__ATOMIC_RELAXED);
++        __atomic_store_n(&s->generation,gen,__ATOMIC_RELAXED);
++        __atomic_store_n(&s->incarnation,serial,__ATOMIC_RELAXED);
++        __atomic_store_n(&s->gate,0,__ATOMIC_RELEASE);
++        __atomic_store_n(&s->token,token,__ATOMIC_RELEASE);
++        result.slot=at;result.incarnation=serial;break;
++    }
++done:p->api.unlock(p->api.context);return result;
++}
++/* Successful enter must have exactly one leave, including exception paths in
++ * its caller. Acquiring once per verified worker task amortizes the two RMWs;
++ * an initial adapter may acquire/leave around each constructor allocation. */
++static int bfa_enter(struct bfa_pool *p,uintptr_t token,uint64_t gen,uintptr_t allocator,struct bfa_lease *lease)
++{
++    size_t n;
++    if(!p||!token||!allocator||!lease||lease->pool)return 0;
++    for(n=0;n<BFA_PROBES;++n){
++        size_t at=(bfa_hash(token)+n)%BFA_SLOTS;struct bfa_slot *s=&p->slots[at];uint64_t epoch,state;
++        if(__atomic_load_n(&s->token,__ATOMIC_ACQUIRE)!=token)continue;
++        epoch=__atomic_load_n(&s->incarnation,__ATOMIC_ACQUIRE);
++        state=__atomic_load_n(&s->gate,__ATOMIC_ACQUIRE);
++        while(!(state&BFA_CLOSED)&&state<BFA_CLOSED-1){
++            if(!__atomic_compare_exchange_n(&s->gate,&state,state+1,1,__ATOMIC_ACQUIRE,__ATOMIC_RELAXED))continue;
++            if(__atomic_load_n(&s->token,__ATOMIC_ACQUIRE)==token&&
++               __atomic_load_n(&s->incarnation,__ATOMIC_ACQUIRE)==epoch&&
++               __atomic_load_n(&s->generation,__ATOMIC_RELAXED)==gen&&
++               __atomic_load_n(&s->allocator,__ATOMIC_RELAXED)==allocator){
++                lease->pool=p;lease->key.slot=at;lease->key.incarnation=epoch;return 1;
++            }
++            __atomic_fetch_sub(&s->gate,1,__ATOMIC_RELEASE);break;
++        }
++    }
++    return 0;
++}
++static void bfa_leave(struct bfa_lease *lease)
++{
++    if(lease&&lease->pool){
++        __atomic_fetch_sub(&lease->pool->slots[lease->key.slot].gate,1,__ATOMIC_RELEASE);
++        lease->pool=NULL;
++    }
++}
++/* Snapshot at entry to a verified frame reset/destructor, before game fields are
++ * cleared. The returned incarnation prevents accidentally retiring a reused slot. */
++static struct bfa_key bfa_capture_key(struct bfa_pool *p,uintptr_t frame,uintptr_t token)
++{
++    struct bfa_key result={BFA_SLOTS,0};size_t n;
++    if(!p||!frame||!token)return result;
++    for(n=0;n<BFA_PROBES;++n){
++        size_t at=(bfa_hash(token)+n)%BFA_SLOTS;struct bfa_slot *s=&p->slots[at];uint64_t epoch;
++        if(__atomic_load_n(&s->token,__ATOMIC_ACQUIRE)!=token)continue;
++        epoch=__atomic_load_n(&s->incarnation,__ATOMIC_ACQUIRE);
++        if(__atomic_load_n(&s->frame,__ATOMIC_RELAXED)==frame&&
++           __atomic_load_n(&s->token,__ATOMIC_ACQUIRE)==token&&
++           __atomic_load_n(&s->incarnation,__ATOMIC_ACQUIRE)==epoch){result.slot=at;result.incarnation=epoch;break;}
++    }
++    return result;
++}
++/* Close old admission before a proven owning-frame replacement. Memory remains
++ * allocated until retire_after_quiescence at the SUCCESSFUL whole-function return.
++ * Exceptional cleanup must retain the closed scope until a later proven boundary. */
++static int bfa_close(struct bfa_pool *p,struct bfa_key key)
++{
++    struct bfa_slot *s;int result=0;
++    if(!p||key.slot>=BFA_SLOTS||!key.incarnation)return 0;
++    p->api.lock(p->api.context);s=&p->slots[key.slot];
++    if(__atomic_load_n(&s->token,__ATOMIC_ACQUIRE)&&__atomic_load_n(&s->incarnation,__ATOMIC_ACQUIRE)==key.incarnation){
++        __atomic_fetch_or(&s->gate,BFA_CLOSED,__ATOMIC_ACQ_REL);result=1;
++    }
++    p->api.unlock(p->api.context);return result;
++}
++/* The adapter must check game mode0 and exact eligible callsite before this API.
++ * True emits descriptor0..2f only; false leaves it untouched for exact fallback. */
++static int bfa_allocate(struct bfa_lease *lease,struct bfa_worker_cache *cache,size_t bytes,size_t alignment,struct bfa_descriptor *out)
++{
++    struct bfa_pool *p;struct bfa_slot *s;struct bfa_cache_entry *entry=NULL;size_t n,aligned_used;
++    if(!lease||!lease->pool||!cache||!out||!bytes||bytes>1024||alignment!=1)return 0;
++    p=lease->pool;s=&p->slots[lease->key.slot];
++    entry=&cache->entries[cache->last];
++    if(entry->slot!=lease->key.slot||entry->incarnation!=lease->key.incarnation){
++        entry=NULL;
++        for(n=0;n<8;++n)if(cache->entries[n].slot==lease->key.slot&&cache->entries[n].incarnation==lease->key.incarnation){entry=&cache->entries[n];cache->last=n;break;}
++    }
++    if(!entry){
++        cache->last=cache->next++%8;entry=&cache->entries[cache->last];entry->slot=lease->key.slot;
++        entry->incarnation=lease->key.incarnation;entry->chunk=NULL;entry->used=0;
++    }
++    aligned_used=(entry->used+15)&~(size_t)15;
++    if(!entry->chunk||aligned_used>p->chunk_size||bytes>p->chunk_size-aligned_used){
++        const size_t charge=p->chunk_size+sizeof(struct bfa_chunk);size_t total,peak;struct bfa_chunk *chunk;
++        if(!bfa_charge(&s->reserved,charge,p->scope_limit,NULL))return 0;
++        if(!bfa_charge(&p->reserved,charge,p->total_limit,&total)){__atomic_fetch_sub(&s->reserved,charge,__ATOMIC_RELAXED);return 0;}
++        peak=__atomic_load_n(&p->peak,__ATOMIC_RELAXED);
++        while(peak<total&&!__atomic_compare_exchange_n(&p->peak,&peak,total,1,__ATOMIC_RELAXED,__ATOMIC_RELAXED)){}
++        chunk=(struct bfa_chunk *)p->api.allocate(p->api.context,charge);
++        if(!chunk){__atomic_fetch_sub(&p->reserved,charge,__ATOMIC_RELAXED);__atomic_fetch_sub(&s->reserved,charge,__ATOMIC_RELAXED);return 0;}
++        chunk->data=(unsigned char *)(chunk+1);chunk->allocation_size=charge;
++        chunk->next=__atomic_load_n(&s->chunks,__ATOMIC_RELAXED);
++        while(!__atomic_compare_exchange_n(&s->chunks,&chunk->next,chunk,1,__ATOMIC_RELEASE,__ATOMIC_RELAXED)){}
++        entry->chunk=chunk;entry->used=0;aligned_used=0;__atomic_fetch_add(&p->refills,1,__ATOMIC_RELAXED);
++    }
++    out->backing=entry->chunk;out->control=NULL;out->offset=aligned_used;out->size=bytes;out->padding=0;
++    out->generation=__atomic_load_n(&s->generation,__ATOMIC_RELAXED);entry->used=aligned_used+bytes;return 1;
++}
++/* Capture key BEFORE invoking verified whole-frame reset/destructor, retire
++ * AFTER it returns and its consumer barrier is proven. A false result closes
++ * admission but retains memory for a later verified-quiescent retry. */
++static int bfa_retire_after_quiescence(struct bfa_pool *p,struct bfa_key key)
++{
++    struct bfa_slot *s;struct bfa_chunk *chunk;uint64_t state;size_t reserved;int result=0;
++    if(!p||key.slot>=BFA_SLOTS||!key.incarnation)return 0;
++    p->api.lock(p->api.context);s=&p->slots[key.slot];
++    if(!__atomic_load_n(&s->token,__ATOMIC_ACQUIRE)||__atomic_load_n(&s->incarnation,__ATOMIC_ACQUIRE)!=key.incarnation)goto done;
++    state=__atomic_fetch_or(&s->gate,BFA_CLOSED,__ATOMIC_ACQ_REL);if(state&~BFA_CLOSED)goto done;
++    chunk=__atomic_exchange_n(&s->chunks,NULL,__ATOMIC_ACQ_REL);
++    while(chunk){struct bfa_chunk *next=chunk->next;p->api.deallocate(p->api.context,chunk);chunk=next;}
++    reserved=__atomic_exchange_n(&s->reserved,0,__ATOMIC_RELAXED);__atomic_fetch_sub(&p->reserved,reserved,__ATOMIC_RELAXED);
++    __atomic_store_n(&s->token,0,__ATOMIC_RELEASE);result=1;
++done:p->api.unlock(p->api.context);return result;
++}
++static struct bfa_statistics bfa_get_statistics(const struct bfa_pool *p)
++{
++    struct bfa_statistics result;size_t n;
++    result.reserved_bytes=__atomic_load_n(&p->reserved,__ATOMIC_RELAXED);
++    result.peak_bytes=__atomic_load_n(&p->peak,__ATOMIC_RELAXED);
++    result.refills=__atomic_load_n(&p->refills,__ATOMIC_RELAXED);result.live_scopes=0;
++    for(n=0;n<BFA_SLOTS;++n)result.live_scopes+=__atomic_load_n(&p->slots[n].token,__ATOMIC_ACQUIRE)!=0;
++    return result;
++}
++#endif
+--- /dev/null
++++ b/dlls/ntdll/frame_manifest.h
+@@ -0,0 +1,21 @@
++/* SPDX-License-Identifier: GPL-3.0-or-later
++ * Copyright (C) 2026 Bedrock for Mac contributors.
++ * Optional local adapter; not an upstream Wine component.
++ */
++static const unsigned char bfr_game_sha256[32]={0x4a,0x92,0xbf,0xa3,0xce,0x24,0x28,0xb4,0xe,0xe5,0x17,0xb7,0xc1,0x12,0x5d,0x9f,0x6f,0x79,0x27,0x43,0x82,0xde,0x3,0x84,0x63,0x51,0x99,0x26,0x63,0xb2,0xe2,0xe4};
++static const struct brm_region bfr_game_regions[]={{0x2fa310,0x2f9710,0x67},{0x433000,0x432400,0x203},{0x443e40,0x443240,0x89},{0x6b11f0,0x6b05f0,0xea},{0x6b1310,0x6b0710,0x2cf},{0xcd1570,0xcd0970,0x167},{0x52f5c70,0x52f5070,0x564},{0x52f6320,0x52f5720,0xd7},{0x52f6a50,0x52f5e50,0x17a},{0x530c860,0x530bc60,0x603},{0x530cf20,0x530c320,0x2b6},{0x530d1e0,0x530c5e0,0x33e},{0x5330cc0,0x53300c0,0x50e},{0x5351190,0x5350590,0x624},{0x53597b0,0x5358bb0,0x6c9},{0x535b290,0x535a690,0x102f},{0x535c970,0x535bd70,0x74},{0x535d000,0x535c400,0x98},{0x535d0a0,0x535c4a0,0x21a},{0x535d770,0x535cb70,0x1bc3},{0x5960b30,0x595ff30,0x11},{0x59616b0,0x5960ab0,0x28},{0x5e0bc90,0x5e0b090,0x8b1},{0x5e0c900,0x5e0bd00,0x1d2},{0x5e0cc20,0x5e0c020,0x13c},{0x5e165e0,0x5e159e0,0x46e},{0x5e16aa0,0x5e15ea0,0x23b1},{0x5e220e0,0x5e214e0,0x2c55},{0x5e25450,0x5e24850,0x73},{0x5e256e0,0x5e24ae0,0x243},{0x5e25960,0x5e24d60,0x5e5},{0x5e26090,0x5e25490,0xb7d9},{0x5e3d0e0,0x5e3c4e0,0x18f},{0x5e4b240,0x5e4a640,0x224},{0x5e4b4f0,0x5e4a8f0,0xa370},{0x5f06140,0x5f05540,0xe852},{0x5f8d8b0,0x5f8ccb0,0x245},{0x5f9e3b0,0x5f9d7b0,0x2e4},{0x5fb4900,0x5fb3d00,0x2d},{0x5fb4c80,0x5fb4080,0xed},{0x5fb4de0,0x5fb41e0,0x2e},{0x5fb4e10,0x5fb4210,0x103},{0x5fb4f20,0x5fb4320,0x19d},{0x5fb50e0,0x5fb44e0,0x834},{0x5fb7cd0,0x5fb70d0,0x26},{0x5fb7d20,0x5fb7120,0x4e},{0x5fb7d70,0x5fb7170,0x2d},{0x5fb7da0,0x5fb71a0,0x779},{0x5fb8560,0x5fb7960,0x237},{0x5fbe1b0,0x5fbd5b0,0x6e8},{0x5fbeac0,0x5fbdec0,0x10e},{0x5fd7250,0x5fd6650,0x2e7},{0x8d6f530,0x8d6e930,0x5bf},{0x8d71390,0x8d70790,0x5b3},{0x8d78ce0,0x8d780e0,0x624},{0x8d9cd30,0x8d9c130,0x55b},{0x8d9d7d0,0x8d9cbd0,0x5f2},{0x8d9e330,0x8d9d730,0x5f2},{0x8d9eb20,0x8d9df20,0x5f2},{0x8d9f310,0x8d9e710,0x5d4},{0x8d9faa0,0x8d9eea0,0x537},{0x8da0350,0x8d9f750,0x5cc},{0x8da1020,0x8da0420,0x51a},{0x8da1930,0x8da0d30,0x805},{0x8da90e0,0x8da84e0,0x56f},{0x8dabf10,0x8dab310,0xdc8},{0xb71daa0,0xb71cea0,0x1980},{0xb7201c0,0xb71f5c0,0xc1},{0xb72f9a0,0xb72eda0,0x16c},{0xb72ff20,0xb72f320,0x22e},{0xb73ba40,0xb73ae40,0x3cc},{0xb741220,0xb740620,0xcbc},{0xb742750,0xb741b50,0xa68},{0xb752a70,0xb751e70,0x1767},{0xb75c780,0xb75bb80,0x4b1},{0xb75d1b0,0xb75c5b0,0x4c1},{0xb75d930,0xb75cd30,0x47f},{0xb76ea40,0xb76de40,0x8d0},{0xb76f7d0,0xb76ebd0,0xad9},{0xb770b30,0xb76ff30,0x980},{0xb77e440,0xb77d840,0x3c1},{0xb77ece0,0xb77e0e0,0x408},{0xb788fb0,0xb7883b0,0x208},{0xb789c30,0xb789030,0x736},{0xb78a370,0xb789770,0xce},{0xb78eae0,0xb78dee0,0x777b},{0xbca79c0,0xbca6dc0,0x18b},{0xbca7d00,0xbca7100,0x2f2},{0xbca80b0,0xbca74b0,0x3ef},{0xbca8520,0xbca7920,0x260},{0xbca8860,0xbca7c60,0x906},{0xbcac860,0xbcabc60,0x357},{0xbcacd80,0xbcac180,0x195},{0xbcacfe0,0xbcac3e0,0x250},{0xbcad6c0,0xbcacac0,0x6b7},{0xbcae0c0,0xbcad4c0,0x50b},{0xbcae5d0,0xbcad9d0,0x40a},{0xbcafa40,0xbcaee40,0x1ad},{0xbcafc80,0xbcaf080,0x130},{0xbcafec0,0xbcaf2c0,0x238},{0xbcb07f0,0xbcafbf0,0xc7},{0xbcb0a80,0xbcafe80,0x169},{0xbcb0da0,0xbcb01a0,0x3f8},{0xbcb11a0,0xbcb05a0,0x268},{0xbcb1870,0xbcb0c70,0xf7},{0xbcb4c40,0xbcb4040,0x630},{0xbcbd9c0,0xbcbcdc0,0x2a2},{0xbcbf7f0,0xbcbebf0,0xb8},{0xbcc0800,0xbcbfc00,0x6332},{0xc570fa0,0xc5703a0,0x900c},{0xd7d5710,0xd7d4b10,0x1c7},{0xdff1ee0,0xdff12e0,0x1024},{0xdff3180,0xdff2580,0x296},{0xdff55c0,0xdff49c0,0x105e},{0xdff6620,0xdff5a20,0x25c},{0xdff6880,0xdff5c80,0x4ca},{0xdff6d90,0xdff6190,0x5e3},{0xdff7580,0xdff6980,0x473},{0xdff7a40,0xdff6e40,0x19d},{0xdff7c30,0xdff7030,0x169},{0xe0051c0,0xe0045c0,0xf0c},{0xe0068c0,0xe005cc0,0xb7},{0xe00b700,0xe00ab00,0xbbf},{0xe00c4a0,0xe00b8a0,0x2583},{0xe29d8e0,0xe29cce0,0x6}};
++static const struct brm_edit bfr_game_edits[]={{0xdff31e4,5,{0xe8,0x87,0x2a,0x30,0xf7},{0}},{0x5e229ca,5,{0xe8,0x11,0x2d,0x0,0x0},{0}},{0x5e1680d,5,{0xe8,0x8e,0x2,0x0,0x0},{0}},{0x5e25cb2,5,{0xe8,0xe9,0xd,0xff,0xff},{0}},{0x5e27159,5,{0xe8,0x42,0xf9,0xfe,0xff},{0}},{0x5e22394,5,{0xe8,0x47,0x2d,0x19,0x0},{0}},{0x5fb4df0,5,{0xe8,0xeb,0x2,0x0,0x0},{0}},{0x5fb4ec4,5,{0xe8,0x17,0x2,0x0,0x0},{0}},{0x5fb4ee2,5,{0xe8,0xf9,0x1,0x0,0x0},{0}},{0x5fb4fe4,5,{0xe8,0xf7,0x0,0x0,0x0},{0}},{0x5fb5008,5,{0xe8,0xd3,0x0,0x0,0x0},{0}},{0x5fb83e4,5,{0xe8,0xf7,0xcc,0xff,0xff},{0}},{0x5fb8449,5,{0xe8,0x92,0xcc,0xff,0xff},{0}},{0x5fb86dd,5,{0xe8,0xfe,0xc9,0xff,0xff},{0}},{0x5e4b3b6,5,{0xe8,0x35,0x1,0x0,0x0},{0}},{0xe976640,8,{0xe0,0x20,0xe2,0x45,0x1,0x0,0x0,0x0},{0}}};
++static const unsigned bfr_game_kinds[]={0,1,2,2,2,3,3,3,3,3,3,3,3,3,4,5};
++static const struct brm_spec bfr_game_spec={311215984,314576896,bfr_game_sha256,bfr_game_regions,125,bfr_game_edits,16};
++static const unsigned char bfr_sentinel_sha256[32]={0xd7,0x68,0x31,0x39,0x84,0xcd,0x90,0x38,0x22,0x89,0xa,0x7a,0x91,0xa7,0xce,0x98,0x85,0x90,0xe7,0xd,0xf2,0x71,0xe9,0x99,0x45,0x3e,0xd6,0xf2,0x37,0xee,0x5b,0x2b};
++static const struct brm_region bfr_sentinel_regions[]={{0x13e0,0x7e0,0x188},{0x1570,0x970,0x10},{0x1660,0xa60,0x11d},{0x1800,0xc00,0x2d},{0x1830,0xc30,0x4a},{0x1880,0xc80,0x300},{0x2c30,0x2030,0xe},{0x2c3e,0x203e,0xe},{0x2c4c,0x204c,0xe},{0x2c5a,0x205a,0xe},{0x2c68,0x2068,0x17}};
++static const struct brm_edit bfr_sentinel_edits[]={{0x2c73,5,{0xe8,0xb8,0xeb,0xff,0xff},{0}},{0x2c34,5,{0xe8,0x37,0xe9,0xff,0xff},{0}},{0x2c42,5,{0xe8,0x19,0xea,0xff,0xff},{0}},{0x2c50,5,{0xe8,0xab,0xeb,0xff,0xff},{0}},{0x2c5e,5,{0xe8,0x1d,0xec,0xff,0xff},{0}},{0x8000,8,{0xe0,0x13,0x0,0x40,0x1,0x0,0x0,0x0},{0}}};
++static const unsigned bfr_sentinel_kinds[]={0,1,2,3,4,5};
++static const struct brm_spec bfr_sentinel_spec={118784,2715648,bfr_sentinel_sha256,bfr_sentinel_regions,11,bfr_sentinel_edits,6};
++#define BFR_SENTINEL_ALLOC 0x1830
++#define BFR_SENTINEL_TRANSFER 0x1570
++#define BFR_SENTINEL_RESET 0x1660
++#define BFR_SENTINEL_DESTROY 0x1800
++#define BFR_SENTINEL_WORKER 0x1880
++#define BFR_SENTINEL_BEGIN 0x13e0
++#define BFR_SENTINEL_SCOPE_VTABLE 0x8080

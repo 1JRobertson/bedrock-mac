@@ -1,0 +1,313 @@
+{
+  "status": "validated_and_installed_with_input_layout_reuse",
+  "hardware": "Apple M4 Pro, 24 GiB, macOS 15.3.1",
+  "quality": {
+    "render_distance_chunks": 48,
+    "fov": 60,
+    "drawable": [
+      1683,
+      951
+    ],
+    "vsync": true
+  },
+  "method": "New process per condition, reset private fixture, warm >=120s, command identical camera orientation, pause, 8s settle, 30s actual Metal presentation window. CPU sums game and wineserver; host Mach timebase conversion applied.",
+  "captures": [
+    {
+      "capture": "build/performance/camera-refmove-off-a.json",
+      "name": "camera-refmove-off-a",
+      "dimensions": [
+        1683,
+        951
+      ],
+      "seconds": 30.094842207999996,
+      "displayed_fps": 99.95360982449358,
+      "cpu_ms_per_displayed_frame": 58.1191938303413,
+      "cpu_percent": 580.9053054120824,
+      "frame_ms": {
+        "p50": 9.991333994548768,
+        "p95": 9.99141699867323,
+        "p99": 9.991458966396749,
+        "p99.9": 19.982708035968244,
+        "p100": 19.982750003691763
+      },
+      "frame_intervals_over_ms": {
+        "16.67": 4,
+        "33.33": 0,
+        "50": 0,
+        "100": 0
+      },
+      "ram_GiB": {
+        "mean": 4.09730121036691,
+        "min": 4.0920377895236015,
+        "max": 4.1008573696017265
+      },
+      "thread_cpu_ms_per_displayed_frame": {
+        "Streaming Pool": 29.013701462765958,
+        "Rendering Pool": 13.357874002659576,
+        "dxmt-encode": 6.243652593085106,
+        "MINECRAFT MAIN": 7.333071808510638
+      },
+      "runtime_hashes": {
+        "ntdll_sha256": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+        "d3d11_sha256": "9d9105af56e6a54b6160cb645e78c92bab8d12fb86152344ba78b188cc668484",
+        "native_ntdll_sha256": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+        "native_winemetal_sha256": "52830a1843ba9e795f3dc5126d1cab8862151bc99c10cbe32c6d6269bb61b739",
+        "private_options_sha256": "8cc410601bdfe98a3119ff6ddcb54f74a9c3421b75c6fb25850c887fcf2ec56c"
+      },
+      "sha256": "e1147d9e8472c082708a0b620706d0cd278ada3d359553a9cd8b8b433dca1022",
+      "enabled": false
+    },
+    {
+      "capture": "build/performance/camera-refmove-on-b.json",
+      "name": "camera-refmove-on-b",
+      "dimensions": [
+        1683,
+        951
+      ],
+      "seconds": 30.099836833999998,
+      "displayed_fps": 99.98689132655028,
+      "cpu_ms_per_displayed_frame": 52.93673409468438,
+      "cpu_percent": 529.3702105554744,
+      "frame_ms": {
+        "p50": 9.991333994548768,
+        "p95": 9.99141699867323,
+        "p99": 9.991458966396749,
+        "p99.9": 9.991542028728873,
+        "p100": 29.97408399824053
+      },
+      "frame_intervals_over_ms": {
+        "16.67": 2,
+        "33.33": 0,
+        "50": 0,
+        "100": 0
+      },
+      "ram_GiB": {
+        "mean": 4.101101834447153,
+        "min": 4.096981838345528,
+        "max": 4.106243923306465
+      },
+      "thread_cpu_ms_per_displayed_frame": {
+        "Streaming Pool": 22.615038205980067,
+        "Rendering Pool": 12.266362458471763,
+        "dxmt-encode": 6.321372757475083,
+        "MINECRAFT MAIN": 6.297474418604651
+      },
+      "runtime_hashes": {
+        "ntdll_sha256": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+        "d3d11_sha256": "9d9105af56e6a54b6160cb645e78c92bab8d12fb86152344ba78b188cc668484",
+        "native_ntdll_sha256": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+        "native_winemetal_sha256": "52830a1843ba9e795f3dc5126d1cab8862151bc99c10cbe32c6d6269bb61b739",
+        "private_options_sha256": "649e048dc2fc4869d90c6cf407142c8d3c9b3c71fc70af6e3b1349da6b64a57f"
+      },
+      "sha256": "a70890b88a2c97f02cb9a83792cd753f646b444dca99b15ddebaf3aca2adafcd",
+      "enabled": true
+    },
+    {
+      "capture": "build/performance/camera-refmove-off-c2.json",
+      "name": "camera-refmove-off-c2",
+      "dimensions": [
+        1683,
+        951
+      ],
+      "seconds": 30.124815166999998,
+      "displayed_fps": 96.5666131702302,
+      "cpu_ms_per_displayed_frame": 59.935292841182545,
+      "cpu_percent": 578.7646028978539,
+      "frame_ms": {
+        "p50": 9.991333994548768,
+        "p95": 9.991457976866513,
+        "p99": 19.98270902549848,
+        "p99.9": 19.982790981885046,
+        "p100": 19.982792029622942
+      },
+      "frame_intervals_over_ms": {
+        "16.67": 106,
+        "33.33": 0,
+        "50": 0,
+        "100": 0
+      },
+      "ram_GiB": {
+        "mean": 4.7672414868589374,
+        "min": 4.764260731637478,
+        "max": 4.77330919355154
+      },
+      "thread_cpu_ms_per_displayed_frame": {
+        "Streaming Pool": 30.323854245445176,
+        "Rendering Pool": 13.49971399106222,
+        "dxmt-encode": 6.253407700240633,
+        "MINECRAFT MAIN": 7.668130285321415
+      },
+      "runtime_hashes": {
+        "ntdll_sha256": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+        "d3d11_sha256": "9d9105af56e6a54b6160cb645e78c92bab8d12fb86152344ba78b188cc668484",
+        "native_ntdll_sha256": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+        "native_winemetal_sha256": "52830a1843ba9e795f3dc5126d1cab8862151bc99c10cbe32c6d6269bb61b739",
+        "private_options_sha256": "649e048dc2fc4869d90c6cf407142c8d3c9b3c71fc70af6e3b1349da6b64a57f"
+      },
+      "sha256": "6dd61802cf17ad72085639c7cf7b89c5b026c025d3ea6201c7f4b4aabf7d6463",
+      "enabled": false
+    }
+  ],
+  "scope": "One paused outdoor scene; no whole-game FPS, energy, latency or RAM reduction claim.",
+  "proof": {
+    "real_x64_instruction_checks": 60426,
+    "concurrent_producers": 7,
+    "delayed_references_per_variant": 19110,
+    "ownership_model_calls_per_variant": 1344000,
+    "dynamic_limits": "General slow paths and exception cleanup are not dynamically covered; edited fast-path instruction ranges inspected for exception cleanup state."
+  },
+  "camera_command": "/tp @s ~ ~ ~ 113 4",
+  "game_sha256": "4a92bfa3ce2428b40ee517b7c1125d9f6f79274382de03846351992663b2e2e4",
+  "on_disk_game_modified": false,
+  "changes": "Transfer existing ring-allocator ownership through three nested wrappers; remove three temporary strong-reference increment/decrement pairs. Preserve reservations, in-flight and byte accounting, real ownership and completion retirement.",
+  "exploratory_excluded": [
+    "refmove-off-a1",
+    "refmove-on-b1"
+  ],
+  "exploratory_exclusion_reason": "0.791 degree pitch drift and background workload difference; fixed-camera comparison supersedes preliminary 14% estimate.",
+  "allocator_cpu_work_reduction_percent_vs_controls": [
+    8.916950484181353,
+    11.676857515392559
+  ],
+  "reversal_limitations": "Second OFF process had prior user movement, then its position and camera were reset before the valid capture. Y differs by one float ULP (0.00000763 blocks). Treat as corroboration, not an independent identical-world sample.",
+  "pose_audits": {
+    "camera-refmove-off-a": {
+      "sequence": 20926,
+      "source": {
+        "sha256": "61f15721e1e978f156692b602a7af31a97a3a0ff46feeceb2b3f4ff3d457dfcf"
+      },
+      "Pos": [
+        62.61067199707031,
+        94.80873107910156,
+        139.95367431640625
+      ],
+      "Rotation": [
+        112.9998779296875,
+        3.9990386962890625
+      ],
+      "DimensionId": 0
+    },
+    "camera-refmove-on-b": {
+      "sequence": 20455,
+      "source": {
+        "sha256": "c7afdb05dfb55ae0bcdca367478cf3a943fb41a1c5bd7d311ff3a65c44ae0ce2"
+      },
+      "Pos": [
+        62.61067199707031,
+        94.80873107910156,
+        139.95367431640625
+      ],
+      "Rotation": [
+        112.9998779296875,
+        3.9990386962890625
+      ],
+      "DimensionId": 0
+    },
+    "camera-refmove-off-c2": {
+      "sequence": 20590,
+      "source": {
+        "sha256": "18da539ea0a4be444ccf83b478d38193dca6675c56c65a9c4d739f6884d13d47"
+      },
+      "Pos": [
+        62.61067199707031,
+        94.8087387084961,
+        139.95367431640625
+      ],
+      "Rotation": [
+        112.9998779296875,
+        3.9990386962890625
+      ],
+      "DimensionId": 0,
+      "maximum_position_delta_blocks": 7.62939453125e-06,
+      "note": "Absolute teleport reconstructed feet-to-eye Y one float ULP higher (0.00000763 blocks). Camera rotation exact."
+    },
+    "camera-combined-on-d": {
+      "sequence": 20469,
+      "source": {
+        "sha256": "7918121716db4d34102d7ceaab018f502d1d949246c9bc2bc86355d6f317b164"
+      },
+      "Pos": [
+        62.61067199707031,
+        94.80873107910156,
+        139.95367431640625
+      ],
+      "Rotation": [
+        112.9998779296875,
+        3.9990386962890625
+      ],
+      "DimensionId": 0
+    }
+  },
+  "invalid_or_excluded_captures": {
+    "camera-refmove-off-a.audit-1791254129025978000.json": "Window was not presenting frames; parser rejected capture.",
+    "camera-refmove-off-c": "Window occlusion, throttling, and user movement; excluded from performance comparison."
+  },
+  "activation_validation": {
+    "fixture_tests": 39,
+    "launcher_tests": 13,
+    "actual_private_stage_restore_stage": "passed",
+    "combined_startup_log": "logs/standalone/minecraft-20261005-195052.log",
+    "combined_startup_marker": "enabled target=minecraft full_sha256_verified=1 sites=6",
+    "normal_wine_run_real_profile_dry_launch": "verified gate=1 using actual runtime, full game hash and normal wine_run; process spawn mocked to preserve normal options/worlds"
+  },
+  "combined_capture": {
+    "capture": "build/performance/camera-combined-on-d.json",
+    "name": "camera-combined-on-d",
+    "dimensions": [
+      1683,
+      951
+    ],
+    "seconds": 30.064368041,
+    "displayed_fps": 99.58747077093675,
+    "cpu_ms_per_displayed_frame": 49.53087548708528,
+    "cpu_percent": 493.25979846340624,
+    "frame_ms": {
+      "p50": 9.991333994548768,
+      "p95": 9.99141699867323,
+      "p99": 9.991500002797693,
+      "p99.9": 29.974000004585832,
+      "p100": 29.974083008710295
+    },
+    "frame_intervals_over_ms": {
+      "16.67": 11,
+      "33.33": 0,
+      "50": 0,
+      "100": 0
+    },
+    "ram_GiB": {
+      "mean": 4.339116156341568,
+      "min": 4.097271732985973,
+      "max": 4.523747257888317
+    },
+    "thread_cpu_ms_per_displayed_frame": {
+      "Streaming Pool": 22.489790581162325,
+      "Rendering Pool": 11.588919171676686,
+      "dxmt-encode": 3.1515303941215764,
+      "MINECRAFT MAIN": 6.244369071476285
+    },
+    "runtime_hashes": {
+      "ntdll_sha256": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+      "d3d11_sha256": "e4086a6919b96013ecf2d70a291f087d5b3183d9412b1b45b1e1b73ab02db9cc",
+      "native_ntdll_sha256": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+      "native_winemetal_sha256": "52830a1843ba9e795f3dc5126d1cab8862151bc99c10cbe32c6d6269bb61b739",
+      "private_options_sha256": "649e048dc2fc4869d90c6cf407142c8d3c9b3c71fc70af6e3b1349da6b64a57f"
+    },
+    "sha256": "f8f621469bf4dbf2946c4ef8faefed18361cd2bb1f20aaa143fcd2a16815bf83",
+    "enabled": true
+  },
+  "combined_cpu_work_reduction_percent_vs_controls": [
+    14.777077549159777,
+    17.359416899266755
+  ],
+  "installed_runtime_hashes": {
+    "runtime/standalone/wine/lib/wine/x86_64-windows/ntdll.dll": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+    "runtime/standalone/wine/lib/wine/x86_64-windows/d3d11.dll": "e4086a6919b96013ecf2d70a291f087d5b3183d9412b1b45b1e1b73ab02db9cc",
+    "runtime/standalone/dxmt/x86_64-windows/d3d11.dll": "e4086a6919b96013ecf2d70a291f087d5b3183d9412b1b45b1e1b73ab02db9cc",
+    "runtime/standalone/wine/build-manifest.json": "593e75e4a575592afd32f99fc8fffa6a80c9d990d69321dfe625293dcf492c80",
+    "runtime/standalone/wine/bedrock-refmove.json": "142fdf2566a1551606c59698b8eb71f2ddb9d541337c3b1e91e86c246f746a84",
+    "normal_options": "03a62a5107c7d7879b6f05335fd38f2d45975f61bfbf8d90b55b90aa48bace5a"
+  },
+  "memory_conclusion": "No RAM saving established. Actual physical footprint includes a recurring approximately414MiB pulse present in both control and layout reuse. Combined capture mean4.339GiB; initial control4.097GiB and allocator-only4.101GiB. Reversal control4.767GiB followed user movement. These short windows do not establish equal peak memory or a leak.",
+  "combined_limitations": "One combined 30-second capture, corroborated by separate layout tests and allocator off/on/off. World loading duration/cloud and entity simulation are not exactly replayed. Qualify moving/streaming and long sessions separately.",
+  "reproduction": "New source builds are review-only. Stage accepts the frozen tested artifact only; compiled Wine and game binaries are excluded from source export."
+}

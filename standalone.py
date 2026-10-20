@@ -6,6 +6,7 @@ import datetime
 import errno
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,7 @@ import socket
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 
 ROOT = Path(os.environ.get('BEDROCK_HOME', Path(__file__).resolve().parent))
@@ -32,7 +34,10 @@ OVERRIDES = 'xgameruntime,windows.web,twinapi.appcore,windows.ui.core.textinput,
 def environment(*, network_diagnostics=False):
     # Keep the selected runtime independent of a shell's existing Wine/CrossOver session.
     env = {k: v for k, v in os.environ.items()
-           if not k.startswith(('CX_', 'WINE', 'DYLD_'))}
+           if not k.startswith(('CX_', 'WINE', 'DYLD_', 'BEDROCK_PRIVATE_REFMOVE',
+                                'BEDROCK_FRAME_SLAB', 'BEDROCK_CLONE_RECURRENCE',
+                                'BEDROCK_BINDING_RECURRENCE', 'BEDROCK_EXACT_CURRENT',
+                                'BEDROCK_ALLOC_DIAG', 'BEDROCK_ALLOCATOR_'))}
     env.update(WINEPREFIX=str(PREFIX), WINEARCH='win64', WINEDEBUG='-all',
                WINEDLLPATH=str(DXMT), WINEDLLOVERRIDES=OVERRIDES,
                LC_ALL='en_US.UTF-8')
@@ -85,6 +90,21 @@ class AccountError(RuntimeError):
     def __init__(self, code=None):
         super().__init__('The account helper stopped. Open the setup log for details.')
         self.code = code
+
+
+def record_account_process(pid):
+    """Publish one complete private receipt before the helper can read credentials."""
+    with tempfile.NamedTemporaryFile(mode='w', dir=STATE.parent,
+                                     prefix='.helper-session-', delete=False) as output:
+        temporary = Path(output.name)
+        try:
+            json.dump({'pid': pid, 'executable': str(HELPER)}, output)
+            output.write('\n')
+            output.flush()
+            os.fsync(output.fileno())
+            os.replace(temporary, STATE)
+        finally:
+            temporary.unlink(missing_ok=True)
 
 def recover_account_socket():
     """Recover only a dead, recorded helper's private, non-listening socket."""
@@ -160,7 +180,11 @@ def account(game, market='CA', *, download=False, progress=None, timeout=None):
             log_path.parent.mkdir(parents=True, exist_ok=True)
             with log_path.open('ab') as log:
                 position = log.tell()
-                env = dict(os.environ, XODUS_LOG='off', RUST_LOG='off')
+                # The helper waits for our receipt before authentication and
+                # exits itself if this owner disappears, including during login.
+                env = dict(os.environ, XODUS_LOG='off', RUST_LOG='off',
+                           BEDROCK_HELPER_PARENT_PID=str(os.getpid()),
+                           BEDROCK_HELPER_SESSION_FILE=str(STATE.absolute()))
                 command = [str(HELPER.resolve()), '--download' if download else '--serve', str(game), '--market', market]
                 if download:
                     command.append('--serve-after')
@@ -168,8 +192,7 @@ def account(game, market='CA', *, download=False, progress=None, timeout=None):
                     cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
             output = log_path.open('rb')
             output.seek(position)
-            STATE.write_text(json.dumps({'pid': process.pid, 'executable': str(HELPER)}) + '\n')
-            STATE.chmod(0o600)
+            record_account_process(process.pid)
         while True:
             read_output()
             if account_ready():
@@ -209,11 +232,93 @@ def require(path):
         raise RuntimeError('Missing required file: ' + str(path))
 
 
+def verified_refmove_activation(game):
+    """Opt in only through a verified reversible stage, never inherited shell flags."""
+    if not os.path.lexists(WINE / 'bedrock-refmove.json'):
+        return False
+    source = Path(__file__).resolve().parent / 'standalone-bedrock-refmove.py'
+    spec = importlib.util.spec_from_file_location('bedrock_refmove', source)
+    helper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(helper)
+    return helper.verified_activation(WINE, game)
+
+
 def wine_run(args, game, *, log=None, timeout=None, network_diagnostics=False):
     require(WINE / 'bin/wine')
+    env = environment(network_diagnostics=network_diagnostics)
+    if args == ['G:\\Minecraft.Windows.exe']:
+        if not apply_frame_slab(env, game) and verified_refmove_activation(game):
+            env['BEDROCK_PRIVATE_REFMOVE_15203'] = '1'
+        apply_frame_pacing(env, game)
     return subprocess.run([str(WINE / 'bin/wine'), *map(str, args)],
-        cwd=game, env=environment(network_diagnostics=network_diagnostics), stdout=log, stderr=subprocess.STDOUT,
+        cwd=game, env=env, stdout=log, stderr=subprocess.STDOUT,
         timeout=timeout, check=True)
+
+
+def apply_frame_slab(env, game):
+    """Enable only a verified local install, with a new private map per game."""
+    if not os.path.lexists(WINE / 'bedrock-frame-slab.json'):
+        return False
+    source = Path(__file__).resolve().parent / 'standalone-bedrock-frame-profile.py'
+    spec = importlib.util.spec_from_file_location('bedrock_frame_profile', source)
+    helper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(helper)
+    if not helper.verified_activation(WINE, game):
+        raise RuntimeError('Incomplete frame allocator installation; restore or restage it.')
+    directory = ROOT / 'logs/standalone/frame-slab'
+    if any(path.is_symlink() for path in (directory, *directory.parents)):
+        raise RuntimeError('Unexpected symlink in frame allocator control directory.')
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # NtCreateFile owns creation of the mapping. Never reuse an old capture or
+    # pre-create control.bin: the game intentionally requires FILE_CREATE.
+    session = Path(tempfile.mkdtemp(prefix='session-', dir=directory))
+    control = session / 'control.bin'
+    env.update(BEDROCK_PRIVATE_REFMOVE_15203='1', BEDROCK_FRAME_SLAB='1',
+               BEDROCK_FRAME_SLAB_CHUNK='16384',
+               BEDROCK_FRAME_SLAB_CONTROL='Z:' + str(control).replace('/', '\\'))
+    return True
+
+
+def apply_frame_pacing(env, game):
+    """Activate only the staged, tested renderer for this owned game build."""
+    env.pop('BEDROCK_DXMT_PRESENT_PACING', None)
+    env.pop('BEDROCK_METRICS_HUD', None)
+    record = WINE / 'frame-pacing.json'
+    if not record.exists():
+        return
+    data = json.loads(record.read_text())
+    if not data.get('enabled'):
+        return
+    if set(data['files']) != {'x86_64-windows/d3d11.dll', 'x86_64-unix/winemetal.so'}:
+        raise RuntimeError('Incomplete frame-pacing manifest.')
+    for name, expected in data['files'].items():
+        if name not in ('x86_64-windows/d3d11.dll', 'x86_64-unix/winemetal.so'):
+            raise RuntimeError('Unexpected frame-pacing manifest entry.')
+        if sha256(WINE / 'lib/wine' / name) != expected:
+            raise RuntimeError('Frame-pacing runtime changed; restore or restage its tested build.')
+    if sha256(game / 'Minecraft.Windows.exe') != data['game_sha256']:
+        return
+    # Metal supplies display timing. A second duration limiter adds a refresh
+    # of delay; the renderer bounds outstanding presents instead.
+    config = env.get('DXMT_CONFIG', '').rstrip(';')
+    env['DXMT_CONFIG'] = (config + ';' if config else '') + 'd3d11.preferredMaxFrameRate=0;d3d11.maxFrameLatency=1'
+    env['BEDROCK_DXMT_PRESENT_PACING'] = '1'
+    if data.get('metrics_hud'):
+        env['BEDROCK_METRICS_HUD'] = '1'
+
+
+def install_pending_hud():
+    """Apply an already validated local HUD at the next clean launch."""
+    pending = WINE / 'pending-hud.json'
+    if not pending.exists():
+        return
+    data = json.loads(pending.read_text())
+    build = ROOT / 'build/metrics-hud'
+    for name in ('winemetal.so', 'validation.json', 'stage.py'):
+        if sha256(build / name) != data['files'][name]:
+            raise RuntimeError('The pending HUD build changed; validate it again before launching.')
+    subprocess.run([sys.executable, str(build / 'stage.py')], check=True, cwd=ROOT)
+    pending.unlink()
 
 
 def map_drive(letter, directory):
@@ -252,6 +357,7 @@ def prerequisites(game):
                  game / '.xodus-streaming.msixvc',
                  game / 'Installers/GameInputRedist.msi'):
         require(path)
+    picker_bridge().verify_runtime(WINE)
     # Wine 11.8 prefers installed builtins over WINEDLLPATH. Check the overlay,
     # so a later Wine rebuild cannot silently select its stock graphics DLLs.
     for relative in ('x86_64-windows/d3d11.dll', 'x86_64-windows/dxgi.dll',
@@ -272,10 +378,24 @@ def prerequisites(game):
 
 
 def setup_signature(game):
-    return {'setup_version': 2, 'game': str(game), 'threading': THREADING_HASH,
+    # DLL-only updates leave bin/wine unchanged. Wineboot must still refresh
+    # the prefix when its installed builtins or native graphics bridge change.
+    runtime_files = (
+        'x86_64-windows/ntdll.dll', 'x86_64-unix/ntdll.so',
+        'x86_64-windows/xgameruntime.dll', 'x86_64-windows/d3d11.dll',
+        'x86_64-windows/dxgi.dll', 'x86_64-windows/d3d10core.dll',
+        'x86_64-windows/winemetal.dll', 'x86_64-unix/winemetal.so',
+        'x86_64-windows/bedrock-pickers.dll',
+    )
+    picker = picker_bridge()
+    return {'setup_version': 4, 'game': str(game), 'threading': THREADING_HASH,
+            'picker_build_receipt': sha256(WINE / 'file-pickers-build.json'),
+            'picker_installer': sha256(picker.source_root() / 'standalone-pickers.py'),
             'gameinput': sha256(game / 'Installers/GameInputRedist.msi'),
             'wine': sha256(WINE / 'bin/wine'),
-            'dxmt': sha256(DXMT / 'x86_64-windows/d3d11.dll')}
+            'dxmt': sha256(DXMT / 'x86_64-windows/d3d11.dll'),
+            'runtime': {name: sha256(WINE / 'lib/wine' / name)
+                        for name in runtime_files}}
 
 
 def setup_matches(desired):
@@ -283,6 +403,14 @@ def setup_matches(desired):
         return json.loads((PREFIX / '.bedrock-setup.json').read_text()) == desired
     except (OSError, ValueError):
         return False
+
+
+def picker_bridge():
+    source = Path(os.environ['BEDROCK_BUNDLE']) / 'scripts' if os.environ.get('BEDROCK_BUNDLE') else Path(__file__).resolve().parent
+    spec = importlib.util.spec_from_file_location('standalone_pickers', source / 'standalone-pickers.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 def verify_unix_bridge():
     """Check both halves of the optional locally rebuilt DXMT bridge."""
@@ -317,11 +445,13 @@ def prepare(game):
     logs.mkdir(parents=True, exist_ok=True)
     marker = PREFIX / '.bedrock-setup.json'
     desired = setup_signature(game)
-    if setup_matches(desired):
+    pickers = picker_bridge()
+    if setup_matches(desired) and pickers.installed(PREFIX, WINE):
         map_drive('g', game)
         map_drive('r', ROOT)
         return
     wait_for_idle_prefix()
+    pickers.preflight(PREFIX)
     try:
         with (logs / 'prefix-setup.log').open('ab') as log:
             # Wine must create its own C: mapping before additional drives are added.
@@ -332,6 +462,11 @@ def prepare(game):
             system32.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / 'runtime/xgameruntime.dll.threading', system32)
             wine_run(['reg', 'import', 'R:\\winrt.reg'], game, log=log, timeout=60)
+            # Existing registrations are checked again after wineboot. Preserve
+            # unknown providers before replacing the bridge or changing classes.
+            pickers.install(PREFIX, WINE,
+                            lambda _path: wine_run(['reg', 'import', 'R:\\bottles\\Bedrock-Standalone\\.bedrock-pickers.reg'],
+                                                   game, log=log, timeout=60))
             wine_run(['reg', 'add', 'HKCU\\Software\\Wine', '/v', 'Version',
                       '/d', 'win10', '/f'], game, log=log, timeout=60)
             stop_setup_server()
@@ -352,6 +487,8 @@ def prepare(game):
         raise
     require(PREFIX / 'drive_c/Program Files/Microsoft GameInput/x64/GameInputRedist.dll')
     require(PREFIX / 'drive_c/Program Files/Microsoft GameInput/x64/GameInputRedistService.exe')
+    if not pickers.installed(PREFIX, WINE):
+        raise RuntimeError('The file picker registration did not persist. Preserve the picker backups and retry setup.')
     temporary = marker.with_suffix('.new')
     temporary.write_text(json.dumps(desired, indent=2) + '\n')
     os.replace(temporary, marker)
@@ -362,6 +499,14 @@ def game_running():
     return any(line.strip().lower().endswith(('\\minecraft.windows.exe', '/minecraft.windows.exe')) for line in processes.splitlines())
 
 
+def refuse_pending_update():
+    # A crashed updater may have activated a new game/prefix but not committed.
+    # Do not allow new saves into that prefix before the updater recovers it.
+    # Treat every entry, including a broken link or unreadable journal, as busy.
+    if os.path.lexists(ROOT / '.minecraft-update'):
+        raise RuntimeError('A Minecraft update needs recovery. Open Bedrock for Mac and choose Continue before launching or preparing the game.')
+
+
 def status(game):
     print('Wine runtime built:', (WINE / 'bin/wine').is_file())
     print('DXMT staged:', (DXMT / 'x86_64-unix/winemetal.so').is_file())
@@ -369,6 +514,7 @@ def status(game):
     print('Standalone prefix prepared:', (PREFIX / '.bedrock-setup.json').is_file())
     print('Account service ready:', account_ready())
     print('Minecraft running:', game_running())
+    print('Minecraft update recovery pending:', os.path.lexists(ROOT / '.minecraft-update'))
 
 
 def main():
@@ -389,9 +535,6 @@ def main():
         return 0
     if args.command == 'probe' and not args.probe:
         parser.error('probe requires graphics, account, store, privileges, or claims')
-    if args.command == 'launch' and game_running():
-        print('Minecraft is already running. Close it before testing the standalone launcher.')
-        return 0
     lock_path = ROOT / 'runtime/standalone/launcher.lock'
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open('a') as lock:
@@ -399,6 +542,12 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise RuntimeError('Another standalone setup or game session is running.')
+        refuse_pending_update()
+        if args.command == 'launch' and game_running():
+            print('Minecraft is already running. Close it before testing the standalone launcher.')
+            return 0
+        if args.command == 'launch':
+            install_pending_hud()
         prepare(game)
         if args.command == 'prepare':
             print('Standalone prefix prepared.')

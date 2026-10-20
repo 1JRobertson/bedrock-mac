@@ -17,7 +17,7 @@ if [ ! -x "/opt/homebrew/bin/brew" ]; then
   trap - EXIT
 fi
 missing=()
-for formula in llvm bison gnutls freetype protobuf; do
+for formula in llvm bison protobuf pkgconf python@3.13; do
   if ! "/opt/homebrew/bin/brew" list --versions "$formula" >/dev/null 2>&1; then
     missing+=("$formula")
   fi

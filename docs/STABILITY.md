@@ -30,6 +30,15 @@ new library hashes after ad-hoc signing. The launcher checks those packaged
 bytes against the manifest. This preserves validation despite signature changes;
 it does not establish a new graphics or gameplay test result.
 
+## Repeated cross-platform play
+
+On October 20, 2026, the maintainer reported an estimated **10+ cumulative hours
+playing with Xbox and PlayStation friends** across multiple sessions. This records
+repeated real-world use of the development setup. The two individually monitored
+sessions below retain their own timing and memory evidence; the cumulative
+estimate is user-reported, not a continuous monitored soak or a test of a newly
+packaged release candidate.
+
 ## Earlier gameplay results
 
 These observations belong to the September 30, 2026 standalone development build

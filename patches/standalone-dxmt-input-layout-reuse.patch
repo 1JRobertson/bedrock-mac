@@ -1,0 +1,19 @@
+--- a/src/d3d11/d3d11_context_impl.cpp
++++ b/src/d3d11/d3d11_context_impl.cpp
+@@ -1867,7 +1867,15 @@
+   IASetInputLayout(ID3D11InputLayout *pInputLayout) override {
+     std::lock_guard<mutex_t> lock(mutex);
+ 
+-    if (auto expected = com_cast<IMTLD3D11InputLayout>(pInputLayout)) {
++    auto expected = com_cast<IMTLD3D11InputLayout>(pInputLayout);
++    // Preserve existing invalidation for depth-only and emulated GS/TS pipelines.
++    const bool ordinary_pixel_pipeline = state_.ShaderStages[PipelineStage::Vertex].Shader &&
++        state_.ShaderStages[PipelineStage::Pixel].Shader &&
++        !state_.ShaderStages[PipelineStage::Geometry].Shader &&
++        !state_.ShaderStages[PipelineStage::Hull].Shader && !state_.ShaderStages[PipelineStage::Domain].Shader;
++    if (ordinary_pixel_pipeline && state_.InputAssembler.InputLayout.ptr() == expected.ptr())
++      return;
++    if (expected) {
+       state_.InputAssembler.InputLayout = std::move(expected);
+     } else {
+       state_.InputAssembler.InputLayout = nullptr;

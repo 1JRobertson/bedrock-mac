@@ -1,0 +1,19 @@
+--- a/src/d3d11/d3d11_swapchain.cpp
++++ b/src/d3d11/d3d11_swapchain.cpp
+@@ -805,6 +805,8 @@
+ 
+     lock.unlock(); // since PresentBoundary() will and should only stall current thread
+ 
++    if (preferred_max_frame_latency > 0 && preferred_max_frame_latency <= DXGI_MAX_SWAP_CHAIN_BUFFERS)
++      cmd_queue.SetMaxLatency(std::min(cmd_queue.GetMaxLatency(), preferred_max_frame_latency));
+     cmd_queue.PresentBoundary();
+ 
+     return hr;
+@@ -1069,6 +1071,7 @@
+   HMONITOR monitor_;
+   Com<IDXGIOutput1> target_;
+   wsi::DXMTWindowState window_state_;
++  const uint32_t preferred_max_frame_latency = Config::getInstance().getOption<int>("d3d11.maxFrameLatency", 0);
+   uint32_t frame_latency;
+   DXGI_COLOR_SPACE_TYPE colorspace_ = DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+   double init_refresh_rate_ = DBL_MAX;

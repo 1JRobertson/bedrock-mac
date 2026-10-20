@@ -1,0 +1,2016 @@
+{
+  "date": "2026-10-07",
+  "status": "Locally installed and enabled: frozen 16 KiB frame-slab profile. Observed 12.8\u201327.4% lower CPU/frame versus normal-module captures, with substantial cross-launch variation. No demonstrated FPS gain.",
+  "machine": {
+    "chip": "Apple M4 Pro",
+    "performance_cores": 8,
+    "efficiency_cores": 4,
+    "memory_GiB": 24,
+    "host_page_bytes": 16384,
+    "cache_line_bytes": 128,
+    "display_Hz": 100
+  },
+  "game_sha256": "4a92bfa3ce2428b40ee517b7c1125d9f6f79274382de03846351992663b2e2e4",
+  "method": "Copied runtime, prefix and world; stationary unpaused camera; actual distinct same-layer Metal presentations; CPU is aggregate across threads, not elapsed frame time. Thirty-second windows. Streaming load and cross-launch variation remain confounders.",
+  "captures": [
+    {
+      "label": "baseline-unpaused-a",
+      "presentation_valid": true,
+      "comparison_eligible": true,
+      "exclusion": null,
+      "metrics": {
+        "displayed_fps": 94.1075330538007,
+        "displayed_fps_window": 94.11226393162629,
+        "presentation_window_seconds": 30.1129723333288,
+        "displayed_frames": 2834,
+        "dimensions": [
+          1683,
+          951
+        ],
+        "positive_present_callbacks": 2835,
+        "coincident_present_callbacks": 1,
+        "coincident_present_timestamp_groups": 1,
+        "frame_p50_ms": 9.991333005018532,
+        "frame_p95_ms": 19.98262497363612,
+        "frame_p99_ms": 19.982707977760583,
+        "first_present_delay_ms": 7.024625199846923,
+        "last_present_gap_ms": 2.0877080969512463,
+        "zero_present_callbacks": 0,
+        "invalid_present_callbacks": 0,
+        "frame_max_ms": 29.97395902639255,
+        "over33": 0,
+        "over50": 0,
+        "over100": 0
+      },
+      "cpu_ms_per_displayed_frame": 48.59542575276405,
+      "cpu_by_group": {
+        "render": 12.037428369795343,
+        "stream": 23.118399082568807,
+        "encode": 3.118733239237826,
+        "main": 6.673249470712773
+      },
+      "footprint_GiB_mean": 4.011440400394701,
+      "footprint_GiB_peak": 4.0365146696567535,
+      "runtime_sha256": {
+        "x86_64-windows/ntdll.dll": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+        "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+        "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+        "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+      },
+      "log_sha256": "93beb5a558a8e84600f2b61f393cef21d97b733ff551fccfeb9910b962ec5563",
+      "causal_performance_result": false
+    },
+    {
+      "label": "baseline-a3",
+      "presentation_valid": true,
+      "comparison_eligible": false,
+      "exclusion": "Higher streaming CPU during warm-up; superseded by baseline-a4.",
+      "metrics": {
+        "displayed_fps": 94.66843186545394,
+        "displayed_fps_window": 94.66950775992308,
+        "presentation_window_seconds": 30.094167249975726,
+        "displayed_frames": 2849,
+        "dimensions": [
+          1683,
+          951
+        ],
+        "positive_present_callbacks": 2849,
+        "coincident_present_callbacks": 0,
+        "coincident_present_timestamp_groups": 0,
+        "frame_p50_ms": 9.991333994548768,
+        "frame_p95_ms": 19.98262497363612,
+        "frame_p99_ms": 19.98270902549848,
+        "first_present_delay_ms": 8.047124894801527,
+        "last_present_gap_ms": 2.1740421070717275,
+        "zero_present_callbacks": 0,
+        "invalid_present_callbacks": 0,
+        "frame_max_ms": 59.94808301329613,
+        "over33": 5,
+        "over50": 1,
+        "over100": 0
+      },
+      "cpu_ms_per_displayed_frame": 67.62475838013337,
+      "cpu_by_group": {
+        "render": 12.840399438399439,
+        "stream": 35.67583046683046,
+        "encode": 3.2759568269568273,
+        "main": 7.510858546858548
+      },
+      "footprint_GiB_mean": 3.948760639996298,
+      "footprint_GiB_peak": 4.021641455590725,
+      "runtime_sha256": {
+        "x86_64-windows/ntdll.dll": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+        "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+        "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+        "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+      },
+      "log_sha256": "def19ae92100fcfacfe5589c11fc9e61c1023d445a994779167726889ee4875b",
+      "causal_performance_result": false
+    },
+    {
+      "label": "baseline-a4",
+      "presentation_valid": true,
+      "comparison_eligible": true,
+      "exclusion": null,
+      "metrics": {
+        "displayed_fps": 93.04198682582748,
+        "displayed_fps_window": 93.05607534263578,
+        "presentation_window_seconds": 30.10013037500903,
+        "displayed_frames": 2801,
+        "dimensions": [
+          1683,
+          951
+        ],
+        "positive_present_callbacks": 2801,
+        "coincident_present_callbacks": 0,
+        "coincident_present_timestamp_groups": 0,
+        "frame_p50_ms": 9.991333994548768,
+        "frame_p95_ms": 19.9826669995673,
+        "frame_p99_ms": 19.982750003691763,
+        "first_present_delay_ms": 4.448791907634586,
+        "last_present_gap_ms": 1.7412501038052142,
+        "zero_present_callbacks": 0,
+        "invalid_present_callbacks": 0,
+        "frame_max_ms": 119.89616701612249,
+        "over33": 3,
+        "over50": 1,
+        "over100": 1
+      },
+      "cpu_ms_per_displayed_frame": 50.125084791146016,
+      "cpu_by_group": {
+        "render": 12.618718314887541,
+        "stream": 20.007440913959297,
+        "encode": 3.3115233845055334,
+        "main": 7.032350589075331
+      },
+      "footprint_GiB_mean": 4.106120555391235,
+      "footprint_GiB_peak": 4.343464642763138,
+      "runtime_sha256": {
+        "x86_64-windows/ntdll.dll": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+        "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+        "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+        "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+      },
+      "log_sha256": "6d41977a91820f943dee503c3d1449b901b602dde42fd077cc0c2fa673b9a442",
+      "causal_performance_result": false
+    },
+    {
+      "label": "dxmt-b1",
+      "presentation_valid": true,
+      "comparison_eligible": false,
+      "exclusion": "Post-save camera audit differs from baseline (115.17/0.24 versus113/4). Presentation capture valid, causal comparison invalid.",
+      "metrics": {
+        "displayed_fps": 98.82438580074547,
+        "displayed_fps_window": 98.8328234322573,
+        "presentation_window_seconds": 30.111453833349515,
+        "displayed_frames": 2976,
+        "dimensions": [
+          1683,
+          951
+        ],
+        "positive_present_callbacks": 2976,
+        "coincident_present_callbacks": 0,
+        "coincident_present_timestamp_groups": 0,
+        "frame_p50_ms": 9.991333005018532,
+        "frame_p95_ms": 9.99141699867323,
+        "frame_p99_ms": 19.98262497363612,
+        "first_present_delay_ms": 5.22041687509045,
+        "last_present_gap_ms": 2.3276254651136696,
+        "zero_present_callbacks": 0,
+        "invalid_present_callbacks": 0,
+        "frame_max_ms": 49.95670903008431,
+        "over33": 1,
+        "over50": 0,
+        "over100": 0
+      },
+      "cpu_ms_per_displayed_frame": 47.51321405969983,
+      "cpu_by_group": {
+        "render": 11.8072876344086,
+        "stream": 22.27785047043011,
+        "encode": 3.107850806451613,
+        "main": 6.287832997311828
+      },
+      "footprint_GiB_mean": 3.9242874564182375,
+      "footprint_GiB_peak": 3.934426009654999,
+      "runtime_sha256": {
+        "x86_64-windows/ntdll.dll": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+        "x86_64-windows/d3d11.dll": "4000b3abe8d86f9579b2f60fd0d651e79f2e233f3a99175cca0b20e9aff18cb8",
+        "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+        "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+      },
+      "log_sha256": "99fa00d42b08fa69c93876bbecf0450906ef54e2580e9390696ec089b398ad94",
+      "causal_performance_result": false
+    },
+    {
+      "label": "exact-fast-b1",
+      "presentation_valid": true,
+      "comparison_eligible": true,
+      "exclusion": null,
+      "metrics": {
+        "displayed_fps": 86.0545269571521,
+        "displayed_fps_window": 86.08349773150105,
+        "presentation_window_seconds": 30.075450791686308,
+        "displayed_frames": 2589,
+        "dimensions": [
+          1683,
+          951
+        ],
+        "positive_present_callbacks": 2591,
+        "coincident_present_callbacks": 2,
+        "coincident_present_timestamp_groups": 2,
+        "frame_p50_ms": 9.99137497274205,
+        "frame_p95_ms": 19.982708035968244,
+        "frame_p99_ms": 19.982750003691763,
+        "first_present_delay_ms": 0.7634162320755422,
+        "last_present_gap_ms": 0.7320414297282696,
+        "zero_present_callbacks": 0,
+        "invalid_present_callbacks": 0,
+        "frame_max_ms": 39.96537497732788,
+        "over33": 1,
+        "over50": 0,
+        "over100": 0
+      },
+      "cpu_ms_per_displayed_frame": 51.68204467619415,
+      "cpu_by_group": {
+        "render": 11.845303205870993,
+        "stream": 21.305051371185783,
+        "encode": 3.216868675164156,
+        "main": 6.503725762842795
+      },
+      "footprint_GiB_mean": 4.036581580436999,
+      "footprint_GiB_peak": 4.064705640077591,
+      "runtime_sha256": {
+        "x86_64-windows/ntdll.dll": "aa2c6c33ae550d8195d06ce6cb9185365143eec3207b411a66ff9d320861acfb",
+        "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+        "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+        "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+      },
+      "log_sha256": "c8e2203498b7cb5faa126627551cd8c07355a8daea544cdd9ea0b2c2a532d2dd",
+      "causal_performance_result": false
+    }
+  ],
+  "allocation_diagnostic": {
+    "calls": 104804434,
+    "normal_returns": 104804434,
+    "requests_above_512": 103188516,
+    "sampled_dominant_request_bytes": 528,
+    "identity_overflow": 104633028,
+    "identity_analysis_valid": false
+  },
+  "chunk_tuning": {
+    "synthetic_only": true,
+    "requests_per_worker": 4000,
+    "trials_per_case": 5,
+    "cases": [
+      {
+        "workers": 1,
+        "lease": "allocation",
+        "chunk_bytes": 4096,
+        "median_wall_ns_per_allocation": 158.364,
+        "min_ns": 67.1042,
+        "max_ns": 228.031,
+        "reserved_bytes": 2328192,
+        "physical_refills": 564
+      },
+      {
+        "workers": 1,
+        "lease": "allocation",
+        "chunk_bytes": 16384,
+        "median_wall_ns_per_allocation": 126.104,
+        "min_ns": 27.9062,
+        "max_ns": 230.021,
+        "reserved_bytes": 2117664,
+        "physical_refills": 129
+      },
+      {
+        "workers": 1,
+        "lease": "allocation",
+        "chunk_bytes": 65536,
+        "median_wall_ns_per_allocation": 123.709,
+        "min_ns": 90.0417,
+        "max_ns": 125.677,
+        "reserved_bytes": 2163744,
+        "physical_refills": 33
+      },
+      {
+        "workers": 1,
+        "lease": "task",
+        "chunk_bytes": 4096,
+        "median_wall_ns_per_allocation": 80.177,
+        "min_ns": 18.0727,
+        "max_ns": 140.375,
+        "reserved_bytes": 2328192,
+        "physical_refills": 564
+      },
+      {
+        "workers": 1,
+        "lease": "task",
+        "chunk_bytes": 16384,
+        "median_wall_ns_per_allocation": 42.6148,
+        "min_ns": 16.4895,
+        "max_ns": 107.375,
+        "reserved_bytes": 2117664,
+        "physical_refills": 129
+      },
+      {
+        "workers": 1,
+        "lease": "task",
+        "chunk_bytes": 65536,
+        "median_wall_ns_per_allocation": 73.5105,
+        "min_ns": 6.6355,
+        "max_ns": 145.229,
+        "reserved_bytes": 2163744,
+        "physical_refills": 33
+      },
+      {
+        "workers": 7,
+        "lease": "allocation",
+        "chunk_bytes": 4096,
+        "median_wall_ns_per_allocation": 173.972,
+        "min_ns": 158.734,
+        "max_ns": 179.714,
+        "reserved_bytes": 16297344,
+        "physical_refills": 3948
+      },
+      {
+        "workers": 7,
+        "lease": "allocation",
+        "chunk_bytes": 16384,
+        "median_wall_ns_per_allocation": 138.147,
+        "min_ns": 111.793,
+        "max_ns": 151.308,
+        "reserved_bytes": 14823648,
+        "physical_refills": 903
+      },
+      {
+        "workers": 7,
+        "lease": "allocation",
+        "chunk_bytes": 65536,
+        "median_wall_ns_per_allocation": 138.158,
+        "min_ns": 128.696,
+        "max_ns": 150.89,
+        "reserved_bytes": 15146208,
+        "physical_refills": 231
+      },
+      {
+        "workers": 7,
+        "lease": "task",
+        "chunk_bytes": 4096,
+        "median_wall_ns_per_allocation": 43.6488,
+        "min_ns": 38.1369,
+        "max_ns": 73.0506,
+        "reserved_bytes": 16297344,
+        "physical_refills": 3948
+      },
+      {
+        "workers": 7,
+        "lease": "task",
+        "chunk_bytes": 16384,
+        "median_wall_ns_per_allocation": 19.0134,
+        "min_ns": 12.0997,
+        "max_ns": 21.7069,
+        "reserved_bytes": 14823648,
+        "physical_refills": 903
+      },
+      {
+        "workers": 7,
+        "lease": "task",
+        "chunk_bytes": 65536,
+        "median_wall_ns_per_allocation": 18.2485,
+        "min_ns": 10.4271,
+        "max_ns": 50.9896,
+        "reserved_bytes": 15146208,
+        "physical_refills": 231
+      }
+    ]
+  },
+  "validation": {
+    "python_source_suite": {
+      "passed": 154
+    },
+    "exact_allocator": {
+      "original_and_refmove_variants": 2,
+      "randomized_cases_per_variant": 16000,
+      "concurrent_calls_per_variant": 57344,
+      "fallback_boundaries_per_variant": 20,
+      "sentinel_off_control_fast_control_cases_each": 50000,
+      "sentinel_fast_handled": 31553,
+      "new_durable_dll_sha256": "257c76c456ab7e562a9b3deb9f3735e0602362322e631bfffdfb4b344ccfe5c8"
+    },
+    "dxmt_lifetime": {
+      "baseline_and_candidate": true,
+      "gpu_values_each": 65536,
+      "binding_restore_checks_each": 16
+    },
+    "frame_slab": {
+      "unit_tests": 14,
+      "sentinel_calls": 126182,
+      "sentinel_hits": 105053,
+      "registered_frames": 16,
+      "retired_frames": 16,
+      "final_reserved_bytes": 0,
+      "final_live_scopes": 0,
+      "durable_dll_sha256": "24f230a1f029573e6726b7269e161a5da6e6527cc15a4b75e7e63e70661c1e33",
+      "tests_include": [
+        "nested worker exceptions",
+        "frame replacement",
+        "delayed consumer reads",
+        "OFF/4/16/64/OFF switching",
+        "negative game hash and flag guards",
+        "bounded memory and ABA reuse"
+      ]
+    }
+  },
+  "live_frame_slab_status": "Foreground OFF/16/OFF/16/OFF completed with visual checks, foreground sampling and positive presentation timestamps. All 5890 tracked scopes retired after normal exit; zero retained slab bytes.",
+  "live_frame_slab_menu": {
+    "applied_chunk_bytes": 0,
+    "capture_sha256": "5bf23ec26b3072e137427d72fa8873202dfe7845210f98be58a199f77cd3a72d",
+    "complete_thread_coverage": true,
+    "decoded_after_exit": true,
+    "format": 1,
+    "frames": {
+      "closed": 9581,
+      "frames_registered": 9581,
+      "frames_retired": 9581,
+      "frames_unregistered": 28337,
+      "quarantined": 0
+    },
+    "memory": {
+      "live_scopes": 0,
+      "maximum_reserved_bytes": 402653184,
+      "refills": 9581,
+      "reserved_bytes": 0,
+      "sum_pool_peak_bytes": 430560
+    },
+    "overflow_threads": 0,
+    "registered_threads": 185,
+    "requested_chunk_bytes": 0,
+    "totals": {
+      "bytes": 5671952,
+      "calls": 1586930,
+      "exceptions": 0,
+      "fallbacks": 1577349,
+      "hits": 9581,
+      "leased_tasks": 47905,
+      "tasks": 191913
+    },
+    "scope": "Historical menu smoke test only. Subsequent world and performance qualification is recorded in the foreground and normal-module comparison sections.",
+    "cleanup": "Owned test process terminated at menu after UI native pipe became unavailable; no world database was open."
+  },
+  "excluded_control_captures": [
+    {
+      "label": "exact-control-a5",
+      "presentation_valid": false,
+      "reason": "Game occluded for most of measurement.",
+      "log_sha256": "6fd4a299e15ee248d9eb9419f782f32b9422edb26ab1e69cc2c0ac331398abd2"
+    },
+    {
+      "label": "exact-control-a6",
+      "presentation_valid": true,
+      "reason": "Camera changed during the measurement session; controlled comparison excluded.",
+      "log_sha256": "6456d89a585a0bd3ba029f9e125b4ec6c50f5dba444e4e82790eb4dbf41da38b"
+    },
+    {
+      "label": "frame-world-retry1-off-a",
+      "presentation_valid": false,
+      "reason": "Copied world open, but all 297 callbacks had zero presentation timestamps; no displayed frames.",
+      "zero_present_callbacks": 297,
+      "positive_present_callbacks": 0,
+      "slab_enabled_during_capture": false
+    },
+    {
+      "label": "frame-world-foreground1-off-a",
+      "presentation_valid": false,
+      "reason": "AppleScript restored displayed frames, but cadence stayed near 10 FPS and the final boundary gap exceeded 100 ms; pause/background throttling unresolved.",
+      "displayed_fps": 9.871986597975262,
+      "positive_present_callbacks": 297,
+      "zero_present_callbacks": 0,
+      "slab_enabled_during_capture": false,
+      "log_sha256": "fcedc268fb90494ffdeed283338fc4a059ee15dcee1a6316ab0a337776be91de"
+    }
+  ],
+  "direct_original_vs_slab_microbenchmark": {
+    "correctness": {
+      "passed": true,
+      "correctness_pairs": 4,
+      "exception_cleanup": true,
+      "full_delayed_reads": true,
+      "slow_path_entries": 0
+    },
+    "machine_architecture": "x86_64 under Rosetta",
+    "game_sha256": "4a92bfa3ce2428b40ee517b7c1125d9f6f79274382de03846351992663b2e2e4",
+    "extracted_code_sha256": "78acb42e6a5083c6e8cf1be603783ed46cc0f41e278642e6975b60290c28e164",
+    "source_sha256": "51bdcf5e3d8c13c0db9c02db80426ee746891a7836f1bc8e495e9008f79a8ab9",
+    "slab_core_sha256": "2bff26cdd2c6c5a87f8296d47fad6ba0fbee9fdb29aa4cbd783b4bebdd2a7a70",
+    "capture_sha256": "8cc2bd07d621b5a4588919d3b729ba2977dd1900a67ad230ee026c40984a2d83",
+    "observed_sample_histogram": {
+      "80": 27,
+      "112": 7,
+      "128": 1,
+      "368": 5,
+      "528": 2514,
+      "592": 2,
+      "1328": 4
+    },
+    "game_modified": false,
+    "game_launched": false,
+    "normal_runtime_modified": false,
+    "scope": "Preallocated resident original mode0 hotpath vs actual C frame slabs; identical allocation/copy and delayed-read workload.",
+    "limitations": [
+      "Original allocator growth, seal/reclaim and imported slow paths are not executed; any attempted slow path aborts.",
+      "Original cleanup is synthetic final backing-owner release/free, not original game lifecycle cost.",
+      "Slab cleanup is actual C core close/retire and malloc/free callbacks; Wine heap and hook dispatch are not measured.",
+      "Original backing is prefaulted before allocation timing; slab refills and their first writes occur inside allocation timing.",
+      "Recent size sample frequencies are a bounded observed mix, not the full 104.8M-call distribution.",
+      "Reported timings are wall-clock microbenchmark throughput, not game CPU/frame or FPS.",
+      "Correctness includes all-byte delayed reads and a C++ exception cleanup test, not Windows SEH hook validation."
+    ],
+    "timings": [
+      {
+        "shape": "all_528",
+        "workers": 1,
+        "variants": {
+          "post_refmove_original": {
+            "calls": 10240,
+            "bytes": 5406720,
+            "original_calls": 10240,
+            "original_capacity": 5406720,
+            "slab_reserved": 0,
+            "slab_refills": 0,
+            "checksum": 689356800,
+            "setup_ns_per_allocation": {
+              "median": 10.323046875,
+              "min": 9.26923828125,
+              "max": 100.28896484375
+            },
+            "allocation_copy_ns_per_allocation": {
+              "median": 31.69755859375,
+              "min": 31.18076171875,
+              "max": 36.81640625
+            },
+            "delayed_read_ns_per_allocation": {
+              "median": 79.8828125,
+              "min": 78.03955078125,
+              "max": 97.823046875
+            },
+            "cleanup_ns_per_allocation": {
+              "median": 0.09765625,
+              "min": 0.048828125,
+              "max": 0.9236328125
+            },
+            "retained_bytes": 5406720,
+            "all_phase_total_ns_per_allocation_median": 127.25830078125
+          },
+          "frame_slab": {
+            "calls": 10240,
+            "bytes": 5406720,
+            "original_calls": 0,
+            "original_capacity": 16384,
+            "slab_reserved": 5433696,
+            "slab_refills": 331,
+            "checksum": 689356800,
+            "setup_ns_per_allocation": {
+              "median": 0.11806640625,
+              "min": 0.06513671875,
+              "max": 5.0130859375
+            },
+            "allocation_copy_ns_per_allocation": {
+              "median": 25.77314453125,
+              "min": 19.7509765625,
+              "max": 116.63818359375
+            },
+            "delayed_read_ns_per_allocation": {
+              "median": 79.26025390625,
+              "min": 75.264453125,
+              "max": 84.130859375
+            },
+            "cleanup_ns_per_allocation": {
+              "median": 0.69990234375,
+              "min": 0.64697265625,
+              "max": 1.180078125
+            },
+            "retained_bytes": 5450080,
+            "all_phase_total_ns_per_allocation_median": 106.87265625
+          }
+        },
+        "allocation_copy_median_change_percent": -18.690442814318676,
+        "paired_allocation_copy_change_percent": {
+          "median": -20.045503568788547,
+          "min": -39.599734748010604,
+          "max": 269.680546484959,
+          "slab_faster_pairs": 8
+        }
+      },
+      {
+        "shape": "all_528",
+        "workers": 7,
+        "variants": {
+          "post_refmove_original": {
+            "calls": 71680,
+            "bytes": 37847040,
+            "original_calls": 71680,
+            "original_capacity": 37847040,
+            "slab_reserved": 0,
+            "slab_refills": 0,
+            "checksum": 4825497600,
+            "setup_ns_per_allocation": {
+              "median": 20.55082310267857,
+              "min": 12.142508370535714,
+              "max": 25.93936941964286
+            },
+            "allocation_copy_ns_per_allocation": {
+              "median": 234.14596819196427,
+              "min": 230.02872488839284,
+              "max": 245.8751953125
+            },
+            "delayed_read_ns_per_allocation": {
+              "median": 196.5337890625,
+              "min": 180.90412946428572,
+              "max": 232.58231026785714
+            },
+            "cleanup_ns_per_allocation": {
+              "median": 0.10345982142857142,
+              "min": 0.08719308035714286,
+              "max": 0.21449497767857142
+            },
+            "retained_bytes": 37847040,
+            "all_phase_total_ns_per_allocation_median": 451.4817103794643
+          },
+          "frame_slab": {
+            "calls": 71680,
+            "bytes": 37847040,
+            "original_calls": 0,
+            "original_capacity": 16384,
+            "slab_reserved": 38035872,
+            "slab_refills": 2317,
+            "checksum": 4825497600,
+            "setup_ns_per_allocation": {
+              "median": 0.03952287946428571,
+              "min": 0.021512276785714286,
+              "max": 0.05115792410714286
+            },
+            "allocation_copy_ns_per_allocation": {
+              "median": 12.1349609375,
+              "min": 9.666224888392858,
+              "max": 36.18745814732143
+            },
+            "delayed_read_ns_per_allocation": {
+              "median": 82.19111328125,
+              "min": 78.12035435267858,
+              "max": 100.78415178571429
+            },
+            "cleanup_ns_per_allocation": {
+              "median": 3.224400111607143,
+              "min": 1.992075892857143,
+              "max": 5.106026785714286
+            },
+            "retained_bytes": 38052256,
+            "all_phase_total_ns_per_allocation_median": 97.191796875
+          }
+        },
+        "allocation_copy_median_change_percent": -94.81735217086839,
+        "paired_allocation_copy_change_percent": {
+          "median": -94.80532781902609,
+          "min": -95.8568780458636,
+          "max": -85.2821842799847,
+          "slab_faster_pairs": 11
+        }
+      },
+      {
+        "shape": "observed_size_mix",
+        "workers": 1,
+        "variants": {
+          "post_refmove_original": {
+            "calls": 10240,
+            "bytes": 5355200,
+            "original_calls": 10240,
+            "original_capacity": 5357568,
+            "slab_reserved": 0,
+            "slab_refills": 0,
+            "checksum": 682788448,
+            "setup_ns_per_allocation": {
+              "median": 14.90478515625,
+              "min": 9.66796875,
+              "max": 116.50390625
+            },
+            "allocation_copy_ns_per_allocation": {
+              "median": 36.8896484375,
+              "min": 31.38427734375,
+              "max": 49.3326171875
+            },
+            "delayed_read_ns_per_allocation": {
+              "median": 85.63232421875,
+              "min": 77.9052734375,
+              "max": 94.03486328125
+            },
+            "cleanup_ns_per_allocation": {
+              "median": 0.07734375,
+              "min": 0.048828125,
+              "max": 0.20751953125
+            },
+            "retained_bytes": 5357568,
+            "all_phase_total_ns_per_allocation_median": 140.82451171875
+          },
+          "frame_slab": {
+            "calls": 10240,
+            "bytes": 5355200,
+            "original_calls": 16,
+            "original_capacity": 32768,
+            "slab_reserved": 5400864,
+            "slab_refills": 329,
+            "checksum": 682788448,
+            "setup_ns_per_allocation": {
+              "median": 0.1423828125,
+              "min": 0.09765625,
+              "max": 0.2400390625
+            },
+            "allocation_copy_ns_per_allocation": {
+              "median": 24.91044921875,
+              "min": 19.9421875,
+              "max": 28.13720703125
+            },
+            "delayed_read_ns_per_allocation": {
+              "median": 80.74130859375,
+              "min": 75.31328125,
+              "max": 91.73994140625
+            },
+            "cleanup_ns_per_allocation": {
+              "median": 0.691796875,
+              "min": 0.6265625,
+              "max": 0.927734375
+            },
+            "retained_bytes": 5433632,
+            "all_phase_total_ns_per_allocation_median": 103.1453125
+          }
+        },
+        "allocation_copy_median_change_percent": -32.47306419589676,
+        "paired_allocation_copy_change_percent": {
+          "median": -39.9628125919388,
+          "min": -51.987663461119716,
+          "max": -20.21252430960716,
+          "slab_faster_pairs": 11
+        }
+      },
+      {
+        "shape": "observed_size_mix",
+        "workers": 7,
+        "variants": {
+          "post_refmove_original": {
+            "calls": 71680,
+            "bytes": 37486400,
+            "original_calls": 71680,
+            "original_capacity": 37486592,
+            "slab_reserved": 0,
+            "slab_refills": 0,
+            "checksum": 4779516000,
+            "setup_ns_per_allocation": {
+              "median": 15.81449497767857,
+              "min": 9.608091517857142,
+              "max": 23.985658482142856
+            },
+            "allocation_copy_ns_per_allocation": {
+              "median": 233.25486886160715,
+              "min": 231.0622349330357,
+              "max": 236.18338448660714
+            },
+            "delayed_read_ns_per_allocation": {
+              "median": 198.15093470982143,
+              "min": 178.72953404017858,
+              "max": 211.4769252232143
+            },
+            "cleanup_ns_per_allocation": {
+              "median": 0.10870535714285715,
+              "min": 0.06918247767857143,
+              "max": 0.14822823660714285
+            },
+            "retained_bytes": 37486592,
+            "all_phase_total_ns_per_allocation_median": 442.7769252232143
+          },
+          "frame_slab": {
+            "calls": 71680,
+            "bytes": 37486400,
+            "original_calls": 112,
+            "original_capacity": 163840,
+            "slab_reserved": 37806048,
+            "slab_refills": 2303,
+            "checksum": 4779516000,
+            "setup_ns_per_allocation": {
+              "median": 0.07614397321428572,
+              "min": 0.06393694196428572,
+              "max": 0.54931640625
+            },
+            "allocation_copy_ns_per_allocation": {
+              "median": 9.96732700892857,
+              "min": 9.6685546875,
+              "max": 13.017340959821428
+            },
+            "delayed_read_ns_per_allocation": {
+              "median": 78.00118582589286,
+              "min": 77.30305524553572,
+              "max": 82.92352120535715
+            },
+            "cleanup_ns_per_allocation": {
+              "median": 2.7018275669642855,
+              "min": 1.7299107142857142,
+              "max": 3.5557338169642856
+            },
+            "retained_bytes": 37969888,
+            "all_phase_total_ns_per_allocation_median": 92.02183314732143
+          }
+        },
+        "allocation_copy_median_change_percent": -95.72685146613496,
+        "paired_allocation_copy_change_percent": {
+          "median": -95.72685146613496,
+          "min": -95.90633578711873,
+          "max": -94.47847209894077,
+          "slab_faster_pairs": 11
+        }
+      }
+    ],
+    "alternating_trials_per_variant": 11,
+    "timing_environment": {
+      "competing_task_game": "Parent confirmed its isolated test PID 35197 was SIGSTOP suspended before timed trials; parent notified immediately after completion to resume.",
+      "parent_build_probe_activity": "Parent reported other builds/probes idle during timed trials.",
+      "remaining_noise": "Other desktop/OS scheduling was not controlled."
+    },
+    "game_suspended_during_timing": true,
+    "game_resumed_after_timing": true,
+    "comparison_to_normal_gameplay": false
+  },
+  "occluded_world_cpu_diagnostic": {
+    "completed": true,
+    "diagnostic_only": true,
+    "visible_fps_result": false,
+    "normal_runtime_comparison": false,
+    "method": "Thirty-second CPU windows in one copied-world session, OFF/16/OFF/16/OFF; submitted frame IDs from completed Metal callbacks, including zero presentation timestamps.",
+    "runtime_sha256": {
+      "x86_64-windows/ntdll.dll": "24f230a1f029573e6726b7269e161a5da6e6527cc15a4b75e7e63e70661c1e33",
+      "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+      "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+      "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+    },
+    "limitations": [
+      "Visibility and pause state are not independently verified.",
+      "OFF includes experimental hooks and counters.",
+      "This experiment cannot establish normal foreground gameplay improvement.",
+      "Camera and unchanged gameplay workload were not independently verified.",
+      "Lifecycle counter deltas include warm-up and callback draining and cannot be divided by the 30-second submission count."
+    ],
+    "phases": [
+      {
+        "chunk_kib": 0,
+        "capture": "frame-world-submitted1-off-a.json",
+        "before": {
+          "individual_atomic_snapshot": true,
+          "coherent_snapshot": false,
+          "requested_chunk_bytes": 0,
+          "applied_chunk_bytes": 0,
+          "frames_registered": 0,
+          "frames_retired": 0,
+          "reserved_bytes": 0,
+          "sum_pool_peak_bytes": 0,
+          "live_scopes": 0
+        },
+        "after": {
+          "individual_atomic_snapshot": true,
+          "coherent_snapshot": false,
+          "requested_chunk_bytes": 0,
+          "applied_chunk_bytes": 0,
+          "frames_registered": 0,
+          "frames_retired": 0,
+          "reserved_bytes": 0,
+          "sum_pool_peak_bytes": 0,
+          "live_scopes": 0
+        },
+        "metrics": {
+          "submitted_frames": 297,
+          "submitted_frames_per_second": 9.865605730563095,
+          "cpu_ms_per_submitted_frame": 61.526011924803605,
+          "thread_cpu_ms_per_submitted_frame": {
+            "stream": 26.173737373737374,
+            "render": 15.610026936026935,
+            "encode": 3.6634208754208757,
+            "main": 8.016959595959596,
+            "other": 5.650781144781145
+          },
+          "zero_presentation_fraction": 1.0,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "first_sequence": 119829,
+          "last_sequence": 120125,
+          "log_sha256": "b2cc034de08df3533eb5963c5add3de45537da6ae50d89ed3399c5791f05220f",
+          "footprint_GiB_mean": 5.33452631364907
+        }
+      },
+      {
+        "chunk_kib": 16,
+        "capture": "frame-world-submitted1-on-b.json",
+        "before": {
+          "individual_atomic_snapshot": true,
+          "coherent_snapshot": false,
+          "requested_chunk_bytes": 16384,
+          "applied_chunk_bytes": 16384,
+          "frames_registered": 1,
+          "frames_retired": 0,
+          "reserved_bytes": 0,
+          "sum_pool_peak_bytes": 0,
+          "live_scopes": 1
+        },
+        "after": {
+          "individual_atomic_snapshot": true,
+          "coherent_snapshot": false,
+          "requested_chunk_bytes": 16384,
+          "applied_chunk_bytes": 16384,
+          "frames_registered": 477,
+          "frames_retired": 473,
+          "reserved_bytes": 14922144,
+          "sum_pool_peak_bytes": 18829152,
+          "live_scopes": 4
+        },
+        "metrics": {
+          "submitted_frames": 298,
+          "submitted_frames_per_second": 9.901516981344333,
+          "cpu_ms_per_submitted_frame": 45.15985151006711,
+          "thread_cpu_ms_per_submitted_frame": {
+            "stream": 14.205265100671141,
+            "render": 12.627315436241611,
+            "encode": 3.7575100671140933,
+            "main": 6.3246006711409395,
+            "other": 6.110181208053691
+          },
+          "zero_presentation_fraction": 1.0,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "first_sequence": 120305,
+          "last_sequence": 120602,
+          "log_sha256": "4de0a354efafdb6eec08432073b86a1e9a7e2763c1d8ac528c83e0d3e955984d",
+          "footprint_GiB_mean": 5.332546751345357
+        }
+      },
+      {
+        "chunk_kib": 0,
+        "capture": "frame-world-submitted1-off-c.json",
+        "before": {
+          "individual_atomic_snapshot": true,
+          "coherent_snapshot": false,
+          "requested_chunk_bytes": 0,
+          "applied_chunk_bytes": 0,
+          "frames_registered": 478,
+          "frames_retired": 477,
+          "reserved_bytes": 3775680,
+          "sum_pool_peak_bytes": 18829152,
+          "live_scopes": 1
+        },
+        "after": {
+          "individual_atomic_snapshot": true,
+          "coherent_snapshot": false,
+          "requested_chunk_bytes": 0,
+          "applied_chunk_bytes": 0,
+          "frames_registered": 478,
+          "frames_retired": 478,
+          "reserved_bytes": 0,
+          "sum_pool_peak_bytes": 18829152,
+          "live_scopes": 0
+        },
+        "metrics": {
+          "submitted_frames": 297,
+          "submitted_frames_per_second": 9.866195058493444,
+          "cpu_ms_per_submitted_frame": 58.23847657126824,
+          "thread_cpu_ms_per_submitted_frame": {
+            "stream": 24.212077441077444,
+            "render": 14.925228956228956,
+            "encode": 3.628744107744107,
+            "main": 7.4290235690235695,
+            "other": 5.953979797979799
+          },
+          "zero_presentation_fraction": 1.0,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "first_sequence": 120785,
+          "last_sequence": 121081,
+          "log_sha256": "a743431bf391979059f0451151523290b639c1f168e099492e7e1030f5c20209",
+          "footprint_GiB_mean": 5.355360657457383
+        }
+      },
+      {
+        "chunk_kib": 16,
+        "capture": "frame-world-submitted1-on-d.json",
+        "before": {
+          "individual_atomic_snapshot": true,
+          "coherent_snapshot": false,
+          "requested_chunk_bytes": 16384,
+          "applied_chunk_bytes": 16384,
+          "frames_registered": 481,
+          "frames_retired": 478,
+          "reserved_bytes": 11212128,
+          "sum_pool_peak_bytes": 18829152,
+          "live_scopes": 3
+        },
+        "after": {
+          "individual_atomic_snapshot": true,
+          "coherent_snapshot": false,
+          "requested_chunk_bytes": 16384,
+          "applied_chunk_bytes": 16384,
+          "frames_registered": 956,
+          "frames_retired": 952,
+          "reserved_bytes": 15004224,
+          "sum_pool_peak_bytes": 18845568,
+          "live_scopes": 4
+        },
+        "metrics": {
+          "submitted_frames": 297,
+          "submitted_frames_per_second": 9.87265384580788,
+          "cpu_ms_per_submitted_frame": 39.99758908529741,
+          "thread_cpu_ms_per_submitted_frame": {
+            "stream": 13.256451178451181,
+            "render": 11.142272727272728,
+            "encode": 3.3868249158249157,
+            "main": 5.557902356902357,
+            "other": 4.916161616161616
+          },
+          "zero_presentation_fraction": 1.0,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "first_sequence": 121264,
+          "last_sequence": 121560,
+          "log_sha256": "bedbe0e095cb06b4239e12a168170e9aed69a3cc22915eec299b3ceb4f1ab258",
+          "footprint_GiB_mean": 5.333173961408677
+        }
+      },
+      {
+        "chunk_kib": 0,
+        "capture": "frame-world-submitted1-off-e.json",
+        "before": {
+          "individual_atomic_snapshot": true,
+          "coherent_snapshot": false,
+          "requested_chunk_bytes": 0,
+          "applied_chunk_bytes": 0,
+          "frames_registered": 957,
+          "frames_retired": 956,
+          "reserved_bytes": 3726432,
+          "sum_pool_peak_bytes": 18845568,
+          "live_scopes": 1
+        },
+        "after": {
+          "individual_atomic_snapshot": true,
+          "coherent_snapshot": false,
+          "requested_chunk_bytes": 0,
+          "applied_chunk_bytes": 0,
+          "frames_registered": 957,
+          "frames_retired": 957,
+          "reserved_bytes": 0,
+          "sum_pool_peak_bytes": 18845568,
+          "live_scopes": 0
+        },
+        "metrics": {
+          "submitted_frames": 297,
+          "submitted_frames_per_second": 9.866672367781037,
+          "cpu_ms_per_submitted_frame": 58.171103675645334,
+          "thread_cpu_ms_per_submitted_frame": {
+            "stream": 24.058262626262625,
+            "render": 15.122202020202021,
+            "encode": 3.6295791245791245,
+            "main": 7.465905723905723,
+            "other": 5.82860606060606
+          },
+          "zero_presentation_fraction": 1.0,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "first_sequence": 121743,
+          "last_sequence": 122039,
+          "log_sha256": "c3f6199bed7096048890cad1440af2cbf424c54e7bc168e4cb01528fc344b56a",
+          "footprint_GiB_mean": 5.3549785724570675
+        }
+      }
+    ],
+    "paired_effects": [
+      {
+        "candidate": "frame-world-submitted1-on-b.json",
+        "interpolated_off_cpu_ms": 59.88709400799796,
+        "on_cpu_ms": 45.15985151006711,
+        "reduction_percent": 24.591679963572822
+      },
+      {
+        "candidate": "frame-world-submitted1-on-d.json",
+        "interpolated_off_cpu_ms": 58.20480743761935,
+        "on_cpu_ms": 39.99758908529741,
+        "reduction_percent": 31.2812964321468
+      }
+    ],
+    "final_status": {
+      "individual_atomic_snapshot": true,
+      "coherent_snapshot": false,
+      "requested_chunk_bytes": 0,
+      "applied_chunk_bytes": 0,
+      "frames_registered": 957,
+      "frames_retired": 957,
+      "reserved_bytes": 0,
+      "sum_pool_peak_bytes": 18845568,
+      "live_scopes": 0
+    },
+    "sequence_audit": {
+      "passed": true,
+      "source_log_sha256": "5042f26562b8356277d5f842b9e58e5c882778e327e91bb29cb6f1ac95b810ca",
+      "same_layer_across_phases": true,
+      "adjacent_boundary_sequences": true,
+      "phases": [
+        {
+          "capture": "frame-world-submitted1-off-a.json",
+          "layer": 140626658655280,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "previous_sequence": 119828,
+          "first_sequence": 119829,
+          "last_sequence": 120125,
+          "following_sequence": 120126
+        },
+        {
+          "capture": "frame-world-submitted1-on-b.json",
+          "layer": 140626658655280,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "previous_sequence": 120304,
+          "first_sequence": 120305,
+          "last_sequence": 120602,
+          "following_sequence": 120603
+        },
+        {
+          "capture": "frame-world-submitted1-off-c.json",
+          "layer": 140626658655280,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "previous_sequence": 120784,
+          "first_sequence": 120785,
+          "last_sequence": 121081,
+          "following_sequence": 121082
+        },
+        {
+          "capture": "frame-world-submitted1-on-d.json",
+          "layer": 140626658655280,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "previous_sequence": 121263,
+          "first_sequence": 121264,
+          "last_sequence": 121560,
+          "following_sequence": 121561
+        },
+        {
+          "capture": "frame-world-submitted1-off-e.json",
+          "layer": 140626658655280,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "previous_sequence": 121742,
+          "first_sequence": 121743,
+          "last_sequence": 122039,
+          "following_sequence": 122040
+        }
+      ]
+    },
+    "independent_arithmetic_audit_passed": true,
+    "post_exit_counters": {
+      "applied_chunk_bytes": 0,
+      "capture_sha256": "2890527bfb737ca54fed4896f28cc7c8e4536256114952f3d2ae422d9753208c",
+      "complete_thread_coverage": false,
+      "decoded_after_exit": true,
+      "format": 1,
+      "frames": {
+        "closed": 957,
+        "frames_registered": 957,
+        "frames_retired": 957,
+        "frames_unregistered": 413120,
+        "quarantined": 0
+      },
+      "memory": {
+        "live_scopes": 0,
+        "maximum_reserved_bytes": 402653184,
+        "refills": 218152,
+        "reserved_bytes": 0,
+        "sum_pool_peak_bytes": 18845568
+      },
+      "overflow_threads": 4020,
+      "registered_threads": 512,
+      "requested_chunk_bytes": 0,
+      "totals": {
+        "bytes": 3490125408,
+        "calls": 1570175776,
+        "exceptions": 0,
+        "fallbacks": 1563565777,
+        "hits": 6609999,
+        "leased_tasks": 131109,
+        "tasks": 32204817
+      },
+      "limitations": [
+        "Cumulative long session included mostly OFF time; totals are not specific to measured ON windows.",
+        "Thread slots exhausted; per-thread totals have incomplete coverage. Atomic lifecycle counts retired all 957 registered scopes with zero quarantine or reserved bytes."
+      ]
+    }
+  },
+  "updated_date": "2026-10-07",
+  "foreground_frame_slab_comparison": {
+    "date": "2026-10-07",
+    "completed": true,
+    "normal_runtime_comparison": false,
+    "method": "One loaded copied-world session, OFF/16/OFF/16/OFF, 30-second nominal CPU windows. Binding observer disarmed throughout. Foreground process sampled every second; distinct same-layer positive Metal presentation timestamps. Camera visually checked before and after; no input during timing.",
+    "desktop_control": "Recovered after user restarted Codex. World entry, visual checks and normal save/quit performed through restored native control.",
+    "phases": [
+      {
+        "label": "binding-world1-foreground-off-a",
+        "valid": true,
+        "foreground_samples_valid": true,
+        "metrics": {
+          "displayed_fps": 73.67631500909144,
+          "displayed_fps_window": 73.67205944317797,
+          "presentation_window_seconds": 31.518054708256386,
+          "displayed_frames": 2322,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "positive_present_callbacks": 2322,
+          "coincident_present_callbacks": 0,
+          "coincident_present_timestamp_groups": 0,
+          "frame_p50_ms": 9.99137491453439,
+          "frame_p95_ms": 19.982708035968244,
+          "frame_p99_ms": 19.982750061899424,
+          "first_present_delay_ms": 0.7879581535235047,
+          "last_present_gap_ms": 14.605417032726109,
+          "zero_present_callbacks": 0,
+          "invalid_present_callbacks": 0,
+          "frame_max_ms": 29.974083066917956,
+          "over33": 0,
+          "over50": 0,
+          "over100": 0
+        },
+        "cpu_ms_per_displayed_frame": 69.42669320628768,
+        "footprint_GiB_mean": 4.22390124273877,
+        "footprint_GiB_peak": 4.2466366067528725,
+        "log_sha256": "abfa548416fb7e6c30713f1497dfcf1c5a95ffe7115a413bd98729e287d96a2a",
+        "runtime_sha256": {
+          "x86_64-windows/ntdll.dll": "b811f1b4a7f44028294f40ea4839c0f07d9140c620ba1a8de88ecbf0f194a92a",
+          "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+          "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+          "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+        },
+        "chunk_kib": 0
+      },
+      {
+        "label": "binding-world1-foreground-on-b",
+        "valid": true,
+        "foreground_samples_valid": true,
+        "metrics": {
+          "displayed_fps": 73.00108090572634,
+          "displayed_fps_window": 73.00709497482356,
+          "presentation_window_seconds": 31.50378741673194,
+          "displayed_frames": 2300,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "positive_present_callbacks": 2300,
+          "coincident_present_callbacks": 0,
+          "coincident_present_timestamp_groups": 0,
+          "frame_p50_ms": 9.991375030949712,
+          "frame_p95_ms": 19.98270896729082,
+          "frame_p99_ms": 19.982750061899424,
+          "first_present_delay_ms": 9.085541940294206,
+          "last_present_gap_ms": 2.0174997625872493,
+          "zero_present_callbacks": 0,
+          "invalid_present_callbacks": 0,
+          "frame_max_ms": 79.93066706694663,
+          "over33": 3,
+          "over50": 1,
+          "over100": 0
+        },
+        "cpu_ms_per_displayed_frame": 54.821259221014486,
+        "footprint_GiB_mean": 4.254364889235266,
+        "footprint_GiB_peak": 4.278638191521168,
+        "log_sha256": "36575761f30b8bcbbe872cfc7e7512be2139f48609b1917544cecec04f8a62fd",
+        "runtime_sha256": {
+          "x86_64-windows/ntdll.dll": "b811f1b4a7f44028294f40ea4839c0f07d9140c620ba1a8de88ecbf0f194a92a",
+          "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+          "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+          "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+        },
+        "chunk_kib": 16
+      },
+      {
+        "label": "binding-world1-foreground-off-c",
+        "valid": true,
+        "foreground_samples_valid": true,
+        "metrics": {
+          "displayed_fps": 72.52475802923108,
+          "displayed_fps_window": 72.50146601951364,
+          "presentation_window_seconds": 31.51660408335738,
+          "displayed_frames": 2285,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "positive_present_callbacks": 2285,
+          "coincident_present_callbacks": 0,
+          "coincident_present_timestamp_groups": 0,
+          "frame_p50_ms": 9.991375030949712,
+          "frame_p95_ms": 19.98270896729082,
+          "frame_p99_ms": 19.982750993221998,
+          "first_present_delay_ms": 4.411666188389063,
+          "last_present_gap_ms": 19.49858316220343,
+          "zero_present_callbacks": 0,
+          "invalid_present_callbacks": 0,
+          "frame_max_ms": 59.94804098736495,
+          "over33": 1,
+          "over50": 1,
+          "over100": 0
+        },
+        "cpu_ms_per_displayed_frame": 69.88653045222463,
+        "footprint_GiB_mean": 4.2530192086292855,
+        "footprint_GiB_peak": 4.276822440326214,
+        "log_sha256": "cf9ba7fe0a20c27d6afff748e2f8a751108f95ed583505952715248167b851a5",
+        "runtime_sha256": {
+          "x86_64-windows/ntdll.dll": "b811f1b4a7f44028294f40ea4839c0f07d9140c620ba1a8de88ecbf0f194a92a",
+          "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+          "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+          "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+        },
+        "chunk_kib": 0
+      },
+      {
+        "label": "binding-world1-foreground-on-d",
+        "valid": true,
+        "foreground_samples_valid": true,
+        "metrics": {
+          "displayed_fps": 74.14415526616574,
+          "displayed_fps_window": 74.1315220271115,
+          "presentation_window_seconds": 31.511561291641556,
+          "displayed_frames": 2336,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "positive_present_callbacks": 2337,
+          "coincident_present_callbacks": 1,
+          "coincident_present_timestamp_groups": 1,
+          "frame_p50_ms": 9.991375030949712,
+          "frame_p95_ms": 19.98270908370614,
+          "frame_p99_ms": 19.982750061899424,
+          "first_present_delay_ms": 9.111666237004101,
+          "last_present_gap_ms": 9.74475045222789,
+          "zero_present_callbacks": 0,
+          "invalid_present_callbacks": 0,
+          "frame_max_ms": 49.956707982346416,
+          "over33": 1,
+          "over50": 0,
+          "over100": 0
+        },
+        "cpu_ms_per_displayed_frame": 54.581700610017116,
+        "footprint_GiB_mean": 4.257674529667823,
+        "footprint_GiB_peak": 4.281251326203346,
+        "log_sha256": "e4b1123b01a59d1e96d4eb0baa647a25f82a11bde3c7c73cf0ddc55b0bb138db",
+        "runtime_sha256": {
+          "x86_64-windows/ntdll.dll": "b811f1b4a7f44028294f40ea4839c0f07d9140c620ba1a8de88ecbf0f194a92a",
+          "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+          "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+          "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+        },
+        "chunk_kib": 16
+      },
+      {
+        "label": "binding-world1-foreground-off-e",
+        "valid": true,
+        "foreground_samples_valid": true,
+        "metrics": {
+          "displayed_fps": 73.65287764130692,
+          "displayed_fps_window": 73.65035671732748,
+          "presentation_window_seconds": 31.52734220842831,
+          "displayed_frames": 2322,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "positive_present_callbacks": 2322,
+          "coincident_present_callbacks": 0,
+          "coincident_present_timestamp_groups": 0,
+          "frame_p50_ms": 9.991375030949712,
+          "frame_p95_ms": 19.98270908370614,
+          "frame_p99_ms": 19.982750061899424,
+          "first_present_delay_ms": 0.547124887816608,
+          "last_present_gap_ms": 14.109166455455124,
+          "zero_present_callbacks": 0,
+          "invalid_present_callbacks": 0,
+          "frame_max_ms": 49.95662497822195,
+          "over33": 1,
+          "over50": 0,
+          "over100": 0
+        },
+        "cpu_ms_per_displayed_frame": 62.96603161785816,
+        "footprint_GiB_mean": 4.25272285577751,
+        "footprint_GiB_peak": 4.275555826723576,
+        "log_sha256": "9c2fa0da106a34efafdb9e5097208c8d857295f2f93db1637529c5462954bb8e",
+        "runtime_sha256": {
+          "x86_64-windows/ntdll.dll": "b811f1b4a7f44028294f40ea4839c0f07d9140c620ba1a8de88ecbf0f194a92a",
+          "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+          "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+          "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+        },
+        "chunk_kib": 0
+      }
+    ],
+    "paired_trials": [
+      {
+        "candidate": "binding-world1-foreground-on-b",
+        "cpu_ms_per_displayed_frame": 54.821259221014486,
+        "interpolated_control_cpu_ms": 69.65659299827934,
+        "cpu_reduction_percent": 21.29781710344535,
+        "displayed_fps": 73.00709497482356,
+        "interpolated_control_fps": 73.08681066877979,
+        "fps_change_percent": -0.10906987625646236,
+        "frame_p99_ms": 19.982750061899424,
+        "footprint_GiB": 4.254364889235266
+      },
+      {
+        "candidate": "binding-world1-foreground-on-d",
+        "cpu_ms_per_displayed_frame": 54.581700610017116,
+        "interpolated_control_cpu_ms": 66.42859951608185,
+        "cpu_reduction_percent": 17.834033823333407,
+        "displayed_fps": 74.1315220271115,
+        "interpolated_control_fps": 73.07552647112281,
+        "fps_change_percent": 1.44507416775983,
+        "frame_p99_ms": 19.982750061899424,
+        "footprint_GiB": 4.257674529667823
+      }
+    ],
+    "repeatable_cpu_reduction": true,
+    "fps_gain_established": false,
+    "normal_exit_code": 0,
+    "post_exit_lifecycle": {
+      "applied_chunk_bytes": 0,
+      "capture_sha256": "d75fa9013c57e035f90e85357ba30313bd3c9787545a8ff36b0d2eef81a8c57c",
+      "complete_thread_coverage": true,
+      "decoded_after_exit": true,
+      "format": 1,
+      "frames": {
+        "closed": 5890,
+        "frames_registered": 5890,
+        "frames_retired": 5890,
+        "frames_unregistered": 32558,
+        "quarantined": 0
+      },
+      "memory": {
+        "live_scopes": 0,
+        "maximum_reserved_bytes": 402653184,
+        "refills": 1923390,
+        "reserved_bytes": 0,
+        "sum_pool_peak_bytes": 26922240
+      },
+      "overflow_threads": 0,
+      "registered_threads": 188,
+      "requested_chunk_bytes": 0,
+      "totals": {
+        "bytes": 31052739680,
+        "calls": 297391908,
+        "exceptions": 0,
+        "fallbacks": 238580258,
+        "hits": 58811650,
+        "leased_tasks": 1177978,
+        "tasks": 5922585
+      }
+    },
+    "limitations": [
+      "Two candidate windows in one stationary scene; no statistical generalization to other worlds or motion.",
+      "Daylight was not frozen in this sequence. Final OFF CPU declined; interpolation only corrects smooth drift.",
+      "OFF retains experimental frame hooks/counters and disarmed binding wrappers. Separate normal-module comparison is required.",
+      "CPU time sums all game/server threads; it is not elapsed frame time. No visual corruption observed, but screenshots do not establish exhaustive gameplay correctness.",
+      "Lifecycle totals cover the whole launch and cannot be divided by benchmark frame counts."
+    ]
+  },
+  "normal_module_frame_slab_comparison": {
+    "date": "2026-10-07",
+    "completed": true,
+    "normal_runtime_module_comparison": true,
+    "normal_installation_modified": false,
+    "normal_game_and_four_module_hashes_reverified": true,
+    "method": "Normal A / pure frame-slab B / normal C across three private lab launches. Daylight frozen at noon; same copied world and saved position; explicit yaw 113/pitch 4 after every reload. Camera verified visually before/after. No input during captures. Foreground sampled each second; distinct positive same-layer Metal presentation timestamps. At least 30s scene warm-up plus 5s settle; nominal 30s measurement windows.",
+    "flags_common": {
+      "BEDROCK_DXMT_PRESENT_TRACE": "1",
+      "BEDROCK_DXMT_PRESENT_PACING": "1",
+      "BEDROCK_PRIVATE_REFMOVE_15203": "1",
+      "DXMT_CONFIG": "d3d11.preferredMaxFrameRate=0;d3d11.maxFrameLatency=1"
+    },
+    "candidate_flags": {
+      "BEDROCK_FRAME_SLAB": "1",
+      "BEDROCK_FRAME_SLAB_CHUNK": "16384",
+      "BEDROCK_FRAME_SLAB_CONTROL": "fresh private mapping; path omitted"
+    },
+    "observer_overlays_present": false,
+    "normal_captures": [
+      {
+        "label": "normal-world-a-fixed",
+        "valid": true,
+        "foreground_samples_valid": true,
+        "metrics": {
+          "displayed_fps": 73.21708303414039,
+          "displayed_fps_window": 73.23017741711448,
+          "presentation_window_seconds": 31.53071700001601,
+          "displayed_frames": 2309,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "positive_present_callbacks": 2309,
+          "coincident_present_callbacks": 0,
+          "coincident_present_timestamp_groups": 0,
+          "frame_p50_ms": 9.991375030949712,
+          "frame_p95_ms": 19.9827499454841,
+          "frame_p99_ms": 19.98279197141528,
+          "first_present_delay_ms": 3.891249536536634,
+          "last_present_gap_ms": 4.127708496525884,
+          "zero_present_callbacks": 0,
+          "invalid_present_callbacks": 0,
+          "frame_max_ms": 49.956707982346416,
+          "over33": 3,
+          "over50": 0,
+          "over100": 0
+        },
+        "cpu_ms_per_displayed_frame": 61.8934491843511,
+        "footprint_GiB_mean": 4.925177735186392,
+        "footprint_GiB_peak": 4.947869539260864,
+        "log_sha256": "e138fc5d447ec63b3de52605357d717e6abca9080b1011dc84dadc84400ed7e8",
+        "runtime_sha256": {
+          "x86_64-windows/ntdll.dll": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+          "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+          "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+          "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+        },
+        "cpu_by_group": {
+          "other": 3.9836968384582074,
+          "main": 8.671368124729321,
+          "streaming": 29.56291728020788,
+          "rendering": 15.288168038111738,
+          "dxmt_encode": 4.096308791684712
+        },
+        "capture_sha256": "5eb629b512df5606899a4e8cccd7bbcaf01908f945ab2d85daa3b15f0427cece"
+      },
+      {
+        "label": "normal-world-c-fixed",
+        "valid": true,
+        "foreground_samples_valid": true,
+        "metrics": {
+          "displayed_fps": 72.26896939076141,
+          "displayed_fps_window": 72.22701095139344,
+          "presentation_window_seconds": 31.594828166649677,
+          "displayed_frames": 2282,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "positive_present_callbacks": 2282,
+          "coincident_present_callbacks": 0,
+          "coincident_present_timestamp_groups": 0,
+          "frame_p50_ms": 9.991375030949712,
+          "frame_p95_ms": 19.9827499454841,
+          "frame_p99_ms": 19.98279197141528,
+          "first_present_delay_ms": 17.30195851996541,
+          "last_present_gap_ms": 14.878792106173933,
+          "zero_present_callbacks": 0,
+          "invalid_present_callbacks": 0,
+          "frame_max_ms": 39.96537602506578,
+          "over33": 1,
+          "over50": 0,
+          "over100": 0
+        },
+        "cpu_ms_per_displayed_frame": 72.2930621165644,
+        "footprint_GiB_mean": 4.484183178072976,
+        "footprint_GiB_peak": 4.597084812819958,
+        "log_sha256": "bcdd9dfb201af610d9596f8757f5127df4eddbe7c5e2e52ffd85807e8aca7438",
+        "runtime_sha256": {
+          "x86_64-windows/ntdll.dll": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+          "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+          "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+          "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+        },
+        "cpu_by_group": {
+          "other": 7.2806516213847505,
+          "main": 8.938273444347065,
+          "streaming": 33.649261612620506,
+          "rendering": 16.29299517966696,
+          "dxmt_encode": 4.066195442594215
+        },
+        "capture_sha256": "79b466c7d64b727cbdd9e222b19b338903029433124115393404fb6c265e6849"
+      },
+      {
+        "label": "normal-world-c-repeat",
+        "valid": true,
+        "foreground_samples_valid": true,
+        "metrics": {
+          "displayed_fps": 72.13335813056267,
+          "displayed_fps_window": 72.12091627500692,
+          "presentation_window_seconds": 31.571978249936365,
+          "displayed_frames": 2277,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "positive_present_callbacks": 2277,
+          "coincident_present_callbacks": 0,
+          "coincident_present_timestamp_groups": 0,
+          "frame_p50_ms": 9.991375030949712,
+          "frame_p95_ms": 19.9827499454841,
+          "frame_p99_ms": 19.982790923677385,
+          "first_present_delay_ms": 0.5204161861911416,
+          "last_present_gap_ms": 18.78845877945423,
+          "zero_present_callbacks": 0,
+          "invalid_present_callbacks": 0,
+          "frame_max_ms": 49.956750008277595,
+          "over33": 1,
+          "over50": 0,
+          "over100": 0
+        },
+        "cpu_ms_per_displayed_frame": 71.57508375420873,
+        "footprint_GiB_mean": 4.380205739409693,
+        "footprint_GiB_peak": 4.597493007779121,
+        "log_sha256": "78cd40a2563f420dd4619490638275dc85870915126bdd3e812943b7046a0288",
+        "runtime_sha256": {
+          "x86_64-windows/ntdll.dll": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+          "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+          "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+          "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+        },
+        "cpu_by_group": {
+          "other": 7.21289723320158,
+          "main": 8.83955643390426,
+          "streaming": 33.42206455862978,
+          "rendering": 16.031333333333336,
+          "dxmt_encode": 4.032846728151076
+        },
+        "capture_sha256": "da45609d09745d3e5db19828a88df25e77f287e699d641224a0f964c9f6d30df"
+      },
+      {
+        "label": "normal-world-c-late",
+        "valid": true,
+        "foreground_samples_valid": true,
+        "metrics": {
+          "displayed_fps": 71.76678038423262,
+          "displayed_fps_window": 71.75883058292908,
+          "presentation_window_seconds": 31.550123958382756,
+          "displayed_frames": 2264,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "positive_present_callbacks": 2264,
+          "coincident_present_callbacks": 0,
+          "coincident_present_timestamp_groups": 0,
+          "frame_p50_ms": 9.991375030949712,
+          "frame_p95_ms": 19.9827499454841,
+          "frame_p99_ms": 19.98279197141528,
+          "first_present_delay_ms": 8.553916588425636,
+          "last_present_gap_ms": 8.874999824911356,
+          "zero_present_callbacks": 0,
+          "invalid_present_callbacks": 0,
+          "frame_max_ms": 39.965457981452346,
+          "over33": 2,
+          "over50": 0,
+          "over100": 0
+        },
+        "cpu_ms_per_displayed_frame": 70.9153730675795,
+        "footprint_GiB_mean": 4.251303182494256,
+        "footprint_GiB_peak": 4.600579097867012,
+        "log_sha256": "08b300c8f9fc2bd50b150f323cd57e84a8f96b4a3d7c609b339c05bc4d1010df",
+        "runtime_sha256": {
+          "x86_64-windows/ntdll.dll": "3a5e665897b7e73d09f1e9062e88214c6f391da61ec625a0cd14efc124a2eb6c",
+          "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+          "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+          "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+        },
+        "cpu_by_group": {
+          "other": 7.317791519434629,
+          "main": 8.813045494699647,
+          "streaming": 32.92568816254417,
+          "rendering": 15.762083922261484,
+          "dxmt_encode": 4.006022526501767
+        },
+        "capture_sha256": "1269a1f11f827001afdb56203eae55c8a1e70f342b9a49c10dd1bba40b02fd74"
+      }
+    ],
+    "candidate_captures": [
+      {
+        "label": "slab-world-b2-camera-reset",
+        "valid": true,
+        "foreground_samples_valid": true,
+        "metrics": {
+          "displayed_fps": 71.67597991166377,
+          "displayed_fps_window": 71.68062129272758,
+          "presentation_window_seconds": 31.58454766671639,
+          "displayed_frames": 2264,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "positive_present_callbacks": 2264,
+          "coincident_present_callbacks": 0,
+          "coincident_present_timestamp_groups": 0,
+          "frame_p50_ms": 9.991375030949712,
+          "frame_p95_ms": 19.9827499454841,
+          "frame_p99_ms": 19.98279197141528,
+          "first_present_delay_ms": 8.846625220030546,
+          "last_present_gap_ms": 3.059791401028633,
+          "zero_present_callbacks": 0,
+          "invalid_present_callbacks": 0,
+          "frame_max_ms": 89.92204198148102,
+          "over33": 7,
+          "over50": 1,
+          "over100": 0
+        },
+        "cpu_ms_per_displayed_frame": 53.982714204210836,
+        "footprint_GiB_mean": 4.896924654802969,
+        "footprint_GiB_peak": 4.918680012226105,
+        "log_sha256": "49f7cde4dcfb7b4f452bb2e2a70b6d9cde56850746b266a6d9734359eb11b6f8",
+        "runtime_sha256": {
+          "x86_64-windows/ntdll.dll": "24f230a1f029573e6726b7269e161a5da6e6527cc15a4b75e7e63e70661c1e33",
+          "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+          "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+          "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+        },
+        "cpu_by_group": {
+          "other": 7.303470848056539,
+          "main": 7.488362190812722,
+          "streaming": 18.744439045936396,
+          "rendering": 14.228665636042404,
+          "dxmt_encode": 4.187211572438162
+        },
+        "capture_sha256": "292d01fd4ca51cfc8599628ed940a554d2f20bbe70363dff3b3bb456236e1319"
+      },
+      {
+        "label": "slab-world-b2-repeat",
+        "valid": true,
+        "foreground_samples_valid": true,
+        "metrics": {
+          "displayed_fps": 71.83993956626253,
+          "displayed_fps_window": 71.84511983539956,
+          "presentation_window_seconds": 31.48439316661097,
+          "displayed_frames": 2262,
+          "dimensions": [
+            1683,
+            951
+          ],
+          "positive_present_callbacks": 2262,
+          "coincident_present_callbacks": 0,
+          "coincident_present_timestamp_groups": 0,
+          "frame_p50_ms": 9.991375030949712,
+          "frame_p95_ms": 19.9827499454841,
+          "frame_p99_ms": 19.982791040092707,
+          "first_present_delay_ms": 9.850333211943507,
+          "last_present_gap_ms": 1.7992084613069892,
+          "zero_present_callbacks": 0,
+          "invalid_present_callbacks": 0,
+          "frame_max_ms": 49.956750008277595,
+          "over33": 3,
+          "over50": 0,
+          "over100": 0
+        },
+        "cpu_ms_per_displayed_frame": 52.51603269599174,
+        "footprint_GiB_mean": 4.8942875878945475,
+        "footprint_GiB_peak": 4.919194996356964,
+        "log_sha256": "b7802d232521965c2ed9ea546ae75dcfcea978c73a15130a6765519405c21bcd",
+        "runtime_sha256": {
+          "x86_64-windows/ntdll.dll": "24f230a1f029573e6726b7269e161a5da6e6527cc15a4b75e7e63e70661c1e33",
+          "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+          "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+          "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+        },
+        "cpu_by_group": {
+          "other": 7.159840406719719,
+          "main": 7.270118479221928,
+          "streaming": 18.3935433244916,
+          "rendering": 13.575847922192748,
+          "dxmt_encode": 4.078627763041556
+        },
+        "capture_sha256": "f78ef2bcc9e864f8aaff481bbb2e41ce1c0e675075e0e4033d4ec33868a053e1"
+      }
+    ],
+    "pairwise_observed_comparisons": [
+      {
+        "candidate": "slab-world-b2-camera-reset",
+        "normal": "normal-world-a-fixed",
+        "cpu_reduction_percent": 12.78121527300563,
+        "fps_change_percent": -2.104840917737749
+      },
+      {
+        "candidate": "slab-world-b2-camera-reset",
+        "normal": "normal-world-c-fixed",
+        "cpu_reduction_percent": 25.327946245837808,
+        "fps_change_percent": -0.8205312516514796
+      },
+      {
+        "candidate": "slab-world-b2-camera-reset",
+        "normal": "normal-world-c-repeat",
+        "cpu_reduction_percent": 24.57890180109421,
+        "fps_change_percent": -0.6340730984283782
+      },
+      {
+        "candidate": "slab-world-b2-camera-reset",
+        "normal": "normal-world-c-late",
+        "cpu_reduction_percent": 23.877275308461698,
+        "fps_change_percent": -0.12652159130269736
+      },
+      {
+        "candidate": "slab-world-b2-repeat",
+        "normal": "normal-world-a-fixed",
+        "cpu_reduction_percent": 15.15090306314728,
+        "fps_change_percent": -1.8809045796535084
+      },
+      {
+        "candidate": "slab-world-b2-repeat",
+        "normal": "normal-world-c-fixed",
+        "cpu_reduction_percent": 27.3567460577122,
+        "fps_change_percent": -0.593657039965656
+      },
+      {
+        "candidate": "slab-world-b2-repeat",
+        "normal": "normal-world-c-repeat",
+        "cpu_reduction_percent": 26.628052750404628,
+        "fps_change_percent": -0.4067723615044372
+      },
+      {
+        "candidate": "slab-world-b2-repeat",
+        "normal": "normal-world-c-late",
+        "cpu_reduction_percent": 25.945489074779204,
+        "fps_change_percent": 0.10194017571671932
+      }
+    ],
+    "observed_cpu_reduction_range_percent": [
+      12.78121527300563,
+      27.3567460577122
+    ],
+    "against_lowest_cpu_normal_capture_percent": [
+      12.78121527300563,
+      15.15090306314728
+    ],
+    "fps_gain_established": false,
+    "conclusion": "The slab candidate repeatedly reduced CPU work in this fixed scene; the exact normal-runtime gain needs tighter replication. No demonstrated FPS improvement.",
+    "limitations": [
+      "Two candidate windows in one launch, bracketed by two normal launches; no randomized independent replicate launches.",
+      "Normal CPU/frame varied from 61.89 to 72.29 ms. Later normal windows remained higher despite further warm-up; do not infer a precise causal percentage or explain the entire difference as loading.",
+      "World simulation continues even with fixed daylight. Thermal state was not recorded; background OS activity and wineserver CPU varied.",
+      "All runs retain the same presentation tracing and 10 ms pacing. No unpaced throughput or power/thermal comparison was performed.",
+      "CPU time sums game and private wineserver threads, not elapsed frame duration. Footprints also varied across launches; no memory-reduction claim.",
+      "Visual spot checks, clean saves/exits and allocation retirement do not establish exhaustive gameplay or long-session correctness."
+    ],
+    "excluded_captures": [
+      {
+        "label": "slab-world-b2-fixed",
+        "presentation_valid": true,
+        "reason": "Reload shifted camera before explicit orientation reset; not used for normal-runtime performance claims."
+      }
+    ],
+    "startup_rejection": {
+      "label": "slab-world-b",
+      "exit_code": 123,
+      "reason": "Initial chunk flag incorrectly specified 16 bytes instead of 16384; guard refused with zero edits before game entry. Corrected in new session."
+    },
+    "normal_exit_codes": {
+      "normal-world-a": 0,
+      "slab-world-b2": 0,
+      "normal-world-c": 0
+    },
+    "candidate_post_exit_lifecycle": {
+      "applied_chunk_bytes": 0,
+      "capture_sha256": "7557698e0a364734e1d514be24e0e006038e3df62ad40f71d73fad29c15e32b1",
+      "complete_thread_coverage": true,
+      "decoded_after_exit": true,
+      "format": 1,
+      "frames": {
+        "closed": 21202,
+        "frames_registered": 21202,
+        "frames_retired": 21202,
+        "frames_unregistered": 436,
+        "quarantined": 0
+      },
+      "memory": {
+        "live_scopes": 0,
+        "maximum_reserved_bytes": 402653184,
+        "refills": 5313453,
+        "reserved_bytes": 0,
+        "sum_pool_peak_bytes": 25379136
+      },
+      "overflow_threads": 0,
+      "registered_threads": 133,
+      "requested_chunk_bytes": 0,
+      "totals": {
+        "bytes": 85626547968,
+        "calls": 164622955,
+        "exceptions": 0,
+        "fallbacks": 2454433,
+        "hits": 162168522,
+        "leased_tasks": 3484612,
+        "tasks": 3485048
+      }
+    },
+    "independent_audit": {
+      "arithmetic": "Recomputed alternating reductions 21.30%/17.83%; no denominator error. Process CPU agrees closely with independent thread CPU.",
+      "mechanism": "Streaming-worker CPU falls from 29.6\u201333.6 to 18.4\u201318.7 ms per displayed frame.",
+      "qualification": "Observed CPU reduction is supported; exact normal-runtime effect and any FPS improvement are unproven."
+    }
+  },
+  "normal_game_and_runtime_unchanged_during_comparisons": true,
+  "local_rollout": {
+    "date": "2026-10-07",
+    "scope": "Local source-development launcher on the recorded M4 Pro; copied-world gameplay, then actual regular launcher startup. No packaged-app qualification or new timing comparison.",
+    "normal_runtime_enabled": true,
+    "entrypoint": "Launch Standalone.command",
+    "chunk_bytes": 16384,
+    "dll_sha256": "24f230a1f029573e6726b7269e161a5da6e6527cc15a4b75e7e63e70661c1e33",
+    "profile_helper_sha256": "f728e6788a597ed4c5f381397ec688fcf0860c0f4fed243016a0669f4dcd0ec6",
+    "python_tests_passed": 190,
+    "profile_transaction_tests_passed": 32,
+    "lab_and_normal_exact_rollback_verified": true,
+    "fresh_private_control_per_launch_verified": true,
+    "startup_guard": "[bedrock-frame-slab] enabled chunk=16384 sites=16 verified_refmove=1 task_leases=1 max_reserved_mib=384",
+    "normal_live_control": {
+      "requested_chunk_bytes": 16384,
+      "applied_chunk_bytes": 16384,
+      "frames_registered": 10018,
+      "frames_retired": 10013
+    },
+    "game_and_helper_unchanged": true,
+    "other_runtime_modules_unchanged": true,
+    "copied_world_actions": [
+      "load",
+      "three terrain transitions",
+      "return to initial position",
+      "save and quit",
+      "fresh launch",
+      "reload",
+      "controlled allocator drain",
+      "save and quit"
+    ],
+    "sessions": [
+      {
+        "label": "rollout-lab-b",
+        "exit_code": 0,
+        "control_capture_sha256": "e37c3e37d7c7e83d9cbc213b9d0e3c4b702dd1275ff02fc7e73fd3be27658e76",
+        "frames": {
+          "closed": 40269,
+          "frames_registered": 40273,
+          "frames_retired": 40269,
+          "frames_unregistered": 0,
+          "quarantined": 0
+        },
+        "memory": {
+          "live_scopes": 4,
+          "maximum_reserved_bytes": 402653184,
+          "refills": 8044237,
+          "reserved_bytes": 65664,
+          "sum_pool_peak_bytes": 26068608
+        },
+        "exceptions": 0,
+        "complete_thread_coverage": true,
+        "overflow_threads": 0,
+        "explicit_off_before_exit": false
+      },
+      {
+        "label": "rollout-lab-c",
+        "exit_code": 0,
+        "control_capture_sha256": "b71e1e72227fa0d17e95d7909ae181dc4521a1cac20dbef9b364cb06df9284c9",
+        "frames": {
+          "closed": 8535,
+          "frames_registered": 8535,
+          "frames_retired": 8535,
+          "frames_unregistered": 3470,
+          "quarantined": 0
+        },
+        "memory": {
+          "live_scopes": 0,
+          "maximum_reserved_bytes": 402653184,
+          "refills": 754784,
+          "reserved_bytes": 0,
+          "sum_pool_peak_bytes": 25264224
+        },
+        "exceptions": 0,
+        "complete_thread_coverage": true,
+        "overflow_threads": 0,
+        "explicit_off_before_exit": true
+      }
+    ],
+    "shutdown_note": "First exit left four menu scopes and 65,664 bytes in the final diagnostic counters; it does not demonstrate full retirement. Second run explicitly disabled new slabs in-world and proved complete draining before process exit."
+  }
+}
