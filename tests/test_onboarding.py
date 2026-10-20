@@ -685,7 +685,7 @@ class OnboardingTests(unittest.TestCase):
             saved_world.mkdir(parents=True)
             (saved_world / 'CURRENT').write_bytes(b'world database')
             (bundle / 'scripts').mkdir(parents=True)
-            for name in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'winrt.reg'):
+            for name in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'standalone-pickers.py', 'winrt.reg'):
                 (bundle / 'scripts' / name).write_text('bundled script')
             with patch.object(worker, 'ROOT', home), patch.object(worker, 'BUNDLE', bundle):
                 worker.initialize_bundle()
@@ -728,7 +728,7 @@ class OnboardingTests(unittest.TestCase):
             saved.parent.mkdir(parents=True)
             saved.write_bytes(b'preserve installation')
             (bundle / 'scripts').mkdir(parents=True)
-            for name in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'winrt.reg'):
+            for name in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'standalone-pickers.py', 'winrt.reg'):
                 (bundle / 'scripts' / name).write_text('bundled script')
             with patch.object(worker, 'ROOT', home), patch.object(worker, 'BUNDLE', bundle):
                 with self.assertRaisesRegex(RuntimeError, 'existing installation blocks'):

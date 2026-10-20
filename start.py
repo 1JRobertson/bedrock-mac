@@ -197,17 +197,20 @@ def setup(jobs, market):
             bootstrap.bootstrap(ROOT / 'sources', (name,))
     steps = Steps()
     wine = ROOT / 'runtime/standalone/wine'
-    wine_inputs = ['build-standalone-wine.sh', 'bootstrap-sources.py',
+    wine_inputs = ['build-standalone-wine.sh', 'verify-wine-source.py', 'bootstrap-sources.py',
                    'build-native-dependencies.py', 'native-dependencies.lock.json',
                    str(dependencies / 'dependency-manifest.json')]
     wine_inputs += [str(p.relative_to(ROOT)) for p in (ROOT / 'patches').glob('*wine*.patch')]
     wine_inputs += ['patches/minecraft-store-callback.patch']
+    wine_inputs += list(module('standalone-pickers').SOURCE_INPUTS)
     steps.step('wine', 'Building the Windows compatibility runtime',
         [['/usr/bin/env', 'STANDALONE_DEPENDENCY_PREFIX=' + str(dependencies),
           '/bin/sh', str(ROOT / 'build-standalone-wine.sh')]], wine_inputs,
         ['runtime/standalone/wine/bin/wine', 'runtime/standalone/wine/build-manifest.json',
          'runtime/standalone/wine/lib/wine/x86_64-unix/ntdll.so',
-         'runtime/standalone/wine/lib/wine/x86_64-windows/xgameruntime.dll'])
+         'runtime/standalone/wine/lib/wine/x86_64-windows/xgameruntime.dll',
+         'runtime/standalone/wine/lib/wine/x86_64-windows/bedrock-pickers.dll',
+         'runtime/standalone/wine/file-pickers-build.json'])
     graphics = [f'x86_64-windows/{name}.dll' for name in ('d3d11', 'dxgi', 'd3d10core', 'winemetal')]
     steps.step('graphics', 'Installing graphics support',
         [['/bin/sh', str(ROOT / 'build-standalone-graphics.sh'), '--wine-runtime', str(wine)]],

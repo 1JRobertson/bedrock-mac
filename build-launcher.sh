@@ -20,9 +20,14 @@ if [ -e "$APP" ] || [ -L "$APP" ]; then
   exit 1
 fi
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$WORK/swift-module-cache"
+# Full Xcode's compiler needs an explicit macOS SDK when invoked directly.
+# Select its matching Apple toolchain/SDK instead of inheriting an SDKROOT or
+# TOOLCHAINS value from another build environment.
+SWIFTC=$(/usr/bin/xcrun --sdk macosx --toolchain default --find swiftc)
+SDKROOT=$(/usr/bin/xcrun --sdk macosx --toolchain default --show-sdk-path)
+export SDKROOT
 # Some upgraded Command Line Tools retain an obsolete second definition of
 # SwiftBridging. Shadow that one file locally; never edit the system toolchain.
-SWIFTC=$(xcrun --find swiftc)
 /usr/bin/python3 - "$SWIFTC" "$WORK" <<'PY_OVERLAY'
 import json, pathlib, sys
 compiler, work = map(pathlib.Path, sys.argv[1:])
@@ -38,9 +43,9 @@ set --
 if [ -f "$WORK/swift-overlay.json" ]; then
   set -- -vfsoverlay "$WORK/swift-overlay.json" -Xcc -ivfsoverlay -Xcc "$WORK/swift-overlay.json"
 fi
-"$SWIFTC" "$@" -parse-as-library -O -target arm64-apple-macos15.0 -module-cache-path "$WORK/swift-module-cache" \
+"$SWIFTC" "$@" -sdk "$SDKROOT" -parse-as-library -O -target arm64-apple-macos15.0 -module-cache-path "$WORK/swift-module-cache" \
   "$ROOT/launcher/BedrockLauncher.swift" -o "$APP/Contents/MacOS/BedrockLauncher"
-"$SWIFTC" "$@" -O -module-cache-path "$WORK/swift-module-cache" "$ROOT/launcher/Icon.swift" -o "$WORK/make-icon"
+"$SWIFTC" "$@" -sdk "$SDKROOT" -O -module-cache-path "$WORK/swift-module-cache" "$ROOT/launcher/Icon.swift" -o "$WORK/make-icon"
 "$WORK/make-icon" "$WORK/AppIcon.iconset"
 iconutil -c icns "$WORK/AppIcon.iconset" -o "$APP/Contents/Resources/AppIcon.icns"
 /usr/bin/python3 - "$ROOT" "$APP" "$VERSION" "$BUILD" <<'PY'

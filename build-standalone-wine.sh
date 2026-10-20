@@ -103,4 +103,6 @@ manifest = {
 }
 (prefix / "build-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 PYMANIFEST
+/bin/sh "$ROOT/file-pickers/build.sh" --wine-build "$BUILD" \
+  --output "$ROOT/build/file-pickers" --stage-runtime "$PREFIX"
 printf 'Built standalone Wine: %s\n' "$PREFIX/bin/wine"

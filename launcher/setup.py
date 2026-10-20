@@ -91,7 +91,7 @@ def initialize_bundle():
     if not BUNDLE:
         return
     ROOT.mkdir(parents=True, exist_ok=True)
-    for filename in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'winrt.reg'):
+    for filename in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'standalone-pickers.py', 'winrt.reg'):
         source = BUNDLE / 'scripts' / filename
         target = ROOT / filename
         if target.is_symlink():

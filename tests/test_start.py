@@ -231,6 +231,7 @@ class StartTests(unittest.TestCase):
 
         bootstrap = SimpleNamespace(PROJECTS={'xodus': {'patches': ('account.patch',)}},
                                     HELPER_INPUTS={'standalone-helper.rs': 'helper', 'standalone-xvd.rs': 'xvd'},
+                                    SOURCE_INPUTS=('file-pickers/pickers.c', 'file-pickers/build.sh'),
                                     bootstrap=unittest.mock.Mock())
         with patch.object(start, 'run') as run, patch.object(start, 'Steps', Steps), \
                 patch.object(start, 'module', return_value=bootstrap), \
@@ -243,6 +244,10 @@ class StartTests(unittest.TestCase):
         wine_command = recorded[0][2][0]
         self.assertEqual(wine_command[:2], ['/usr/bin/env', 'STANDALONE_DEPENDENCY_PREFIX=' + str(prefix)])
         self.assertIn(str(prefix / 'dependency-manifest.json'), recorded[0][3])
+        self.assertIn('verify-wine-source.py', recorded[0][3])
+        self.assertIn('file-pickers/pickers.c', recorded[0][3])
+        self.assertIn('runtime/standalone/wine/lib/wine/x86_64-windows/bedrock-pickers.dll', recorded[0][4])
+        self.assertIn('runtime/standalone/wine/file-pickers-build.json', recorded[0][4])
         helper_inputs = next(step[3] for step in recorded if step[0] == 'helper')
         self.assertIn('standalone-xvd.rs', helper_inputs)
         self.assertIn('patches/account.patch', helper_inputs)

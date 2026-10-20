@@ -97,6 +97,15 @@ class FrameControlTests(unittest.TestCase):
         result = subprocess.run([str(out / 'frame-slab-control'), str(self.path), '8'], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.path.read_bytes(), original)
+        # Test the binary directly: the Python wrapper also rejects symlinks,
+        # which would conceal an insecure O_NOFOLLOW portability fallback.
+        linked = self.root / 'linked-control.bin'; linked.symlink_to(self.path)
+        for operation in ('16', 'status'):
+            result = subprocess.run([str(out / 'frame-slab-control'), str(linked), operation],
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Cannot open existing control file', result.stderr)
+            self.assertEqual(self.path.read_bytes(), original)
         # Status must ignore non-atomic thread records, even deliberately invalid ones.
         poisoned = original[:128] + b'\xff' * (control.SIZE - 128)
         self.path.write_bytes(poisoned)

@@ -163,7 +163,9 @@ class IsolationTests(unittest.TestCase):
                      patch.object(standalone, 'prerequisites'), \
                      patch.object(standalone, 'setup_signature', return_value={}), \
                      patch.object(standalone, 'setup_matches', return_value=True), \
+                     patch.object(standalone, 'picker_bridge') as pickers, \
                      patch.object(standalone, 'map_drive') as mapping:
+                    pickers.return_value.installed.return_value = True
                     standalone.prepare(root / 'game')
                 self.assertEqual(mapping.call_count, 2)
 
@@ -173,6 +175,25 @@ class IsolationTests(unittest.TestCase):
                  patch.object(standalone.importlib.util, 'spec_from_file_location') as load:
                 self.assertFalse(standalone.verified_refmove_activation(Path('/owned-game')))
                 load.assert_not_called()
+
+    def test_unknown_picker_registration_stops_prepare_before_wineboot(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prefix = root / 'bottles/Bedrock-Standalone'
+            prefix.mkdir(parents=True)
+            registry = ('WINE REGISTRY Version 2\n[Software\\\\Microsoft\\\\WindowsRuntime\\\\ActivatableClassId'
+                        '\\\\Windows.Storage.Pickers.FileOpenPicker] 123\n"DllPath"="custom.dll"\n')
+            (prefix / 'system.reg').write_text(registry)
+            with patch.object(standalone, 'ROOT', root), patch.object(standalone, 'PREFIX', prefix), \
+                 patch.object(standalone, 'prerequisites'), \
+                 patch.object(standalone, 'setup_signature', return_value={}), \
+                 patch.object(standalone, 'wait_for_idle_prefix'), \
+                 patch.object(standalone, 'wine_run') as wine:
+                with self.assertRaisesRegex(RuntimeError, 'registration must be preserved'):
+                    standalone.prepare(root / 'game')
+                wine.assert_not_called()
+            self.assertEqual((prefix / 'system.reg').read_text(), registry)
+            self.assertFalse((prefix / 'drive_c').exists())
 
     def test_inherited_allocator_and_sentinel_gates_are_removed(self):
         with patch.dict(os.environ, {'BEDROCK_PRIVATE_REFMOVE_15203': '1',
@@ -322,11 +343,12 @@ class IsolationTests(unittest.TestCase):
             root = Path(temporary)
             wine, dxmt, game = root / 'wine', root / 'dxmt', root / 'game'
             files = [wine / 'bin/wine', dxmt / 'x86_64-windows/d3d11.dll',
-                     game / 'Installers/GameInputRedist.msi']
+                     game / 'Installers/GameInputRedist.msi', wine / 'file-pickers-build.json']
             modules = ('x86_64-windows/ntdll.dll', 'x86_64-unix/ntdll.so',
                        'x86_64-windows/xgameruntime.dll', 'x86_64-windows/d3d11.dll',
                        'x86_64-windows/dxgi.dll', 'x86_64-windows/d3d10core.dll',
-                       'x86_64-windows/winemetal.dll', 'x86_64-unix/winemetal.so')
+                       'x86_64-windows/winemetal.dll', 'x86_64-unix/winemetal.so',
+                       'x86_64-windows/bedrock-pickers.dll')
             files.extend(wine / 'lib/wine' / name for name in modules)
             for path in files:
                 path.parent.mkdir(parents=True, exist_ok=True)

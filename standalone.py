@@ -357,6 +357,7 @@ def prerequisites(game):
                  game / '.xodus-streaming.msixvc',
                  game / 'Installers/GameInputRedist.msi'):
         require(path)
+    picker_bridge().verify_runtime(WINE)
     # Wine 11.8 prefers installed builtins over WINEDLLPATH. Check the overlay,
     # so a later Wine rebuild cannot silently select its stock graphics DLLs.
     for relative in ('x86_64-windows/d3d11.dll', 'x86_64-windows/dxgi.dll',
@@ -384,8 +385,12 @@ def setup_signature(game):
         'x86_64-windows/xgameruntime.dll', 'x86_64-windows/d3d11.dll',
         'x86_64-windows/dxgi.dll', 'x86_64-windows/d3d10core.dll',
         'x86_64-windows/winemetal.dll', 'x86_64-unix/winemetal.so',
+        'x86_64-windows/bedrock-pickers.dll',
     )
-    return {'setup_version': 3, 'game': str(game), 'threading': THREADING_HASH,
+    picker = picker_bridge()
+    return {'setup_version': 4, 'game': str(game), 'threading': THREADING_HASH,
+            'picker_build_receipt': sha256(WINE / 'file-pickers-build.json'),
+            'picker_installer': sha256(picker.source_root() / 'standalone-pickers.py'),
             'gameinput': sha256(game / 'Installers/GameInputRedist.msi'),
             'wine': sha256(WINE / 'bin/wine'),
             'dxmt': sha256(DXMT / 'x86_64-windows/d3d11.dll'),
@@ -398,6 +403,14 @@ def setup_matches(desired):
         return json.loads((PREFIX / '.bedrock-setup.json').read_text()) == desired
     except (OSError, ValueError):
         return False
+
+
+def picker_bridge():
+    source = Path(os.environ['BEDROCK_BUNDLE']) / 'scripts' if os.environ.get('BEDROCK_BUNDLE') else Path(__file__).resolve().parent
+    spec = importlib.util.spec_from_file_location('standalone_pickers', source / 'standalone-pickers.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 def verify_unix_bridge():
     """Check both halves of the optional locally rebuilt DXMT bridge."""
@@ -432,11 +445,13 @@ def prepare(game):
     logs.mkdir(parents=True, exist_ok=True)
     marker = PREFIX / '.bedrock-setup.json'
     desired = setup_signature(game)
-    if setup_matches(desired):
+    pickers = picker_bridge()
+    if setup_matches(desired) and pickers.installed(PREFIX, WINE):
         map_drive('g', game)
         map_drive('r', ROOT)
         return
     wait_for_idle_prefix()
+    pickers.preflight(PREFIX)
     try:
         with (logs / 'prefix-setup.log').open('ab') as log:
             # Wine must create its own C: mapping before additional drives are added.
@@ -447,6 +462,11 @@ def prepare(game):
             system32.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / 'runtime/xgameruntime.dll.threading', system32)
             wine_run(['reg', 'import', 'R:\\winrt.reg'], game, log=log, timeout=60)
+            # Existing registrations are checked again after wineboot. Preserve
+            # unknown providers before replacing the bridge or changing classes.
+            pickers.install(PREFIX, WINE,
+                            lambda _path: wine_run(['reg', 'import', 'R:\\bottles\\Bedrock-Standalone\\.bedrock-pickers.reg'],
+                                                   game, log=log, timeout=60))
             wine_run(['reg', 'add', 'HKCU\\Software\\Wine', '/v', 'Version',
                       '/d', 'win10', '/f'], game, log=log, timeout=60)
             stop_setup_server()
@@ -467,6 +487,8 @@ def prepare(game):
         raise
     require(PREFIX / 'drive_c/Program Files/Microsoft GameInput/x64/GameInputRedist.dll')
     require(PREFIX / 'drive_c/Program Files/Microsoft GameInput/x64/GameInputRedistService.exe')
+    if not pickers.installed(PREFIX, WINE):
+        raise RuntimeError('The file picker registration did not persist. Preserve the picker backups and retry setup.')
     temporary = marker.with_suffix('.new')
     temporary.write_text(json.dumps(desired, indent=2) + '\n')
     os.replace(temporary, marker)

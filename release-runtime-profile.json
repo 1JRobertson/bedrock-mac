@@ -16,7 +16,8 @@
     "WineGDK compatibility, Store callback, privileges, Realms, token renewal and device/title auth",
     "48-byte process heap reuse",
     "DXMT shared buffers, packed constants and input-layout reuse",
-    "Unix display/output autorelease pools and ColorSync releases"
+    "Unix display/output autorelease pools and ColorSync releases",
+    "Source-built WinRT PNG and world file picker compatibility"
   ],
   "excluded": [
     "exact-game refmove",
@@ -46,8 +47,16 @@
     "patches/standalone-wine-xuser-token-refresh.patch": "d7694c51561f0620f1df4cb5f1ab418be338be70cbfe3beaba24254a0265fdd4",
     "patches/standalone-wine-xuser-z-device-auth.patch": "26668fdc4b56f5eacc4a92ecbf9904884923cc09d343b5ee31f314c1ebbcf79f",
     "native-dependencies.lock.json": "decd9132c5c8038d8ef6f26af89066f0e4c73b09d0308f0b1c2d3f98c2c711bd",
-    "build-standalone-wine.sh": "93d51953a616edd8f445070af46b6b5df15f014e2212689d36ceb272cc03178a",
-    "verify-wine-source.py": "694f6ac69c24b928d86891dfe6c4872c8a3dc2adef49a153f943e6a0ee17ba5c"
+    "build-standalone-wine.sh": "971656e3b3a698410a8e34179e54b0263d304e7db7443a907ffe9bfbf84de37b",
+    "verify-wine-source.py": "694f6ac69c24b928d86891dfe6c4872c8a3dc2adef49a153f943e6a0ee17ba5c",
+    "standalone-pickers.py": "d2083ef94dd3183a397692b46c285478aebb0dab1a8389e9d968bf39a2111bae",
+    "file-pickers/build.sh": "b7cdc035e626dd2b6f33967cd97f028f79a67bcd496c629fe74e4b7dc61d46ac",
+    "file-pickers/pickers.c": "68afa7c449266bb578b17157c127462297ed5daebc8c9ccce5de9d7124c1f906",
+    "file-pickers/ids.h": "bb7abdd17907d65b53377e37c060e2ae0d163215083a1c79ef01e2aa355eef94",
+    "file-pickers/pickers.spec": "9d1b11a9e8593a4f441bd54e837cee8501af423a4a0f56f45c75e3c4d9d7f5ec",
+    "file-pickers/README.md": "4dc3775025b6f5fa78bdae6d0712ed4f7c183b4e56310cf7eb05e4ad578a4f10",
+    "file-pickers/check-windows.cmd": "9a08f3b71009d793c54b253867338bef34b2a28d1ffad5ce8c7d9a6b1cd1637a",
+    "tests/file-picker-contract.c": "5cff8a92725eb62b9756deeb25f03aaa657881aa7d94896f234a1fc8f6608a90"
   },
   "wine_standalone_patches": [
     "standalone-wine-dxmt-abi.patch",

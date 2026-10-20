@@ -42,6 +42,16 @@ class PackagingTests(unittest.TestCase):
         (wine / 'build-manifest.json').write_text(json.dumps(manifest))
         (wine / 'native-dependency-manifest.json').write_text(json.dumps(receipt))
         (dxmt / 'manifest.json').write_text(json.dumps(graphics))
+        spec = importlib.util.spec_from_file_location('packaging_picker_fixture', packager.ROOT / 'standalone-pickers.py')
+        pickers = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(pickers)
+        dll = wine / 'lib/wine/x86_64-windows/bedrock-pickers.dll'
+        binary = bytearray(256)
+        binary[:2], binary[60:64], binary[128:134] = b'MZ', (128).to_bytes(4, 'little'), b'PE\0\0\x64\x86'
+        dll.write_bytes(binary)
+        picker_receipt = {'version': 1, 'files': {'bedrock-pickers.dll': hashlib.sha256(binary).hexdigest()},
+                          'source_sha256': {name: pickers.digest(packager.ROOT / name) for name in pickers.SOURCE_INPUTS}}
+        (wine / 'file-pickers-build.json').write_text(json.dumps(picker_receipt))
         return wine, dxmt
 
     def test_signed_bridge_retains_provenance_and_checks_packaged_bytes(self):

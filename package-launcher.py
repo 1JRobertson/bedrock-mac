@@ -24,6 +24,9 @@ SOURCE_FILES = (
     'launcher/setup.py', 'launcher/BedrockLauncher.swift', 'launcher/Icon.swift',
     'package-launcher.py', 'build-launcher.sh', 'build-dmg.py', 'packaging-requirements.txt',
     'standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'winrt.reg',
+    'standalone-pickers.py', 'file-pickers/pickers.c', 'file-pickers/ids.h',
+    'file-pickers/pickers.spec', 'file-pickers/build.sh', 'file-pickers/README.md',
+    'file-pickers/check-windows.cmd', 'tests/file-picker-contract.c',
     'patches/standalone-dxmt-memory-lifetime.patch', 'standalone-dxmt-display-trace.c',
     'LICENSE', 'THIRD_PARTY.md',
     'release-runtime-profile.json', 'native-dependencies.lock.json',
@@ -76,6 +79,10 @@ def inventory_minimum(inventory):
 def validate_release_runtime(wine, dxmt, source=None):
     """A release package must not silently absorb an experimental live runtime."""
     source = source or ROOT
+    spec = importlib.util.spec_from_file_location('packaged_pickers', source / 'standalone-pickers.py')
+    pickers = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pickers)
+    pickers.verify_runtime(wine, source)
     manifests = []
     for path, allowed in ((wine / 'build-manifest.json', {'heap_reuse'}),
                           (dxmt / 'manifest.json', {'shared_buffers', 'packed_constants', 'input_layout_reuse'})):
@@ -257,7 +264,7 @@ def main():
                     ignore=shutil.ignore_patterns('*.a', '*.o', '*.def', '*.debug'))
     shutil.copytree(wine / 'share/wine', packaged_wine / 'share/wine', symlinks=True)
     shutil.copy2(wine / 'build-manifest.json', packaged_wine / 'build-manifest.json')
-    for name in ('native-dependency-manifest.json', 'notices'):
+    for name in ('native-dependency-manifest.json', 'file-pickers-build.json', 'notices'):
         source = wine / name
         if source.is_dir():
             shutil.copytree(source, packaged_wine / name, symlinks=True)
@@ -273,8 +280,13 @@ def main():
             shutil.copy2(source, target)
     shutil.copy2(helper, resources / 'standalone_helper')
     (resources / 'scripts').mkdir()
-    for name in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'winrt.reg'):
-        shutil.copy2(captured / name, resources / 'scripts' / name)
+    for name in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'standalone-pickers.py', 'winrt.reg',
+                 'file-pickers/pickers.c', 'file-pickers/ids.h', 'file-pickers/pickers.spec',
+                 'file-pickers/build.sh', 'file-pickers/README.md', 'file-pickers/check-windows.cmd',
+                 'tests/file-picker-contract.c'):
+        target = resources / 'scripts' / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(captured / name, target)
     if bridge is not None:
         for name in ('patches/standalone-dxmt-memory-lifetime.patch', 'standalone-dxmt-display-trace.c'):
             target = resources / 'scripts' / name

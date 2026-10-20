@@ -6,7 +6,7 @@ production controller/delegate with intercepted sheet presentation; actual Swift
 red-close/reopen and sheet behavior still require the native acceptance test.
 """
 from pathlib import Path
-import subprocess,json,datetime,hashlib
+import subprocess,json,datetime,hashlib,os
 import argparse, tempfile, sys
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output',type=Path,help='New directory for fixture source, binary, logs and result; defaults to temporary output')
@@ -167,7 +167,10 @@ raise SystemExit(1 if state=='error' else 0)
 }
 '''
 fixture=base/'QuitFixture.swift';fixture.write_text(text)
-compiler=Path(subprocess.check_output(['xcrun','--find','swiftc'],text=True).strip()).resolve()
+xcrun=['/usr/bin/xcrun','--sdk','macosx','--toolchain','default']
+compiler=Path(subprocess.check_output([*xcrun,'--find','swiftc'],text=True).strip()).resolve()
+sdk=subprocess.check_output([*xcrun,'--show-sdk-path'],text=True).strip()
+compiler_env={**os.environ,'SDKROOT':sdk}
 include=compiler.parents[1]/'include/swift'
 legacy,bridging=include/'module.modulemap',include/'bridging.modulemap'
 flags=[]
@@ -175,9 +178,9 @@ if legacy.is_file() and bridging.is_file() and all('module SwiftBridging' in f.r
     empty=base/'empty.modulemap';empty.write_text('')
     overlay=base/'swift-overlay.json';overlay.write_text(json.dumps({'version':0,'roots':[{'type':'file','name':str(legacy),'external-contents':str(empty)}]}))
     flags=['-vfsoverlay',str(overlay),'-Xcc','-ivfsoverlay','-Xcc',str(overlay)]
-cmd=['xcrun','swiftc',*flags,'-parse-as-library','-Onone','-g','-target','arm64-apple-macos15.0','-module-cache-path',str(base/'module-cache'),str(fixture),'-o',str(base/'quit-fixture')]
+cmd=[str(compiler),*flags,'-sdk',sdk,'-parse-as-library','-Onone','-g','-target','arm64-apple-macos15.0','-module-cache-path',str(base/'module-cache'),str(fixture),'-o',str(base/'quit-fixture')]
 with (base/'build.log').open('w') as log:
-    result=subprocess.run(cmd,stdout=log,stderr=subprocess.STDOUT)
+    result=subprocess.run(cmd,stdout=log,stderr=subprocess.STDOUT,env=compiler_env)
 if result.returncode:
     sys.stderr.write((base/'build.log').read_text())
     raise SystemExit(result.returncode)
