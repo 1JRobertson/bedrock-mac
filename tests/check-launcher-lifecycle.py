@@ -168,7 +168,8 @@ raise SystemExit(1 if state=='error' else 0)
 '''
 fixture=base/'QuitFixture.swift';fixture.write_text(text)
 xcrun=['/usr/bin/xcrun','--sdk','macosx','--toolchain','default']
-compiler=Path(subprocess.check_output([*xcrun,'--find','swiftc'],text=True).strip()).resolve()
+# Swift dispatches by argv[0]; resolving swiftc's symlink invokes swift-frontend.
+compiler=Path(subprocess.check_output([*xcrun,'--find','swiftc'],text=True).strip()).absolute()
 sdk=subprocess.check_output([*xcrun,'--show-sdk-path'],text=True).strip()
 compiler_env={**os.environ,'SDKROOT':sdk}
 include=compiler.parents[1]/'include/swift'
