@@ -1,2 +1,8 @@
-# Developer-only packaging tool; bundled app needs no Python installation.
+# Developer-only packaging environment; bundled app needs no Python installation.
+# Pin the resolved build toolchain, including hooks that control frozen imports.
+altgraph==0.17.5
+macholib==1.16.4
+packaging==26.3
 pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.8
+setuptools==84.0.0

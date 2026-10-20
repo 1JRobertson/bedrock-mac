@@ -12,6 +12,7 @@ import platform
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parent
@@ -52,6 +53,42 @@ def installed():
                    'minecraft_store_product', 'package_metadata_present', 'gameinput_installer_present'))
     except (OSError, RuntimeError, ValueError, KeyError, TypeError):
         return False
+
+
+def native_dependencies(python, jobs):
+    """Reuse only verified outputs; preserve interrupted builds in private attempts."""
+    dependencies = module('build-native-dependencies')
+    selected = os.environ.get('STANDALONE_DEPENDENCY_PREFIX')
+    if selected:
+        prefix = Path(selected).expanduser().absolute()
+        dependencies.verify(prefix)
+        return prefix
+    inputs = ('build-native-dependencies.py', 'native-dependencies.lock.json')
+    identity = hashlib.sha256(''.join(digest(ROOT / name) for name in inputs).encode()).hexdigest()
+    directory = ROOT / 'build/start-native-dependencies' / identity
+    checked = directory
+    while checked != ROOT.parent:
+        if checked.is_symlink():
+            raise RuntimeError('The native dependency build directory must not be a symbolic link.')
+        checked = checked.parent
+    directory.mkdir(parents=True, exist_ok=True)
+    for attempt in sorted(directory.glob('attempt-*')):
+        if attempt.is_symlink():
+            raise RuntimeError('A native dependency build attempt is a symbolic link; it was kept.')
+        prefix = attempt / 'prefix'
+        if os.path.lexists(prefix / 'dependency-manifest.json'):
+            dependencies.verify(prefix)
+            print('Native source dependencies — already verified.', flush=True)
+            return prefix
+    # The builder refuses existing compiled outputs. A retry gets one fresh
+    # attempt, while earlier source, archives and diagnostics remain available.
+    attempt = Path(tempfile.mkdtemp(prefix='attempt-', dir=directory))
+    run([python, str(ROOT / 'build-native-dependencies.py'), '--destination', str(attempt),
+         '--jobs', str(min(jobs, 8))], 'Building native source dependencies',
+        ROOT / 'logs/standalone/setup/native-dependencies.log')
+    prefix = attempt / 'prefix'
+    dependencies.verify(prefix)
+    return prefix
 
 
 @contextlib.contextmanager
@@ -146,6 +183,12 @@ class Steps:
 
 def setup(jobs, market):
     run(['/bin/bash', str(ROOT / 'install-build-tools.sh')], 'Preparing build tools')
+    # Start.command deliberately bootstraps with Apple's Python. Use the modern
+    # source-build interpreter installed above for extraction and subprocesses.
+    python = '/opt/homebrew/opt/python@3.13/bin/python3.13'
+    run([python, '-c', 'import sys; assert sys.version_info >= (3, 12)'], 'Checking source-build Python')
+    os.environ['PATH'] = '/opt/homebrew/opt/python@3.13/libexec/bin:' + os.environ.get('PATH', '')
+    dependencies = native_dependencies(python, jobs)
     bootstrap = module('bootstrap-sources')
     for name, project in bootstrap.PROJECTS.items():
         if (ROOT / 'sources' / name).exists():
@@ -154,12 +197,14 @@ def setup(jobs, market):
             bootstrap.bootstrap(ROOT / 'sources', (name,))
     steps = Steps()
     wine = ROOT / 'runtime/standalone/wine'
-    python = sys.executable
-    wine_inputs = ['build-standalone-wine.sh', 'bootstrap-sources.py']
+    wine_inputs = ['build-standalone-wine.sh', 'bootstrap-sources.py',
+                   'build-native-dependencies.py', 'native-dependencies.lock.json',
+                   str(dependencies / 'dependency-manifest.json')]
     wine_inputs += [str(p.relative_to(ROOT)) for p in (ROOT / 'patches').glob('*wine*.patch')]
     wine_inputs += ['patches/minecraft-store-callback.patch']
     steps.step('wine', 'Building the Windows compatibility runtime',
-        [['/bin/sh', str(ROOT / 'build-standalone-wine.sh')]], wine_inputs,
+        [['/usr/bin/env', 'STANDALONE_DEPENDENCY_PREFIX=' + str(dependencies),
+          '/bin/sh', str(ROOT / 'build-standalone-wine.sh')]], wine_inputs,
         ['runtime/standalone/wine/bin/wine', 'runtime/standalone/wine/build-manifest.json',
          'runtime/standalone/wine/lib/wine/x86_64-unix/ntdll.so',
          'runtime/standalone/wine/lib/wine/x86_64-windows/xgameruntime.dll'])
@@ -169,10 +214,12 @@ def setup(jobs, market):
         ['build-standalone-graphics.sh'],
         ['runtime/standalone/dxmt/' + p for p in graphics + ['x86_64-unix/winemetal.so']]
         + ['runtime/standalone/wine/lib/wine/' + p for p in graphics])
+    helper_inputs = ['standalone-setup.py', 'bootstrap-sources.py', 'patches/Cargo.lock',
+                     *bootstrap.HELPER_INPUTS]
+    helper_inputs += ['patches/' + name for name in bootstrap.PROJECTS['xodus']['patches']]
     steps.step('helper', 'Building Microsoft sign-in',
         [[python, str(ROOT / 'standalone-setup.py'), '--build-helper', '--jobs', str(jobs)]],
-        ['standalone-setup.py', 'standalone-helper.rs', 'patches/Cargo.lock',
-         'patches/xodus-real-store-license.patch', 'patches/keychain-cache.patch', 'patches/unified-helper.patch'],
+        helper_inputs,
         ['sources/xodus/target/release/examples/standalone_helper'])
     probes = ['standalone-graphics-probe', 'standalone-graphics-shader-probe',
               'runtime-auth-probe', 'store-callback-probe', 'runtime-privilege-probe']

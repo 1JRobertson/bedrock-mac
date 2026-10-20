@@ -25,9 +25,13 @@ ALLOWED_FILES = (
     ".github/workflows/checks.yml",
     ".github/ISSUE_TEMPLATE/bug_report.yml",
     "docs/RELEASE.md",
+    "docs/COMPATIBILITY.md",
+    "docs/PERFORMANCE.md",
+    "docs/RELEASE_NOTES.md",
     "docs/USER_GUIDE.md",
     "docs/DEVELOPMENT.md",
     "docs/TESTING.md",
+    "docs/m4-architecture-results.json",
     "docs/STABILITY.md",
     "docs/LEGACY.md",
     "launcher/Icon.swift",
@@ -40,6 +44,8 @@ ALLOWED_FILES = (
     "LICENSES/dxmt-LLVM-LICENSE.txt",
     "LICENSES/dxmt-MinGW-LICENSE.txt",
     "LICENSES/DXMT-embedded-NOTICES.txt",
+    "LICENSES/XVD-GreenGamesPublicKey.rsa",
+    "LICENSES/XVD-PUBLIC-KEY-PROVENANCE.txt",
     "Launch Bedrock.command",
     "Launch Standalone.command",
     "Start.command",
@@ -56,6 +62,19 @@ ALLOWED_FILES = (
     "standalone-dxmt-shared.py",
     "standalone-wine-heap.py",
     "standalone-bedrock-refmove.py",
+    "standalone-bedrock-allocator.py",
+    "standalone-bedrock-frame-slab.py",
+    "standalone-bedrock-frame-control.py",
+    "standalone-bedrock-frame-profile.py",
+    "frame-slab-control.c",
+    "clone-recurrence-control.c",
+    "binding-recurrence-control.c",
+    "patches/experimental-bedrock-binding-recurrence.patch",
+    "tests/bedrock-binding-recurrence.c",
+    "tests/test_bedrock_binding_recurrence.py",
+    "patches/experimental-bedrock-clone-recurrence.patch",
+    "tests/m4-native-batch.cpp",
+    "tests/run-m4-native-batch.py",
     "build-standalone-frame-pacing.py",
     "build-standalone-metrics-hud.py",
     "standalone-dxmt-present-pacer.m",
@@ -74,6 +93,14 @@ ALLOWED_FILES = (
     "build-runtime.sh",
     "build-probes.sh",
     "build-standalone-wine.sh",
+    "verify-wine-source.py",
+    "tests/test_wine_source.py",
+    "build-native-dependencies.py",
+    "collect-helper-licenses.py",
+    "collect-python-notices.py",
+    "native-dependencies.lock.json",
+    "build-release-runtime.py",
+    "release-runtime-profile.json",
     "build-standalone-graphics.sh",
     "build-standalone-dxmt-pool.sh",
     "build-standalone-dxmt-unix.sh",
@@ -84,6 +111,7 @@ ALLOWED_FILES = (
     "export-source.py",
     "bedrock-helper.rs",
     "standalone-helper.rs",
+    "standalone-xvd.rs",
     "prepare-owned-game.rs",
     "runtime-auth-probe.c",
     "runtime-privilege-probe.c",
@@ -105,8 +133,12 @@ ALLOWED_FILES = (
     "patches/standalone-dxmt-shared-buffers.patch",
     "patches/standalone-dxmt-packed-constants.patch",
     "patches/standalone-dxmt-input-layout-reuse.patch",
+    "patches/standalone-dxmt-borrow-constant-buffers.patch",
+    "patches/standalone-dxmt-frame-latency.patch",
     "patches/experimental-wine-heap-reuse.patch",
     "patches/experimental-bedrock-refmove.patch",
+    "patches/experimental-bedrock-exact-current.patch",
+    "patches/experimental-bedrock-frame-slab.patch",
     "patches/standalone-wine-storage-linkage.patch",
     "patches/standalone-wine-idl-list.patch",
     "patches/standalone-wine-user-privileges.patch",
@@ -117,23 +149,41 @@ ALLOWED_FILES = (
     "patches/unified-helper.patch",
     "patches/standalone-signin-window.patch",
     "patches/standalone-keychain-write.patch",
+    "patches/standalone-account-transport.patch",
+    "patches/standalone-helper-dependencies.patch",
     "docs/PUBLISHING.md",
     "docs/dxmt-shared-buffers-results.json",
     "tests/dxmt-shared-buffers.cpp",
     "tests/dxmt-constant-buffers.cpp",
     "tests/wine-heap-reuse.c",
     "tests/dxmt-input-layout.cpp",
+    "tests/dxmt-constant-buffer-lifetime.cpp",
+    "tests/test_standalone_dxmt_shared.py",
     "tests/test_standalone_wine_heap.py",
     "tests/test_standalone_bedrock_refmove.py",
+    "tests/test_standalone_bedrock_allocator.py",
+    "tests/bedrock-exact-current.c",
+    "tests/run-bedrock-exact-differential.py",
+    "tests/bedrock-exact-differential.cpp",
+    "tests/bedrock-frame-slab.cpp",
+    "tests/test_bedrock_frame_control.py",
+    "tests/test_standalone_bedrock_frame_slab.py",
+    "tests/test_standalone_bedrock_frame_profile.py",
     "docs/dxmt-packed-constants-results.json",
     "docs/wine-heap-reuse-results.json",
     "docs/dxmt-input-layout-results.json",
     "docs/bedrock-refmove-results.json",
+    "docs/render-redesign-results.json",
     "tests/test_export_source.py",
     "tests/test_bootstrap_sources.py",
     "tests/test_standalone.py",
     "tests/test_onboarding.py",
     "tests/test_packaging.py",
+    "tests/check-launcher-lifecycle.py",
+    "tests/test_release_runtime.py",
+    "tests/test_collect_helper_licenses.py",
+    "tests/test_collect_python_notices.py",
+    "tests/native-dependency-probe.c",
     "tests/test_threading_download.py",
 
     "tests/test_start.py",
@@ -154,6 +204,14 @@ PRIVATE_ROOTS = frozenset({
     "sources", "downloads", "runtime", "logs", "bottles", "build", "game",
     ".git", "__pycache__", "exports",
 })
+
+# This reviewed production PUBLIC verification key is the only binary source
+# input. Pin its bytes so an allowlisted name cannot export arbitrary payloads.
+PUBLIC_BINARY_INPUTS = {
+    "LICENSES/XVD-GreenGamesPublicKey.rsa": (
+        539, "183f0ae05431e4ad91554e88946967c872997227dbe6c85116f5fd2fd2d1229e"
+    ),
+}
 
 
 def checked_relative(name):
@@ -194,6 +252,11 @@ def read_source(root, name):
         if not stat.S_ISREG(info.st_mode):
             raise ValueError("Refusing non-regular source file: " + name)
         content = stream.read()
+    if name in PUBLIC_BINARY_INPUTS:
+        expected_size, expected_digest = PUBLIC_BINARY_INPUTS[name]
+        if len(content) != expected_size or hashlib.sha256(content).hexdigest() != expected_digest:
+            raise ValueError("Refusing changed public binary source input: " + name)
+        return content, 0o644
     try:
         content.decode("utf-8")
     except UnicodeDecodeError as exc:

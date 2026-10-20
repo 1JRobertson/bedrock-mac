@@ -28,6 +28,43 @@ def pe(tag):
 
 
 class HeapStageTests(unittest.TestCase):
+    def test_source_built_runtime_uses_its_verified_matching_headers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = Path(temporary).resolve()
+            files = {}
+            for name in ('include/gnutls/gnutls.h', 'include/freetype2/ft2build.h'):
+                path = runtime / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'exact dependency header')
+                files[name] = {'sha256': heap.sha(path.read_bytes())}
+            (runtime / 'native-dependency-manifest.json').write_text(json.dumps(
+                {'source_built': True, 'architecture': 'x86_64', 'files': files}))
+            flags = heap.dependency_header_flags(runtime)
+            self.assertEqual(flags['GNUTLS_CFLAGS'], '-I' + str(runtime / 'include'))
+            self.assertEqual(flags['FREETYPE_CFLAGS'], '-I' + str(runtime / 'include/freetype2'))
+            self.assertNotIn('/opt/homebrew', str(flags))
+            (runtime / 'include/gnutls/gnutls.h').write_bytes(b'wrong version')
+            with self.assertRaisesRegex(RuntimeError, 'headers failed verification'):
+                heap.dependency_header_flags(runtime)
+
+    def test_invalid_dependency_provenance_never_falls_back_to_host_headers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = Path(temporary)
+            marker = runtime / 'native-dependency-manifest.json'
+            for value in ('{broken', 'null', '{}'):
+                marker.write_text(value)
+                with self.assertRaises(RuntimeError):
+                    heap.dependency_header_flags(runtime)
+            marker.unlink()
+            marker.symlink_to(runtime / 'missing-manifest')
+            with self.assertRaises(RuntimeError):
+                heap.dependency_header_flags(runtime)
+
+    def test_legacy_runtime_retains_existing_header_selection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            flags = heap.dependency_header_flags(Path(temporary))
+            self.assertEqual(flags['GNUTLS_CFLAGS'], '-I/opt/homebrew/opt/gnutls/include')
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

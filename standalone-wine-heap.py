@@ -127,11 +127,31 @@ def import_from_build(args):
                                                     'build_evidence_sha256': evidence})
 
 
+def dependency_header_flags(prefix):
+    marker = prefix / 'native-dependency-manifest.json'
+    if not os.path.lexists(marker):
+        return {'GNUTLS_CFLAGS': '-I/opt/homebrew/opt/gnutls/include',
+                'FREETYPE_CFLAGS': '-I/opt/homebrew/opt/freetype/include/freetype2'}
+    try:
+        metadata = json.loads(marker.read_bytes())
+        if metadata.get('source_built') is not True or metadata.get('architecture') != 'x86_64':
+            raise ValueError('unexpected dependency provenance')
+        for name in ('include/gnutls/gnutls.h', 'include/freetype2/ft2build.h'):
+            path = safe_path(prefix, name)
+            if sha(path.read_bytes()) != metadata['files'][name]['sha256']:
+                raise ValueError('dependency header changed')
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+        raise RuntimeError('Source-built dependency headers failed verification; rebuild the isolated runtime.') from error
+    return {'GNUTLS_CFLAGS': '-I' + shlex.quote(str(prefix / 'include')),
+            'FREETYPE_CFLAGS': '-I' + shlex.quote(str(prefix / 'include/freetype2'))}
+
+
 def build(args):
     source = OUT / 'source'
     build_dir = OUT / 'build'
     prefix = args.wine.resolve(strict=True)
     check_runtime(prefix)
+    header_flags = dependency_header_flags(prefix)
     if not source.exists():
         validate_source(args.source, False)
         OUT.mkdir(parents=True, exist_ok=True)
@@ -152,12 +172,11 @@ def build(args):
     env = dict(os.environ, LC_ALL='en_US.UTF-8', CC=cc, CXX=cxx, OBJC=cc,
                CFLAGS='-O2', CXXFLAGS='-O2', OBJCFLAGS='-O2', CROSSCFLAGS='-O2',
                PATH=f'{toolbin}:/opt/homebrew/opt/llvm/bin:/opt/homebrew/opt/bison/bin:/usr/bin:/bin:/opt/homebrew/bin:' + os.environ['PATH'],
-               GNUTLS_CFLAGS='-I/opt/homebrew/opt/gnutls/include', GNUTLS_LIBS=f'-L{prefix}/lib -lgnutls',
-               FREETYPE_CFLAGS='-I/opt/homebrew/opt/freetype/include/freetype2',
+               GNUTLS_LIBS=f'-L{prefix}/lib -lgnutls',
                FREETYPE_LIBS=f'-L{prefix}/lib -Wl,-rpath,{prefix}/lib -lfreetype',
                DYLD_FALLBACK_LIBRARY_PATH=f'{prefix}/lib:/usr/lib',
                ac_cv_lib_soname_gnutls='@loader_path/../../libgnutls.30.dylib',
-               ac_cv_lib_soname_freetype='@loader_path/../../libfreetype.6.dylib')
+               ac_cv_lib_soname_freetype='@loader_path/../../libfreetype.6.dylib', **header_flags)
     configure = [source / 'configure', '--host=x86_64-apple-darwin24', f'--prefix={prefix}',
                  '--enable-win64', '--with-mingw=/opt/homebrew/opt/llvm/bin/clang', '--disable-tests',
                  '--without-x', '--with-freetype', '--with-gnutls', '--without-vulkan',

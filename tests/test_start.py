@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 spec = importlib.util.spec_from_file_location('start', Path(__file__).resolve().parents[1] / 'start.py')
 start = importlib.util.module_from_spec(spec)
@@ -131,6 +132,122 @@ class StartTests(unittest.TestCase):
         self.assertEqual(run.call_count, 1)
         self.assertEqual(run.call_args.args[0][-4:], ['play', '--', '--market', 'US'])
 
+    def dependency_inputs(self):
+        for name in ('build-native-dependencies.py', 'native-dependencies.lock.json'):
+            (self.root / name).write_text(name)
+
+    def test_source_dependencies_build_once_then_verify_outputs_before_reusing(self):
+        self.dependency_inputs()
+        verified = []
+
+        def verify(prefix):
+            verified.append(prefix)
+            self.assertEqual((prefix / 'dependency-manifest.json').read_text(), 'verified fixture')
+
+        def build(command, label, log):
+            self.calls.append(command)
+            destination = Path(command[command.index('--destination') + 1])
+            self.assertFalse((self.root / 'runtime').exists())
+            (destination / 'prefix').mkdir()
+            (destination / 'prefix/dependency-manifest.json').write_text('verified fixture')
+
+        with patch.object(start, 'module', return_value=SimpleNamespace(verify=verify)), \
+                patch.object(start, 'run', side_effect=build), \
+                patch.dict(os.environ, {'STANDALONE_DEPENDENCY_PREFIX': ''}):
+            prefix = start.native_dependencies('/source/python', 12)
+            self.assertEqual(start.native_dependencies('/source/python', 12), prefix)
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.calls[0][-2:], ['--jobs', '8'])
+        self.assertEqual(verified, [prefix, prefix])
+
+    def test_interrupted_dependency_build_is_preserved_and_retry_uses_fresh_attempt(self):
+        self.dependency_inputs()
+        attempts = []
+
+        def build(command, label, log):
+            attempt = Path(command[command.index('--destination') + 1])
+            attempts.append(attempt)
+            (attempt / 'prefix').mkdir()
+            if len(attempts) == 1:
+                (attempt / 'prefix/partial-library').write_bytes(b'keep failed output')
+                raise RuntimeError('interrupted build')
+            (attempt / 'prefix/dependency-manifest.json').write_text('{}')
+
+        verifier = unittest.mock.Mock()
+        with patch.object(start, 'module', return_value=SimpleNamespace(verify=verifier)), \
+                patch.object(start, 'run', side_effect=build), \
+                patch.dict(os.environ, {'STANDALONE_DEPENDENCY_PREFIX': ''}):
+            with self.assertRaisesRegex(RuntimeError, 'interrupted build'):
+                start.native_dependencies('/source/python', 2)
+            verifier.assert_not_called()
+            prefix = start.native_dependencies('/source/python', 2)
+        self.assertNotEqual(attempts[0], attempts[1])
+        self.assertEqual((attempts[0] / 'prefix/partial-library').read_bytes(), b'keep failed output')
+        self.assertEqual(prefix, attempts[1] / 'prefix')
+        verifier.assert_called_once_with(prefix)
+
+    def test_explicit_dependency_prefix_is_verified_without_build_or_runtime_changes(self):
+        prefix = self.root / 'selected dependency prefix'
+        verifier = unittest.mock.Mock()
+        with patch.object(start, 'module', return_value=SimpleNamespace(verify=verifier)), \
+                patch.object(start, 'run') as run, \
+                patch.dict(os.environ, {'STANDALONE_DEPENDENCY_PREFIX': str(prefix)}):
+            self.assertEqual(start.native_dependencies('/source/python', 2), prefix)
+            verifier.assert_called_once_with(prefix)
+            run.assert_not_called()
+            verifier.side_effect = ValueError('tampered dependency')
+            with self.assertRaisesRegex(ValueError, 'tampered dependency'):
+                start.native_dependencies('/source/python', 2)
+            run.assert_not_called()
+        self.assertFalse((self.root / 'runtime').exists())
+        self.assertFalse((self.root / 'build').exists())
+
+    def test_invalid_completed_dependency_prefix_is_preserved_without_rebuilding(self):
+        self.dependency_inputs()
+
+        def build(command, label, log):
+            destination = Path(command[command.index('--destination') + 1])
+            (destination / 'prefix').mkdir()
+            (destination / 'prefix/dependency-manifest.json').write_text('{}')
+
+        verifier = unittest.mock.Mock()
+        with patch.object(start, 'module', return_value=SimpleNamespace(verify=verifier)), \
+                patch.object(start, 'run', side_effect=build) as run, \
+                patch.dict(os.environ, {'STANDALONE_DEPENDENCY_PREFIX': ''}):
+            prefix = start.native_dependencies('/source/python', 2)
+            verifier.side_effect = ValueError('changed library')
+            with self.assertRaisesRegex(ValueError, 'changed library'):
+                start.native_dependencies('/source/python', 2)
+            self.assertEqual(run.call_count, 1)
+            self.assertTrue((prefix / 'dependency-manifest.json').exists())
+
+    def test_setup_passes_verified_source_prefix_to_wine_and_tracks_receipt(self):
+        prefix = self.root / 'verified dependencies/prefix'
+        recorded = []
+
+        class Steps:
+            def step(self, *args):
+                recorded.append(args)
+
+        bootstrap = SimpleNamespace(PROJECTS={'xodus': {'patches': ('account.patch',)}},
+                                    HELPER_INPUTS={'standalone-helper.rs': 'helper', 'standalone-xvd.rs': 'xvd'},
+                                    bootstrap=unittest.mock.Mock())
+        with patch.object(start, 'run') as run, patch.object(start, 'Steps', Steps), \
+                patch.object(start, 'module', return_value=bootstrap), \
+                patch.object(start, 'native_dependencies', return_value=prefix) as dependencies, \
+                patch.dict(os.environ, {'PATH': '/usr/bin:/bin'}):
+            start.setup(2, 'US')
+            self.assertTrue(os.environ['PATH'].startswith('/opt/homebrew/opt/python@3.13/libexec/bin:'))
+        dependencies.assert_called_once_with('/opt/homebrew/opt/python@3.13/bin/python3.13', 2)
+        self.assertEqual(recorded[0][0], 'wine')
+        wine_command = recorded[0][2][0]
+        self.assertEqual(wine_command[:2], ['/usr/bin/env', 'STANDALONE_DEPENDENCY_PREFIX=' + str(prefix)])
+        self.assertIn(str(prefix / 'dependency-manifest.json'), recorded[0][3])
+        helper_inputs = next(step[3] for step in recorded if step[0] == 'helper')
+        self.assertIn('standalone-xvd.rs', helper_inputs)
+        self.assertIn('patches/account.patch', helper_inputs)
+        self.assertEqual(run.call_args_list[0].args[0][-1], str(self.root / 'install-build-tools.sh'))
+
     def test_source_release_includes_start_and_console_authentication(self):
         source = Path(__file__).resolve().parents[1]
         with patch.object(start, 'ROOT', source):
@@ -146,6 +263,7 @@ class StartTests(unittest.TestCase):
         brew = brew_root / 'bin/brew'
         brew.write_text('''#!/bin/bash
 if [ "$1" = list ]; then exit 1; fi
+printf '%s\\n' "$@" > "$(dirname "$0")/../installed-formulae"
 mkdir -p "$(dirname "$0")/../opt/rustup/bin"
 printf '#!/bin/sh\\nexit 0\\n' > "$(dirname "$0")/../opt/rustup/bin/rustup"
 chmod +x "$(dirname "$0")/../opt/rustup/bin/rustup"
@@ -160,6 +278,11 @@ chmod +x "$(dirname "$0")/../opt/rustup/bin/rustup"
             text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((brew_root / 'opt/rustup/bin/rustup').is_file())
+        formulae = (brew_root / 'installed-formulae').read_text().splitlines()
+        self.assertIn('python@3.13', formulae)
+        self.assertIn('pkgconf', formulae)
+        self.assertNotIn('gnutls', formulae)
+        self.assertNotIn('freetype', formulae)
 
 
 if __name__ == '__main__':

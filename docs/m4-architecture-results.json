@@ -1,0 +1,864 @@
+{
+  "date": "2026-10-07",
+  "hardware": {
+    "model": "Mac16,11",
+    "chip": "Apple M4 Pro",
+    "performance_cores": 8,
+    "efficiency_cores": 4,
+    "memory_gib": 24,
+    "cache_line_bytes": 128,
+    "page_bytes": 16384,
+    "performance_cluster_l2_bytes": 16777216,
+    "efficiency_cluster_l2_bytes": 4194304
+  },
+  "normal_runtime_changed": false,
+  "foreground_game_speedup_established": false,
+  "baseline_cpu_ceiling": {
+    "measurement": "local baseline-a4.json (raw capture not exported)",
+    "sha256": "ab0bf25d17a1dbb22452bf0c428cc5d868797e13580504932292dce455c69763",
+    "valid": true,
+    "total_cpu_ms_per_displayed_frame": 50.125084791146016,
+    "groups_cpu_ms_per_displayed_frame": {
+      "streaming": 20.007440913959297,
+      "rendering": 12.618718314887541,
+      "dxmt_encode": 3.3115233845055334,
+      "main": 7.032350589075331,
+      "other": 5.619030346304893
+    },
+    "encoder_elimination_aggregate_cpu_ceiling_percent": 6.606519267355879,
+    "encoder_2x_aggregate_cpu_ceiling_percent": 3.3032596336779396,
+    "limitations": [
+      "Group CPU includes all functions on those threads; neither exclusive function timing nor elapsed critical-path time.",
+      "The encoder-only fraction bounds total CPU savings if no other group changes; it does not bound FPS improvement when encoder is critical.",
+      "Render/streaming groups cannot be claimed removable or transferable based on this grouping.",
+      "A native helper must include CPU cost from both processes plus transfer/completion work."
+    ]
+  },
+  "native_batch": {
+    "source_sha256": "6388cf607ad206734025612f7847363375029dbde970a5e7defd8601545cc7bb",
+    "compiler": "Apple clang version 17.0.0 (clang-1700.0.13.5)",
+    "verification": {
+      "kind": "verification",
+      "client_translated": 1,
+      "helper_translated": 0,
+      "fixtures": 64,
+      "boxes_per_fixture": 65536,
+      "match": true
+    },
+    "scope": "Synthetic retained AABBs, one semaphore request/reply per batch. Input extraction/marshalling, scene updates and GPU work excluded. The game's culling cost and eligible batch sizes are unmeasured. This is not game performance evidence.",
+    "sizes": [
+      {
+        "boxes": 0,
+        "trials": 11,
+        "rosetta_median_us": 0.001312,
+        "arm64_with_ipc_median_us": 7.081333,
+        "arm64_kernel_median_us": 0.017469000000000002,
+        "median_paired_percent_saved": null,
+        "remote_wins": 0
+      },
+      {
+        "boxes": 64,
+        "trials": 11,
+        "rosetta_median_us": 0.666708,
+        "arm64_with_ipc_median_us": 8.785125,
+        "arm64_kernel_median_us": 0.280774,
+        "median_paired_percent_saved": -1203.2910959520511,
+        "remote_wins": 0
+      },
+      {
+        "boxes": 256,
+        "trials": 11,
+        "rosetta_median_us": 2.7136880000000003,
+        "arm64_with_ipc_median_us": 6.969582999999999,
+        "arm64_kernel_median_us": 1.108807,
+        "median_paired_percent_saved": -155.41890246693893,
+        "remote_wins": 0
+      },
+      {
+        "boxes": 1024,
+        "trials": 11,
+        "rosetta_median_us": 10.963353999999999,
+        "arm64_with_ipc_median_us": 10.230896000000001,
+        "arm64_kernel_median_us": 4.32751,
+        "median_paired_percent_saved": 7.026551895311773,
+        "remote_wins": 11
+      },
+      {
+        "boxes": 4096,
+        "trials": 11,
+        "rosetta_median_us": 43.127521,
+        "arm64_with_ipc_median_us": 21.452475,
+        "arm64_kernel_median_us": 15.420359000000001,
+        "median_paired_percent_saved": 50.69650053467689,
+        "remote_wins": 11
+      },
+      {
+        "boxes": 16384,
+        "trials": 11,
+        "rosetta_median_us": 180.765625,
+        "arm64_with_ipc_median_us": 65.95442200000001,
+        "arm64_kernel_median_us": 59.371375,
+        "median_paired_percent_saved": 63.12521065234262,
+        "remote_wins": 11
+      },
+      {
+        "boxes": 65536,
+        "trials": 11,
+        "rosetta_median_us": 1100.59375,
+        "arm64_with_ipc_median_us": 421.135406,
+        "arm64_kernel_median_us": 413.16607799999997,
+        "median_paired_percent_saved": 59.71587303153327,
+        "remote_wins": 11
+      }
+    ],
+    "measurement_kind": "Elapsed wall time per sequential batch; not aggregate CPU consumption or FPS."
+  },
+  "native_batch_repeat_context": {
+    "earlier_source_owned_prototype_4096_rosetta_us": 43.586832,
+    "earlier_source_owned_prototype_4096_arm64_ipc_us": 21.305176,
+    "earlier_source_owned_prototype_1024_remote_wins": 11,
+    "durable_1024_remote_wins": 0,
+    "meaning": "The 1024-box break-even switched sign across runs. Batches of 4096 or more won all 11 pairs in each of three passes. No CPU core affinity was forced.",
+    "final_1024_remote_wins": 11
+  },
+  "execution": {
+    "game": "Owned isolated lab process suspended only during timing and resumed afterwards. Normal game/runtime unchanged.",
+    "native_benchmark": "Same strict-float C++ source compiled for x86_64 and arm64 with Apple Clang17. Actual execution modes checked using sysctl.proc_translated. The helper is persistent; output must match on all fixtures.",
+    "excluded": "No original game culling implementation was measured. No real-world batch size or culling share was established."
+  },
+  "architecture_direction": {
+    "candidate": "Retain unchanged chunk draw packets before game-side reconstruction, optionally replay through Metal indirect command buffers.",
+    "status": "Research only; no proven stable chunk identity, complete invalidation contract or game implementation.",
+    "constraints": [
+      "Game draw-state bytes mutate before cloning; pointer identity alone is not a valid cache key.",
+      "Moving only the measured DXMT encoder is limited to 6.61% aggregate baseline CPU before overhead; this is not an FPS ceiling.",
+      "Existing translated shaders require preserved instance IDs and argument bindings. GPU completion must precede reuse of frame-slot constants/resources.",
+      "Exact byte recurrence can establish potential eligibility only; it cannot prove mesh/resource lifetime or replay safety."
+    ]
+  },
+  "binding_records": {
+    "status": "Do not integrate padding or unconditional interning on this evidence.",
+    "record_bytes": 1044,
+    "original_stride": 1088,
+    "padded_stride": 1152,
+    "correctness_concurrent_submissions": 384000,
+    "clean_repeat": {
+      "parent_confirmed_game_suspended": true,
+      "exclusive_repeat": true,
+      "no_builds_performed": true,
+      "runs": [
+        {
+          "architecture": "native",
+          "start_utc": "2026-10-07T03:26:26.387900+00:00",
+          "end_utc": "2026-10-07T03:26:32.208010+00:00",
+          "returncode": 0
+        },
+        {
+          "architecture": "rosetta",
+          "start_utc": "2026-10-07T03:26:32.208938+00:00",
+          "end_utc": "2026-10-07T03:26:38.203473+00:00",
+          "returncode": 0
+        }
+      ]
+    },
+    "rosetta_seven_worker_padding_combined_median_percent_improvement": 0.33,
+    "rosetta_seven_worker_padding_combined_range_percent_improvement": [
+      -5.96,
+      4.14
+    ],
+    "rosetta_repeated_state_interning_combined_percent_improvement": [
+      14.57,
+      23.91
+    ],
+    "rosetta_interning_producer_median_percent_regression": 14.81,
+    "rosetta_unique_state_interning_combined_percent_regression": [
+      14.26,
+      18.41
+    ],
+    "limitations": [
+      "Source-owned synthetic records, not actual game binding distributions or consumers.",
+      "Combined time adds producer wall time and delayed full-byte consumer time; this is not aggregate CPU or FPS.",
+      "First pass was potentially contaminated by a concurrent correctness rebuild and excluded.",
+      "Interning pays hashing and full equality; a proven unchanged-state version could avoid both, but no such contract has been established."
+    ]
+  },
+  "constructor_recycling": {
+    "status": "Do not build or install a fused Wine adapter on this evidence.",
+    "correctness_constructor_comparisons": 15000,
+    "correctness_delayed_reads": 37962,
+    "measurements": {
+      "fusion-recycle-trials-corrected": {
+        "trials": 54,
+        "results": {
+          "1": {
+            "0": {
+              "allocation_copy_ns_per_call": 72.430664,
+              "retire_ns_per_call": 0.788954,
+              "mallocs": 1206,
+              "reuses": 0,
+              "retained_bytes": 0,
+              "paired_change_median": 0.0,
+              "faster_trials": 0
+            },
+            "1": {
+              "allocation_copy_ns_per_call": 70.289958,
+              "retire_ns_per_call": 0.440945,
+              "mallocs": 201,
+              "reuses": 1005,
+              "retained_bytes": 3306048,
+              "paired_change_median": -0.04680491970007972,
+              "faster_trials": 6
+            },
+            "2": {
+              "allocation_copy_ns_per_call": 59.267415,
+              "retire_ns_per_call": 0.453315,
+              "mallocs": 201,
+              "reuses": 1005,
+              "retained_bytes": 3306048,
+              "paired_change_median": -0.16977697372169764,
+              "faster_trials": 8
+            }
+          },
+          "7": {
+            "0": {
+              "allocation_copy_ns_per_call": 20.089774,
+              "retire_ns_per_call": 1.846234,
+              "mallocs": 8442,
+              "reuses": 0,
+              "retained_bytes": 0,
+              "paired_change_median": 0.0,
+              "faster_trials": 0
+            },
+            "1": {
+              "allocation_copy_ns_per_call": 19.877445,
+              "retire_ns_per_call": 1.231368,
+              "mallocs": 1407,
+              "reuses": 7035,
+              "retained_bytes": 23142336,
+              "paired_change_median": -0.020828985654825716,
+              "faster_trials": 6
+            },
+            "2": {
+              "allocation_copy_ns_per_call": 20.295147,
+              "retire_ns_per_call": 1.2341,
+              "mallocs": 1407,
+              "reuses": 7035,
+              "retained_bytes": 23142336,
+              "paired_change_median": -0.024983948808289025,
+              "faster_trials": 5
+            }
+          }
+        },
+        "source_file_sha256": "c5f2e1e0f18df7ee0b6289050f26445fcb3ee9c17b7e10a55b383738bf7a1871"
+      },
+      "fusion-tls-trials": {
+        "trials": 54,
+        "results": {
+          "1": {
+            "1": {
+              "allocation_copy_ns_per_call": 47.888889,
+              "retire_ns_per_call": 1.247911,
+              "mallocs": 201,
+              "reuses": 1005,
+              "retained_bytes": 3306048,
+              "paired_change_median": 0.0,
+              "faster_trials": 0
+            },
+            "2": {
+              "allocation_copy_ns_per_call": 42.043077,
+              "retire_ns_per_call": 0.531331,
+              "mallocs": 201,
+              "reuses": 1005,
+              "retained_bytes": 3306048,
+              "paired_change_median": -0.12994209830073156,
+              "faster_trials": 7
+            },
+            "3": {
+              "allocation_copy_ns_per_call": 46.638699,
+              "retire_ns_per_call": 0.500787,
+              "mallocs": 201,
+              "reuses": 1005,
+              "retained_bytes": 3306048,
+              "paired_change_median": 0.004437020871375985,
+              "faster_trials": 4
+            }
+          },
+          "7": {
+            "1": {
+              "allocation_copy_ns_per_call": 14.713673,
+              "retire_ns_per_call": 1.141094,
+              "mallocs": 1407,
+              "reuses": 7035,
+              "retained_bytes": 23142336,
+              "paired_change_median": 0.0,
+              "faster_trials": 0
+            },
+            "2": {
+              "allocation_copy_ns_per_call": 13.340712,
+              "retire_ns_per_call": 1.140458,
+              "mallocs": 1407,
+              "reuses": 7035,
+              "retained_bytes": 23142336,
+              "paired_change_median": -0.09451238289975106,
+              "faster_trials": 8
+            },
+            "3": {
+              "allocation_copy_ns_per_call": 13.63232,
+              "retire_ns_per_call": 1.178401,
+              "mallocs": 1407,
+              "reuses": 7035,
+              "retained_bytes": 23142336,
+              "paired_change_median": -0.08936747327035233,
+              "faster_trials": 7
+            }
+          }
+        },
+        "source_file_sha256": "179ee11944f0cc4a88a9c62fdc541b64f77953b114abaac4ec0f4b09768085a9"
+      }
+    },
+    "limitations": [
+      "Host allocation backend, not the Wine heap.",
+      "Original constructor extracted only from the locally owned hash-verified game into ignored build files. No game code is exported.",
+      "Initial callback-inlining-biased measurements excluded; corrected pass preserves Win64 calls and virtual dispatch.",
+      "The TLS comparison uses a private 10-byte byte-swap callback cheaper than the real indexed GS/TLS path; its raw values should not be compared directly with the preceding fixture.",
+      "Native C++ exception/termination semantics would need to be preserved before any game adapter.",
+      "The added memory retention and integration surface are not justified by a robust substantial parallel gain."
+    ]
+  },
+  "normal_runtime_reverified_after_experiments": {
+    "game": true,
+    "ntdll_dll": true,
+    "ntdll_so": true,
+    "d3d11_dll": true,
+    "winemetal_so": true
+  },
+  "native_batch_tuned_comparison": {
+    "source_sha256": "6388cf607ad206734025612f7847363375029dbde970a5e7defd8601545cc7bb",
+    "compiler": "Apple clang version 17.0.0 (clang-1700.0.13.5)",
+    "additional_target_flags": {
+      "x86_64": [
+        "-march=haswell"
+      ],
+      "arm64": [
+        "-mcpu=apple-m4"
+      ]
+    },
+    "verification": {
+      "kind": "verification",
+      "client_translated": 1,
+      "helper_translated": 0,
+      "fixtures": 64,
+      "boxes_per_fixture": 65536,
+      "match": true
+    },
+    "scope": "Synthetic retained AABBs, one semaphore request/reply per batch. Input extraction/marshalling, scene updates and GPU work excluded. The game's culling cost and eligible batch sizes are unmeasured. This is not game performance evidence.",
+    "sizes": [
+      {
+        "boxes": 0,
+        "trials": 11,
+        "rosetta_median_us": 0.001312,
+        "arm64_with_ipc_median_us": 7.884646,
+        "arm64_kernel_median_us": 0.016747,
+        "median_paired_percent_saved": null,
+        "remote_wins": 0
+      },
+      {
+        "boxes": 64,
+        "trials": 11,
+        "rosetta_median_us": 0.745625,
+        "arm64_with_ipc_median_us": 9.130334000000001,
+        "arm64_kernel_median_us": 0.280034,
+        "median_paired_percent_saved": -1124.5388349514562,
+        "remote_wins": 0
+      },
+      {
+        "boxes": 256,
+        "trials": 11,
+        "rosetta_median_us": 3.119875,
+        "arm64_with_ipc_median_us": 6.93125,
+        "arm64_kernel_median_us": 1.105761,
+        "median_paired_percent_saved": -121.62645477816115,
+        "remote_wins": 0
+      },
+      {
+        "boxes": 1024,
+        "trials": 11,
+        "rosetta_median_us": 12.577166,
+        "arm64_with_ipc_median_us": 10.216188,
+        "arm64_kernel_median_us": 4.323188,
+        "median_paired_percent_saved": 19.436145110390648,
+        "remote_wins": 11
+      },
+      {
+        "boxes": 4096,
+        "trials": 11,
+        "rosetta_median_us": 50.493246,
+        "arm64_with_ipc_median_us": 21.231120999999998,
+        "arm64_kernel_median_us": 15.361082,
+        "median_paired_percent_saved": 57.894762391525845,
+        "remote_wins": 11
+      },
+      {
+        "boxes": 16384,
+        "trials": 11,
+        "rosetta_median_us": 208.29492199999999,
+        "arm64_with_ipc_median_us": 68.901688,
+        "arm64_kernel_median_us": 62.446648,
+        "median_paired_percent_saved": 67.65575623432896,
+        "remote_wins": 11
+      },
+      {
+        "boxes": 65536,
+        "trials": 11,
+        "rosetta_median_us": 1001.188797,
+        "arm64_with_ipc_median_us": 508.538406,
+        "arm64_kernel_median_us": 500.71679700000004,
+        "median_paired_percent_saved": 52.698713620863224,
+        "remote_wins": 11
+      }
+    ],
+    "interpretation": "The AVX2 target did not improve this Rosetta kernel; native large-batch feasibility remains, but the best original x86 baseline should be used when reporting savings. Target flags alone are not a demonstrated optimization."
+  },
+  "clone_recurrence_observer": {
+    "status": "Validated in one bounded isolated copied-world capture; now disarmed. Normal runtime unchanged. Safe reuse and foreground performance remain unproven.",
+    "candidate_ntdll_sha256": "03099d288dbead22499f2392d95a2347802dbdf8a7de1cbb2d1c324cad1c4871",
+    "overlay_sha256": "c8f298df89caec65fad323a8f5af00dbc6385929de41642f5507541721630341",
+    "controller_source_sha256": "fe46c6478e4c49a405299598afb0eb20624a327cee87c1cb405873877105e77b",
+    "hook_validation": {
+      "portable_arm64_asan_ubsan": "passed constructor and worker exceptions, nesting, matching/mismatched frame token, return/arguments, perthread/site isolation, bounded cap",
+      "rosetta_x86_64_ms_abi_asan_ubsan": "passed args/return, nesting, matching/mismatched frame token, disarm/cap; no exception execution",
+      "production_win64_unwind": "all three constructor wrappers have unwind entries; worker has __C_specific_handler plus exception and terminate handlers",
+      "overlay_applies_cleanly": true,
+      "unsupported_test": "macOS C++ exception propagation through ms_abi frames aborted; replaced by actual Windows SEH test, see windows-results/results.json",
+      "gameplay_tested": true,
+      "actual_windows_seh": "passed constructor exception, worker exception before/after observation, normal nested context cleanup; exact production hook source with synthetic original functions",
+      "native_control_snapshot": "passed mapped-row status, stop and arm with coherent65536-call snapshot and expected exception counts",
+      "gameplay_scope": "User loaded the copied world; process world database verified open. Two of three selected callsites executed. Capture was occluded, not a controlled performance comparison."
+    },
+    "windows_tests": [
+      {
+        "case": "hook-seh",
+        "exit_code": 0
+      },
+      {
+        "case": "frame-adapter",
+        "exit_code": 0
+      },
+      {
+        "case": "observer-rejects-sentinel",
+        "exit_code": 123
+      },
+      {
+        "case": "wrong-game-rejected",
+        "exit_code": 123
+      }
+    ],
+    "existing_frame_slab_sentinel": {
+      "calls": 126182,
+      "hits": 105053,
+      "registered": 16,
+      "retired": 16,
+      "reserved_bytes_at_exit": 0,
+      "live_scopes_at_exit": 0
+    },
+    "bounds": {
+      "threads": 512,
+      "selected_callsites": 3,
+      "calls_per_thread": 65536,
+      "entries_per_thread_per_site": 32,
+      "payload_bytes": 2048,
+      "approximate_sample_probability": 0.015625
+    },
+    "review_fix": "Frame/scope clocks now require equality between returned clone token and active frame-lease token. Foreign tokens remain unknown.",
+    "limitations": [
+      "One bounded occluded-world recurrence capture; no foreground performance comparison.",
+      "Bounded sampled byte equality does not prove mesh/material identity, immutability or resource lifetime.",
+      "Low observed recurrence can be a sampling/cache-window false negative. Do not scale rates by64.",
+      "Rows are internally coherent, not a process-wide snapshot. Stop can leave255 observations unpublished per thread outside worker completion.",
+      "Windows exception tests use synthetic originals. The isolated game exercised two selected callsites; site 1 and actual game exception paths remain untested.",
+      "Post-exit frame mapping recorded 512 admitted thread slots and 511 overflow admissions. Bounded clone capture must not be treated as complete process coverage."
+    ],
+    "operational_state": "Session ended after user restarted Codex; observer disarmed and slabs OFF before exit. Desktop control subsequently recovered. Normal runtime unchanged.",
+    "live_capture": {
+      "date": "2026-10-07",
+      "duration_seconds": 20.2,
+      "summary_sha256": "7c83aa145658774d0670866eed8dacbe94e39df46b9c0668a0562a3a1f7e8dd4",
+      "capture_sha256": "0a493fd19d24107dda9cc32f2a6d12a0a0c5607b7ccde3bf1cbdee0bede6b615",
+      "totals": {
+        "calls": 592545,
+        "inside_worker": 592545,
+        "outside_worker": 0,
+        "abi_mismatch": 0,
+        "completed_workers": 11119,
+        "exceptions": 0
+      },
+      "sites": {
+        "0": {
+          "calls": 11119,
+          "bytes": 5870832,
+          "zero": 0,
+          "oversized": 0,
+          "invalid": 0,
+          "sampled": 189,
+          "comparisons": 155,
+          "exact_payload": 155,
+          "exact_metadata": 155,
+          "same_observed_token": 0,
+          "different_known_frames": 137,
+          "different_known_scopes": 137,
+          "exact_repeated_bytes": 81840,
+          "replacements": 155,
+          "comparison_misses": 0,
+          "clock_unknown": 0
+        },
+        "1": {
+          "calls": 0,
+          "bytes": 0,
+          "zero": 0,
+          "oversized": 0,
+          "invalid": 0,
+          "sampled": 0,
+          "comparisons": 0,
+          "exact_payload": 0,
+          "exact_metadata": 0,
+          "same_observed_token": 0,
+          "different_known_frames": 0,
+          "different_known_scopes": 0,
+          "exact_repeated_bytes": 0,
+          "replacements": 0,
+          "comparison_misses": 0,
+          "clock_unknown": 0
+        },
+        "2": {
+          "calls": 581426,
+          "bytes": 306992928,
+          "zero": 0,
+          "oversized": 0,
+          "invalid": 0,
+          "sampled": 8902,
+          "comparisons": 8862,
+          "exact_payload": 8862,
+          "exact_metadata": 8862,
+          "same_observed_token": 0,
+          "different_known_frames": 1823,
+          "different_known_scopes": 1823,
+          "exact_repeated_bytes": 4679136,
+          "replacements": 8862,
+          "comparison_misses": 0,
+          "clock_unknown": 0
+        }
+      },
+      "slab_after": {
+        "individual_atomic_snapshot": true,
+        "coherent_snapshot": false,
+        "requested_chunk_bytes": 0,
+        "applied_chunk_bytes": 0,
+        "frames_registered": 203,
+        "frames_retired": 203,
+        "reserved_bytes": 0,
+        "sum_pool_peak_bytes": 22112352,
+        "live_scopes": 0
+      },
+      "scope": "Bounded sampled clone recurrence; not an unbiased all-call reuse rate or FPS measurement.",
+      "performance_evidence": false,
+      "payload_bytes_at_observed_sites": 528,
+      "observed_callsite_indexes": [
+        0,
+        2
+      ],
+      "unobserved_callsite_indexes": [
+        1
+      ],
+      "foreground_comparison": "Preflight rejected earlier occluded streams. A later warmup held foreground focus but displayed about 10 frames/s; actual pause/idle state needs clarification. No comparison phases ran."
+    },
+    "post_exit_lifecycle": {
+      "applied_chunk_bytes": 0,
+      "capture_sha256": "368774334841f9b160c8f8ba773c8f806c4ffcc84ff966139aac107b1e6cecd1",
+      "complete_thread_coverage": false,
+      "decoded_after_exit": true,
+      "format": 1,
+      "frames": {
+        "closed": 203,
+        "frames_registered": 203,
+        "frames_retired": 203,
+        "frames_unregistered": 125319,
+        "quarantined": 0
+      },
+      "memory": {
+        "live_scopes": 0,
+        "maximum_reserved_bytes": 402653184,
+        "refills": 54434,
+        "reserved_bytes": 0,
+        "sum_pool_peak_bytes": 22112352
+      },
+      "overflow_threads": 511,
+      "registered_threads": 512,
+      "requested_chunk_bytes": 0,
+      "totals": {
+        "bytes": 873484640,
+        "calls": 703055847,
+        "exceptions": 0,
+        "fallbacks": 701401600,
+        "hits": 1654247,
+        "leased_tasks": 32683,
+        "tasks": 14230373
+      }
+    }
+  },
+  "updated_date": "2026-10-07",
+  "binding_recurrence_observer": {
+    "status": "Default-off; passed one bounded real-game capture in the private copied world. Site0 executed; site1/site2 did not. Session saved and exited normally; normal runtime unchanged.",
+    "candidate_sha256": "b811f1b4a7f44028294f40ea4839c0f07d9140c620ba1a8de88ecbf0f194a92a",
+    "overlay_sha256": "1305a3055f677a69eee558700c7a7896ed22bcd6e08c61b127cdee5954139e42",
+    "bounds": {
+      "threads": 512,
+      "calls_per_thread": 16384,
+      "shared_history_entries_per_thread": 32,
+      "record_bytes": 1044,
+      "selected_sites": 3
+    },
+    "method": "Observe each successful original copy once. Existing 32-bit hash filters candidates; equality compares all 1044 bytes. Three sites share thread-local history. Saved source addresses are compared as opaque values only.",
+    "validation": {
+      "game_launched": true,
+      "candidate_installed": true,
+      "candidate_dll_loaded": true,
+      "native_core_asan_ubsan": "PASS all-site shared history, exact consecutive/source counters,1044single-byte mutations, forced collisions, owned snapshots, LRU, bounds and16384cap",
+      "native_hook_asan_ubsan": "PASS native4096differential copies/tail canaries, all-site exception cleanup, nested worker exceptions, one-copy contract, disarm/cap and perthread isolation",
+      "rosetta_ms_abi_asan_ubsan": "PASS Rosetta Win64 args/return,4096differential copies and tail canaries, one-copy contract, nested context, disarm/cap and perthread isolation (exceptions deferred to Windows)",
+      "windows_results": {
+        "game_launched": false,
+        "candidate_installed": false,
+        "candidate_dll_loaded": false,
+        "synthetic_hooks_tested": true,
+        "runtime_ntdll_sha256": "03099d288dbead22499f2392d95a2347802dbdf8a7de1cbb2d1c324cad1c4871",
+        "sentinel_sha256": "f0201651c98fb655317891fa86fe1c106534968d5e10f69e0791a7befc5fabae",
+        "hook_source_sha256": "350a6b667dd091a34ec7af8e08697c1848164980959dc100b892bc1bf91f95d8",
+        "exit_code": 0,
+        "log": "passed=1 WindowsSEH=all3copy,nestedworker,beforecopy differential_copies=4096 tail_canaries=unchanged original_copy=exactlyonce bounded_calls=16384 native_calls=16393 mapping=shared\n",
+        "native_control_operations": [
+          "status",
+          "stop",
+          "arm"
+        ],
+        "clone_mapping_rejected": true,
+        "limits": "This synthetic PE test uses mock original copy/worker; subsequent real-game qualification is recorded separately."
+      },
+      "reproduction": "run-tests.py preserves the exact commands used; this report records completed individual commands without rerunning during the parent timing hold.",
+      "production_unwind_verified": true,
+      "overlay_applies_cleanly": true,
+      "loaded_region_count": 129,
+      "new_calls_and_thunk_guarded": true,
+      "pe_architecture": "x86_64",
+      "clone_dll_unchanged": true,
+      "source_equality_cases": "same bytes/different source does not count source equality; same bytes/same source does",
+      "source_hashes": {
+        "binding_core.h": "efea50aab7b58461c03afff11389e7c85eda1f9cd1f0ef17dd9d98f61d56d90f",
+        "binding_hooks.h": "350a6b667dd091a34ec7af8e08697c1848164980959dc100b892bc1bf91f95d8",
+        "test_core.c": "79d4164d69d1adc6cbb8e5606fd9adb611febebf5ecf457d949187f328465e7b",
+        "test_hooks.cpp": "3f4f19b51d8b9563446b11f10ebe36a60158099989548ac29e3e6de965851fc6",
+        "windows-sentinel.c": "9a3bce563b02213c5aa46ab03a1d2e0f4ac44b3e3a484663ea8be349d4f37288"
+      },
+      "installation_scope": "Private lab runtime only"
+    },
+    "loaded_dll_validation": {
+      "game_launched": false,
+      "candidate_loaded_in_private_synthetic_runtime": true,
+      "normal_or_lab_runtime_modified": false,
+      "dll_sha256": "b811f1b4a7f44028294f40ea4839c0f07d9140c620ba1a8de88ecbf0f194a92a",
+      "tests": [
+        {
+          "case": "binding-off-frame-sentinel",
+          "exit_code": 0,
+          "log": "frame-sentinel passed=1 calls=126182 hits=105053 bytes=25243504 fallbacks=21129 tasks=129 leases=108 exceptions=2 registered=16 retired=16 reserved=0 live=0\n[bedrock-frame-slab] enabled chunk=0 sites=6 verified_refmove=0 task_leases=1 max_reserved_mib=384\n"
+        },
+        {
+          "case": "binding-rejects-non-game",
+          "exit_code": 123,
+          "log": "[bedrock-frame-slab] REFUSED: invalid binding observer opt-in (expected0 or1; exact game only) applied=0; game entry will not run\n"
+        },
+        {
+          "case": "clone-binding-conflict",
+          "exit_code": 123,
+          "log": "[bedrock-frame-slab] REFUSED: binding observer requires clone observer off applied=0; game entry will not run\n"
+        },
+        {
+          "case": "wrong-game-image",
+          "exit_code": 123,
+          "log": "[bedrock-private-refmove] REFUSED: unsupported executable length; game entry will not run\n"
+        }
+      ],
+      "frame_totals": {
+        "calls": 126182,
+        "hits": 105053,
+        "bytes": 25243504,
+        "fallbacks": 21129,
+        "tasks": 129,
+        "leased_tasks": 108,
+        "exceptions": 2
+      },
+      "frames_registered": 16,
+      "frames_retired": 16,
+      "reserved_bytes": 0,
+      "live_scopes": 0,
+      "registered_threads": 127,
+      "overflow_threads": 0,
+      "limitations": "This section covers private synthetic runtime tests; subsequent real-game qualification is recorded separately."
+    },
+    "limitations": [
+      "One bounded capture of site0; site1/site2 remain unexecuted in real gameplay.",
+      "Content and source-address equality do not establish encoder identity, frame membership, resource lifetime or alias safety.",
+      "No admission overflow in this launch (188 registered threads), but call caps and publication windows still prevent an unbiased all-game repetition rate.",
+      "The armed observer adds substantial checking work and is unsuitable for performance measurement. No copy elimination is implemented."
+    ],
+    "live_capture": {
+      "date": "2026-10-07",
+      "session": "binding-world-1",
+      "game_sha256": "4a92bfa3ce2428b40ee517b7c1125d9f6f79274382de03846351992663b2e2e4",
+      "runtime_sha256": {
+        "x86_64-windows/ntdll.dll": "b811f1b4a7f44028294f40ea4839c0f07d9140c620ba1a8de88ecbf0f194a92a",
+        "x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+        "x86_64-unix/ntdll.so": "ef5c2ace1c39bfbd6fd40e7c81e8c73094199dffc227ec7781322ea62967203e",
+        "x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+      },
+      "capture_seconds": 9,
+      "all_published_threads_hit_call_cap_by_seconds": 3,
+      "summary": {
+        "totals": {
+          "calls": 147456,
+          "inside_worker": 0,
+          "outside_worker": 147456,
+          "completed_workers": 0,
+          "exceptions": 0
+        },
+        "sites": [
+          {
+            "calls": 147456,
+            "bytes": 153944064,
+            "valid": 147456,
+            "unexpected_size": 0,
+            "abi_mismatch": 0,
+            "history_exact": 145881,
+            "history_same_source": 145773,
+            "consecutive_exact": 145539,
+            "consecutive_same_source": 145501,
+            "consecutive_source_equal": 147380,
+            "hash_collisions": 0,
+            "history_misses": 1575,
+            "evictions": 1311,
+            "comparison_bytes": 152299764,
+            "reserved": 0,
+            "site": 0,
+            "run_max": 5760
+          },
+          {
+            "calls": 0,
+            "bytes": 0,
+            "valid": 0,
+            "unexpected_size": 0,
+            "abi_mismatch": 0,
+            "history_exact": 0,
+            "history_same_source": 0,
+            "consecutive_exact": 0,
+            "consecutive_same_source": 0,
+            "consecutive_source_equal": 0,
+            "hash_collisions": 0,
+            "history_misses": 0,
+            "evictions": 0,
+            "comparison_bytes": 0,
+            "reserved": 0,
+            "site": 1,
+            "run_max": 0
+          },
+          {
+            "calls": 0,
+            "bytes": 0,
+            "valid": 0,
+            "unexpected_size": 0,
+            "abi_mismatch": 0,
+            "history_exact": 0,
+            "history_same_source": 0,
+            "consecutive_exact": 0,
+            "consecutive_same_source": 0,
+            "consecutive_source_equal": 0,
+            "hash_collisions": 0,
+            "history_misses": 0,
+            "evictions": 0,
+            "comparison_bytes": 0,
+            "reserved": 0,
+            "site": 2,
+            "run_max": 0
+          }
+        ],
+        "published_threads": 9,
+        "armed": 0,
+        "scope": "Bounded all-call windows on admitted threads only; not an unbiased all-game reuse rate or proof of sharing safety."
+      },
+      "post_exit_lifecycle": {
+        "applied_chunk_bytes": 0,
+        "capture_sha256": "d75fa9013c57e035f90e85357ba30313bd3c9787545a8ff36b0d2eef81a8c57c",
+        "complete_thread_coverage": true,
+        "decoded_after_exit": true,
+        "format": 1,
+        "frames": {
+          "closed": 5890,
+          "frames_registered": 5890,
+          "frames_retired": 5890,
+          "frames_unregistered": 32558,
+          "quarantined": 0
+        },
+        "memory": {
+          "live_scopes": 0,
+          "maximum_reserved_bytes": 402653184,
+          "refills": 1923390,
+          "reserved_bytes": 0,
+          "sum_pool_peak_bytes": 26922240
+        },
+        "overflow_threads": 0,
+        "registered_threads": 188,
+        "requested_chunk_bytes": 0,
+        "totals": {
+          "bytes": 31052739680,
+          "calls": 297391908,
+          "exceptions": 0,
+          "fallbacks": 238580258,
+          "hits": 58811650,
+          "leased_tasks": 1177978,
+          "tasks": 5922585
+        }
+      },
+      "historical_exact_percent": 98.931884765625,
+      "consecutive_exact_percent": 98.699951171875,
+      "normal_exit_code": 0,
+      "game_control_mapping_created": true,
+      "executed_sites": [
+        0
+      ],
+      "note": "Binding copies occur outside the separately verified clone-worker context; all 147,456 observed copies were valid 1,044-byte calls with no ABI mismatch or exception. Nine published threads each exhausted their 16,384-call budget. The observer preserved every original copy."
+    }
+  },
+  "binding_alias_audit": {
+    "status": "Candidate design only; no copy elimination implemented.",
+    "scope": "Exact Direct3D 11 renderer only. All three producer paths and frame lifecycle must participate.",
+    "findings": [
+      "Audited D3D11 loops read binding values and copy independent descriptors/cache state; no record pointer equality, pointer hash, payload write or tail use identified.",
+      "Normal renderer completion precedes frame reuse; a complete adapter must cover exception/startup/destruction and epoch/incarnation boundaries.",
+      "Source clone mutation before copying does not prove destination mutation. Immediate site2 moves and two queue paths preserve payload bytes, but the complete queued interpretation edge remains unproved."
+    ],
+    "required_before_aliasing": [
+      "Complete lifecycle admission and guarded consumer resolution.",
+      "Measure equality-check and retained-record costs against the real distribution; bounded site0 recurrence is now established.",
+      "Differential behavior and foreground performance comparison."
+    ]
+  },
+  "foreground_cpu_reduction_in_experimental_frame_profile": true,
+  "foreground_game_speedup_definition": "This flag refers to demonstrated FPS improvement; aggregate CPU reductions are recorded separately.",
+  "normal_module_frame_slab_cpu_result": {
+    "observed_cpu_reduction_range_percent": [
+      12.78121527300563,
+      27.3567460577122
+    ],
+    "precise_causal_percentage_established": false,
+    "fps_gain_established": false,
+    "evidence": "render-redesign-results.json: normal_module_frame_slab_comparison"
+  }
+}

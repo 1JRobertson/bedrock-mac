@@ -39,7 +39,7 @@ GAMING_UNPACKED_SIZE = 198332601
 GAMING_SHA256 = 'f8d5f3ebe7339d9d65ebf4b4d68cb7a5281c0f944acafd613ccc68d7d908baed'
 THREADING_SHA256 = "aa611155057ebd01cf315ad702a4b5725aa9d5e6fad87732c956fe0a1e5fcfba"
 THREADING = ROOT / "runtime/xgameruntime.dll.threading"
-PATCHES = ("xodus-real-store-license.patch", "keychain-cache.patch", "unified-helper.patch", "standalone-signin-window.patch", "standalone-keychain-write.patch")
+PATCHES = ("xodus-real-store-license.patch", "keychain-cache.patch", "unified-helper.patch", "standalone-signin-window.patch", "standalone-keychain-write.patch", "standalone-account-transport.patch", "standalone-helper-dependencies.patch")
 
 
 def sha256(path):
@@ -96,6 +96,8 @@ def check(directory):
 
 
 def acquire_threading():
+    if THREADING.is_symlink():
+        raise RuntimeError("The threading DLL path is a symbolic link; it was preserved.")
     if THREADING.exists():
         if sha256(THREADING) != THREADING_SHA256:
             raise RuntimeError("The existing threading DLL differs from the pinned Microsoft file; it was preserved.")
@@ -225,6 +227,12 @@ def prepare_source():
         path = XODUS / relative
         if not path.is_file() or marker not in path.read_text():
             raise RuntimeError("The Xodus checkout is missing required patches. Prepare a fresh pinned source checkout.")
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("bedrock_bootstrap", ROOT / "bootstrap-sources.py")
+    bootstrap = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bootstrap)
+    bootstrap.copy_helper_inputs(XODUS, ROOT)
+    bootstrap.verify_project(XODUS, "xodus", bootstrap.PROJECTS["xodus"], ROOT)
     if sha256(XODUS / "Cargo.lock") != sha256(ROOT / "patches/Cargo.lock"):
         raise RuntimeError("The Xodus lockfile differs from the pinned dependency lockfile; it was preserved.")
 
@@ -237,15 +245,10 @@ def build_helper(jobs):
     if any(line.strip() == str(HELPER) or line.strip().endswith("/standalone_helper") for line in processes):
         raise RuntimeError("Close the standalone game and its account helper before rebuilding that helper.")
     prepare_source()
-    example = XODUS / "crates/xodus-cli/examples/standalone_helper.rs"
-    example.parent.mkdir(exist_ok=True)
-    source = (ROOT / "standalone-helper.rs").read_bytes()
-    if not example.is_file() or example.read_bytes() != source:
-        atomic_write(example, source)
     # Only this new example is built; the running bedrock_helper binary is untouched.
     env = dict(os.environ, XODUS_LOG="off", RUST_LOG="off")
     subprocess.run(["cargo", "+1.98.0", "build", "--manifest-path", str(XODUS / "Cargo.toml"),
-                    "--release", "--locked", "-j", str(jobs), "-p", "xodus-cli", "--example", "standalone_helper"],
+                    "--release", "--locked", "--no-default-features", "-j", str(jobs), "-p", "xodus-cli", "--example", "standalone_helper"],
                    cwd=ROOT, env=env, check=True)
     print("Built standalone account helper: " + str(HELPER))
 

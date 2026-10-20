@@ -7,14 +7,17 @@ require CrossOver or an Apple Developer membership.
 
 ## Prerequisites
 
-The documented build host is Apple Silicon. The currently tested complete bundle
-requires macOS 26. Swift/DXMT target macOS 15, but the minimum OS of the assembled
-app depends on every native binary, including Python and Wine dependencies.
+The documented build host is Apple Silicon. Swift/DXMT target macOS 15, but the
+minimum OS of an assembled app depends on every native binary, including Python
+and Wine dependencies. Local 0.3.0 RC4 has an inspected macOS 15.0 floor;
+the old macOS 26 statement does not apply to it. Inspect each later candidate
+independently. See [release readiness](RELEASE.md).
 
 Install Apple's Command Line Tools and Rosetta, Git, a Python 3.12+ interpreter
-for packaging, Rust/rustup, and Homebrew under `/opt/homebrew`. The source tools
-otherwise support Python 3.9+; CI exercises 3.12 and 3.14. Homebrew's LLVM,
-Bison, GnuTLS, FreeType, and Protocol Buffers are build dependencies. The scripts
+for dependency builds, source checks and packaging, Rust/rustup, and Homebrew
+under `/opt/homebrew`. CI exercises Python 3.12 and 3.14. Homebrew's LLVM,
+Bison, pkg-config and Protocol Buffers are build dependencies. GnuTLS and
+FreeType are built from pinned sources by the dependency builder. The scripts
 use their `/opt/homebrew/opt/...` paths; an Intel Homebrew installation is not a
 drop-in replacement.
 
@@ -29,7 +32,7 @@ With Homebrew and rustup already installed:
 
 ```sh
 xcode-select --install  # only if Command Line Tools are missing
-brew install llvm bison gnutls freetype protobuf
+brew install llvm bison pkgconf protobuf
 rustup toolchain install 1.98.0 --profile minimal
 ```
 
@@ -43,6 +46,7 @@ xcrun --find swiftc
 python3 --version
 rustup run 1.98.0 rustc --version
 protoc --version
+pkg-config --version
 /usr/bin/arch -x86_64 /usr/bin/true
 ```
 
@@ -63,7 +67,9 @@ Clone the repository into a directory you control, then run:
 git clone https://github.com/1JRobertson/bedrock-mac.git
 cd bedrock-mac
 python3 bootstrap-sources.py
-STANDALONE_JOBS=3 ./build-standalone-wine.sh
+python3 build-native-dependencies.py --destination "$PWD/build/native-dependencies" --jobs 3
+STANDALONE_DEPENDENCY_PREFIX="$PWD/build/native-dependencies/prefix" \
+  STANDALONE_JOBS=3 ./build-standalone-wine.sh
 ./build-standalone-graphics.sh --wine-runtime "$PWD/runtime/standalone/wine"
 python3 standalone-setup.py --build-helper --jobs 4
 python3 -m venv build/packaging-env
@@ -71,6 +77,11 @@ build/packaging-env/bin/python -m pip install -r packaging-requirements.txt
 python3 package-launcher.py
 python3 build-dmg.py
 ```
+
+Use Python 3.12+ throughout this recipe. The native dependency destination must
+be new or empty; the builder refuses to reuse compiled outputs. Its `prefix/`
+contains the libraries, matching headers, notices and verified receipt required
+by the Wine builder. It does not install dependencies into Homebrew or the system.
 
 Use a Python 3.12+ `python3` when creating `build/packaging-env`. If the venv
 already uses an older Python, preserve/move it and create a new one with the
@@ -80,7 +91,8 @@ existing venv.
 | Step | Result and behavior |
 | --- | --- |
 | Bootstrap | Fetches pinned WineGDK and Xodus into `sources/`, applies tracked patches and Cargo lockfile; refuses an existing destination |
-| Wine build | Compiles WineGDK in `build/standalone-wine`, installs to `runtime/standalone/wine`; downloads a pinned archive for portable dependency dylibs |
+| Native dependencies | Downloads hash-pinned source archives and builds an isolated x86-64 prefix with matching headers and a verified receipt |
+| Wine build | Compiles WineGDK in `build/standalone-wine`, installs to `runtime/standalone/wine`; requires `STANDALONE_DEPENDENCY_PREFIX` and copies its verified source-built dependencies |
 | Graphics staging | Downloads/verifies pinned DXMT, installs its Wine overlay, and records original DLL backups |
 | Helper build | Copies `standalone-helper.rs` into Xodus and builds its release example with the locked dependencies |
 | Package | Builds Swift/icon and frozen Python worker; copies runtime/helper, signs locally, records resource hashes and actual OS requirement |
@@ -97,9 +109,61 @@ components. Quit Minecraft normally and let its account helper finish first.
 The Wine and helper builders have active-process guards; still check which app
 copy and runtime you are testing.
 
+For a candidate assembled from reviewed isolated inputs, the packager accepts
+explicit runtime/helper and packaging-tool paths. Choose fresh output and work
+directories; the packager refuses existing ones:
+
+```sh
+python3 package-launcher.py \
+  --wine /path/to/reviewed/wine --dxmt /path/to/reviewed/dxmt \
+  --helper /path/to/reviewed/standalone_helper \
+  --pyinstaller /path/to/packaging-env/bin/pyinstaller \
+  --work-dir /path/to/new/package-work \
+  --output '/path/to/new/Bedrock for Mac.app' \
+  --version 0.1.0 --build-number 1
+```
+
+The version above is an example, not an announced release. Record the actual
+version, complete resource manifest, DMG checksum and whole-bundle minimum OS.
+These options do not qualify untested runtime profiles or authorize distribution.
+
 The optional memory-lifetime bridge can be built and validated following
 [the graphics notes](../standalone-graphics-notes.md) before packaging. Packaging
 retains and verifies its provenance; see [stability notes](STABILITY.md).
+
+## Reconstruct the selected release profile
+
+[build-release-runtime.py](../build-release-runtime.py) and
+[release-runtime-profile.json](../release-runtime-profile.json) pin the selected
+WineGDK/DXMT sources, local patches and tool versions. They target the same
+functional profile, not byte-identical binaries. The profile's validation/status
+fields describe the recipe's initial qualification state; dated observations
+live in [release readiness](RELEASE.md), and each new workspace needs its own
+build and validation record. **The October 7 v4 source replay passed ten build steps and two exact-bridge
+graphics validation steps.** RC4 packages that runtime. This establishes a
+recorded source build and graphics probes, not byte-identical reproducibility,
+gameplay, or successful fresh acquisition.
+
+Start with a read-only plan, then prepare a fresh workspace whose parent exists:
+
+```sh
+python3 build-release-runtime.py plan --workspace /absolute/new-build
+python3 build-release-runtime.py prepare --workspace /absolute/new-build
+```
+
+Before `build`, supply the profile's hash-verified LLVM-MinGW archive, a separate
+venv with its exact Meson/Ninja versions, and a source-built x86-64 dependency
+prefix with `dependency-manifest.json` and matching headers/libraries. The v4 replay used the audited source-built native dependency prefix;
+the driver refuses binary-only fallback. See `python3 build-release-runtime.py --help` for the
+explicit input, jobs and shared-lock options.
+
+The build records commands and logs without running a game or account probe.
+After Minecraft has exited normally, `validate` uses a private prefix to check
+the exact graphics bridge before staging it. Preserve the source inventory,
+notices, dependency receipt, `release-runtime-state.json`, build/graphics logs
+and component manifests. Package the workspace's explicit Wine/DXMT inputs
+with the separately rebuilt helper, then qualify that new artifact for gameplay,
+M1, updates and multiplayer. Graphics probes do not pass those gates.
 
 ## Iterate without losing a working build
 
@@ -116,10 +180,12 @@ python3 build-dmg.py --app 'build/iteration-2/Bedrock for Mac.app' \
   --output 'build/Bedrock for Mac-iteration-2.dmg'
 ```
 
-Choose a fresh suffix for each retained build. The packager rebuilds its
-intermediate `build/frozen`, `build/pyinstaller`, and development launcher, so
-do not run two packaging jobs concurrently. A packaged app copies its components;
-subsequent edits in the checkout do not update that app. Repackage to test them.
+Choose a fresh suffix for each retained build. Launcher, frozen worker and
+PyInstaller intermediates live in the isolated work directory, which defaults
+to `<output-parent>/<app-stem>-build`. Reusing that parent and stem also reuses
+the default work path; choose a fresh `--work-dir` if it already exists. Keep
+heavy builds serial during qualification. A packaged app copies its components;
+subsequent checkout edits do not update it. Repackage to test them.
 
 After a Wine rebuild, rerun graphics staging with `--wine-runtime`: Wine's
 installed D3D DLLs otherwise shadow DXMT. For helper source changes, use
@@ -176,6 +242,7 @@ See [STANDALONE-SETUP.md](../STANDALONE-SETUP.md),
 | --- | --- |
 | Bootstrap destination exists | Run `python3 bootstrap-sources.py --check`; preserve local changes before preparing a new source tree. Do not fetch a different branch into the pinned checkout to silence a mismatch. |
 | Cargo lock or source patch mismatch | Compare tracked patches, `patches/Cargo.lock`, and the pinned source check. Keep `--locked`; update provenance and checksums intentionally. |
+| Missing native dependency prefix | Build a fresh prefix with `build-native-dependencies.py`, then set `STANDALONE_DEPENDENCY_PREFIX` to its `prefix/` directory. Homebrew dylibs or a binary-only archive do not satisfy the receipt check. |
 | `protoc` missing | Check the `protobuf` installation and PATH, or the intended `PROTOC` executable. |
 | Wine configure/compile/install failure | Read `build/standalone-wine/configure.log`, `build.log`, or `install.log`; confirm the required Homebrew paths and Rust toolchain. |
 | DXMT mismatch after runtime rebuild | Reapply the graphics overlay with `--wine-runtime` before preparing/launching. |
@@ -186,3 +253,8 @@ See [STANDALONE-SETUP.md](../STANDALONE-SETUP.md),
 Validate the appropriate boundaries in [TESTING.md](TESTING.md), then update the
 [source inventory](PUBLISHING.md#update-the-source-inventory). A successful build
 is not evidence of a fresh-account download, gameplay, or a clean-Mac install.
+
+The launcher builder handles duplicate legacy `SwiftBridging` module maps in
+some Command Line Tools installations with a build-local VFS overlay. It does
+not edit the system toolchain. Keep the generated build logs when reporting a
+remaining Swift compile failure.

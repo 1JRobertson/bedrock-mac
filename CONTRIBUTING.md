@@ -39,20 +39,22 @@ Use [the testing guide](docs/TESTING.md) for which checks a change needs, exact
 artifact checks, CI scope, and the manual test matrix. Documentation-only work
 does not require rebuilding/replacing the live app.
 
-Account tests use fake backends and private temporary sockets. They never access
-your Microsoft account or Keychain. After preparing the Xodus sources, quit
-Minecraft and let its helper stop, copy/build the current standalone example, and
-run its credential-cache and URL-policy tests:
+Default account tests use fake backends and private temporary sockets, without
+accessing your Microsoft account or Keychain. After preparing the Xodus sources,
+quit Minecraft and let its helper stop, then build/test the current minimal
+helper. Bootstrap supplies the helper, XVD module and pinned public key:
 
 ```sh
 python3 standalone-setup.py --build-helper
-cargo +1.98.0 test --release --locked --manifest-path sources/xodus/Cargo.toml \
-  -p xodus-cli --example standalone_helper
+cargo +1.98.0 test --release --locked --no-default-features \
+  --manifest-path sources/xodus/Cargo.toml -p xodus-cli --example standalone_helper
 ```
 
 The ignored native Keychain fixture is opt-in. It creates and removes only its
 own random test entry. It does not establish how many prompts a user's existing
-account will show. Do not automate clicks on security dialogs.
+account will show. Select live account/package fixtures deliberately, following
+[the opt-in test boundaries](docs/TESTING.md#native-app-and-helper); never add
+`--include-ignored` to routine checks. Do not automate security-dialog clicks.
 
 After building the standalone runtime, `bash tests/run-xuser-tests.sh` runs the
 68 account-claim, Realms-routing, and token-refresh checks. Live game, Keychain, fresh-account,
@@ -60,8 +62,8 @@ and clean-Mac testing are separate from these offline checks.
 
 ## Bug reports
 
-Include macOS version, Mac chip, app/source version, the last setup stage, and
-what you expected. State whether this is a fresh install, retry, or app update.
+Include macOS version, Mac model/chip/memory, app/source version (and DMG hash
+when available), Minecraft version, the last setup stage, and what you expected. State whether this is a fresh install, retry, or app update.
 Use the GitHub issue template. Do not post account tokens, passwords, signed
 URLs, email addresses, entire Keychain exports, or full unreviewed logs.
 

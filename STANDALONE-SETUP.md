@@ -76,7 +76,18 @@ These constants were extracted from the full archive after validating its pinned
 
 The helper uses Xodus commit `0670e25aeb0e0e9f800f8f2f4968ae3b681842a7` with the source patches and dependency lockfile in `patches/`. The game download uses Microsoft's package metadata and owner license, downloads into a private temporary directory, checks paths and file sizes, prepares encrypted executables using that license, and promotes the directory only after preparation succeeds.
 
-The account/catalog/license client requires HTTPS. Game bytes use a separate client without account headers or cookies, preserving the URL supplied by the authenticated catalog. HTTP is accepted only for `assets1.xboxlive.com` and `assets2.xboxlive.com` on port 80, including redirects. Those Microsoft CDN names do not currently provide matching HTTPS certificates; rewriting their scheme causes setup to fail. TLS certificate validation remains enabled for HTTPS URLs. The package parser's existing segment checks do not provide complete verification of every unencrypted package section.
+The account/catalog/license client requires certificate-verified HTTPS and does
+not follow redirects. Game bytes use a separate client without account headers,
+cookies or redirects. Only catalog-selected `assets1.xboxlive.com` and
+`assets2.xboxlive.com` HTTP origins on port 80 are accepted, without URL
+credentials, queries or fragments. HTTPS uses normal certificate and hostname
+validation. HTTP package bytes enter private quarantine: a pinned production
+public key authenticates the fixed header before layout parsing, catalog
+identity/version/size must agree, and the full hash tree and payload pages must
+verify before parsing or extraction. The verified local reader checks page
+proofs on subsequent reads and excludes unsigned regions. See
+[the verification boundaries](SECURITY.md) and
+[public-key provenance](LICENSES/XVD-PUBLIC-KEY-PROVENANCE.txt).
 
 Verified locally: owner-account download and preparation on the development Mac, Microsoft sign-in through Minecraft’s welcome confirmation, helper compilation, offline installation checks, nested Microsoft DLL extraction, path traversal rejection, preservation of conflicting DLLs and symlinks, and refusal to access a second account session while the existing Xbox helper is running. A completely fresh account on a clean Mac has not yet been tested. Wine, graphics, prefix installation, and gameplay validation are handled separately from this setup script.
 

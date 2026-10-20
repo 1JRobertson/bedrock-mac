@@ -2,6 +2,7 @@
 """Fetch pinned upstream source trees and apply the reviewed local patches."""
 
 import argparse
+import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
@@ -15,7 +16,7 @@ PROJECTS = {
     "xodus": {
         "url": "https://github.com/xodus-gaming/xodus.git",
         "commit": "0670e25aeb0e0e9f800f8f2f4968ae3b681842a7",
-        "patches": ("xodus-real-store-license.patch", "keychain-cache.patch", "unified-helper.patch", "standalone-signin-window.patch", "standalone-keychain-write.patch"),
+        "patches": ("xodus-real-store-license.patch", "keychain-cache.patch", "unified-helper.patch", "standalone-signin-window.patch", "standalone-keychain-write.patch", "standalone-account-transport.patch", "standalone-helper-dependencies.patch"),
     },
     "winegdk": {
         "url": "https://github.com/Sightem/WineGDK.git",
@@ -28,6 +29,42 @@ PROJECTS = {
         "patches": (),
     },
 }
+
+
+HELPER_INPUTS = {
+    "standalone-helper.rs": "crates/xodus-cli/examples/standalone_helper.rs",
+    "standalone-xvd.rs": "crates/xodus-cli/examples/standalone_xvd.rs",
+    "LICENSES/XVD-GreenGamesPublicKey.rsa": "crates/xodus-cli/examples/standalone_xvd_key.rsa",
+}
+
+
+def copy_helper_inputs(root, source_root=ROOT):
+    """Copy the three project-owned build inputs without following source/destination links."""
+    pairs = [(source_root / source, root / destination) for source, destination in HELPER_INPUTS.items()]
+    for source, target in pairs:
+        for path, boundary in ((source, source_root), (target, root)):
+            while True:
+                if path.is_symlink():
+                    raise ValueError("Symlink helper source input: " + str(path))
+                if path == boundary:
+                    break
+                path = path.parent
+        if not source.is_file():
+            raise ValueError("Missing helper source input: " + str(source))
+    for source, target in pairs:
+        data = source.read_bytes()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.is_file() and target.read_bytes() == data:
+            continue
+        fd, temporary = tempfile.mkstemp(prefix=".helper-source-", dir=target.parent)
+        try:
+            with os.fdopen(fd, "wb") as output:
+                output.write(data)
+            os.chmod(temporary, 0o644)
+            os.replace(temporary, target)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
 
 
 def run(*args, cwd=None, capture=False):
@@ -57,6 +94,7 @@ def apply_project(root, name, project, source_root=ROOT):
         run("git", "apply", str(file), cwd=root)
     if name == "xodus":
         shutil.copyfile(source_root / "patches/Cargo.lock", root / "Cargo.lock")
+        copy_helper_inputs(root, source_root)
 
 
 def bootstrap(destination, names, source_root=ROOT):
@@ -91,7 +129,7 @@ def bootstrap(destination, names, source_root=ROOT):
 
 
 def verify_project(repository, name, project, source_root=ROOT):
-    """Replay patches in a tiny temporary tree; never modify an installed checkout."""
+    """Replay patches without mutation; Xodus additionally checks every source input."""
     repository = Path(repository)
     if repository.is_symlink():
         raise ValueError("Refusing a symlink source checkout")
@@ -106,18 +144,34 @@ def verify_project(repository, name, project, source_root=ROOT):
         if entry:
             metadata, path = entry.split("\t", 1)
             tracked[path] = metadata.split()[0]
+    if name == "xodus":
+        # Cargo can compile unpatched modules and auto-discover build.rs files.
+        # Marker strings or only checking patched files is not a source boundary.
+        paths = sorted(set(paths) | set(tracked))
+        expected = set(paths) | {"Cargo.lock"} | set(HELPER_INPUTS.values())
+        for directory, directories, files in os.walk(repository):
+            relative = Path(directory).relative_to(repository)
+            if relative == Path("."):
+                directories[:] = [item for item in directories if item not in (".git", "target")]
+            for item in [*directories, *files]:
+                target = Path(directory) / item
+                path = target.relative_to(repository).as_posix()
+                if target.is_symlink() or (target.is_file() and path not in expected):
+                    raise ValueError("Unexpected Xodus source input: " + path)
     with tempfile.TemporaryDirectory(prefix="bedrock-source-check-") as temp:
         prepared = Path(temp)
         for path in paths:
             if path in tracked:
                 target = prepared / path
                 target.parent.mkdir(parents=True, exist_ok=True)
+                if tracked[path] not in ("100644", "100755"):
+                    raise ValueError("Unsupported pinned source type: " + path)
                 target.write_bytes(run("git", "show", project["commit"] + ":" + path,
                                        cwd=repository, capture=True))
                 target.chmod(0o755 if tracked[path] == "100755" else 0o644)
         apply_project(prepared, name, project, source_root)
         if name == "xodus":
-            paths.append("Cargo.lock")
+            paths = sorted(set(paths) | {"Cargo.lock"} | set(HELPER_INPUTS.values()))
         for path in paths:
             target = repository / path
             if target.is_symlink() or not target.is_file():

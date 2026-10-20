@@ -92,6 +92,36 @@ class ExportTests(unittest.TestCase):
         export.export_sources(self.source, self.destination, ("launcher.sh",))
         self.assertEqual((self.destination / "launcher.sh").stat().st_mode & 0o777, 0o755)
 
+    def test_pinned_public_key_exports_exact_bytes_without_executable_mode(self):
+        name = "LICENSES/XVD-GreenGamesPublicKey.rsa"
+        content = (Path(__file__).resolve().parents[1] / name).read_bytes()
+        target = self.source / name
+        target.parent.mkdir()
+        target.write_bytes(content)
+        target.chmod(0o755)
+        export.export_sources(self.source, self.destination, (name,))
+        self.assertEqual((self.destination / name).read_bytes(), content)
+        self.assertEqual((self.destination / name).stat().st_mode & 0o777, 0o644)
+
+    def test_public_key_replacements_fail_before_any_export(self):
+        name = "LICENSES/XVD-GreenGamesPublicKey.rsa"
+        content = (Path(__file__).resolve().parents[1] / name).read_bytes()
+        target = self.source / name
+        target.parent.mkdir()
+        for replacement in (content[:-1], content + b"x",
+                            bytes([content[0] ^ 1]) + content[1:], b"text replacement"):
+            with self.subTest(size=len(replacement)):
+                target.write_bytes(replacement)
+                with self.assertRaisesRegex(ValueError, "changed public binary"):
+                    export.export_sources(self.source, self.destination, (name,))
+                self.assertFalse(self.destination.exists())
+
+    def test_public_key_does_not_allow_binary_at_another_path(self):
+        content = (Path(__file__).resolve().parents[1] / "LICENSES/XVD-GreenGamesPublicKey.rsa").read_bytes()
+        (self.source / "README.md").write_bytes(content)
+        with self.assertRaisesRegex(ValueError, "non-text|binary"):
+            export.collect_sources(self.source, ("README.md",))
+
     def test_real_allowlist_has_no_private_entries_or_duplicates(self):
         self.assertEqual(len(export.ALLOWED_FILES), len(set(export.ALLOWED_FILES)))
         for name in export.ALLOWED_FILES:

@@ -1,5 +1,8 @@
 # Using Bedrock for Mac
 
+**Local RC4 is a test candidate.** Native first-run, update, gameplay and clean-M1
+qualification remain open in the [release record](RELEASE.md).
+
 This is an open-source preview. There is no public notarized installer yet.
 The steps below describe a complete local app built from this repository;
 GitHub's **Download ZIP** contains source, not an installable app. Developers can
@@ -8,8 +11,9 @@ follow [the build guide](DEVELOPMENT.md).
 ## Before you start
 
 - An Apple Silicon Mac. Intel Macs are not supported by the current launcher.
-- macOS 26 or newer for the current local bundle. A component targeting an
-  older OS does not mean the whole app can run there.
+- macOS **15.0 or later** for local 0.3.0 RC4 (build 6), based on the complete
+  binary audit. Gameplay qualification remains pending; see
+  [compatibility](COMPATIBILITY.md). Check the manifest again for later builds.
 - Rosetta, which runs the Intel-based Wine and graphics components. Follow
   [Apple's Rosetta instructions](https://support.apple.com/en-us/102527).
 - An internet connection and a Microsoft account that owns **Minecraft for
@@ -34,11 +38,13 @@ developers can select a different two-letter market through the CLI.
 5. If Minecraft shows its welcome screen, select **Sign in now** to use the
    Microsoft session. Confirm your expected gamertag in the game.
 
-Later launches show **Play**. Quit Minecraft normally to finish the session.
+Later launches show **Play**. After an app/runtime change, **Finish setup** with
+**Continue** means the existing game needs preparation; it is not a request to
+buy or download the game again. Quit Minecraft normally to finish the session.
 You can close the launcher window while playing; the launcher keeps its account
 service running until Minecraft exits. Reopen the app to return to its window.
 
-**Cancel** pauses setup and keeps completed game installation steps and worlds.
+**Cancel** stops the current setup attempt and keeps completed installation steps and worlds.
 Choose **Continue** to retry. An interrupted game-file download restarts; it is
 not a resumable transfer. Avoid starting multiple copies of the app.
 
@@ -58,7 +64,8 @@ Only choose it when you recognize and trust the app. See
 The password requested by macOS unlocks your Keychain; it is not your Microsoft
 password. Never share it in a bug report or with an automated agent.
 
-A repeat launch of the unchanged, authorized build was confirmed prompt-free.
+On October 2, a repeat launch of the unchanged, authorized development build
+was confirmed prompt-free.
 Changing the helper's ad-hoc signature can request authorization again. A
 promise of zero prompts after every update would be inaccurate.
 
@@ -79,7 +86,8 @@ proves a successful online session. See [the current evidence](RELEASE.md).
 
 ## Your files, backups, and updates
 
-In Finder, choose **Go → Go to Folder…** and enter:
+Choose **Help → Open Game Data**. Alternatively, in Finder choose
+**Go → Go to Folder…** and enter:
 
 ```text
 ~/Library/Application Support/Bedrock for Mac/
@@ -92,6 +100,7 @@ In Finder, choose **Go → Go to Folder…** and enter:
 | `logs/standalone` | Setup, account, prefix, and game diagnostics |
 | `runtime`, `sources` | Runtime links, helper link, and session records |
 | `downloads` | Locally acquired component downloads, if present |
+| `game-backups` | Previous game/prefix copies retained by completed manual game updates |
 
 Worlds are inside the prefix's `drive_c/users/<wine-user>/AppData/Roaming/Minecraft Bedrock/`
 tree, under the account's `games/com.mojang/minecraftWorlds` directory. The Wine
@@ -120,6 +129,30 @@ the update works; a game or prefix changed by a newer version may need its
 matching backup when rolling back. Existing game files are reused, so replacing
 the app does not itself download a new Minecraft version.
 
+To update Minecraft itself, quit the game and choose **Bedrock for Mac →
+Update Minecraft…**, then confirm. The current source downloads the latest
+version available to your Microsoft account into a separate folder, keeps a
+copy of your prefix plus the previous game, and prepares the new version. It
+returns to **Play** when finished. This needs at least 8 GB free **plus** room
+for a copy of your worlds/settings. It is a manual action, not an automatic update.
+
+Successful updates keep `previous-game` and `previous-prefix` under a unique
+`game-backups/minecraft-…` folder. Keep these private and retain them until you
+have verified your worlds. They supplement your independent backup. The recovery
+path restores the prior installation if activation/preparation fails or is
+cancelled. Recovery also retains displaced newer files in `game-backups`;
+check both versions before deciding which world to keep. After an interrupted
+update, choose **Continue** to recover before trying again. If recovery reports conflicting files, preserve everything and
+report the error; do not delete the transaction or prefix. Live game-update and
+recovery validation remain release gates. If an interrupted Wine setup still
+owns the prefix, wait for it to exit or restart the Mac normally; the app refuses
+to kill an ambiguous process to force recovery.
+
+If multiplayer reports a version mismatch, compare Minecraft versions on both
+devices and use this game-update action when appropriate. Replacing only the
+launcher does not update an existing game. A newer game can change world data;
+do not downgrade your only copy of a world or assume an old game can read it.
+
 To uninstall the app while retaining saves, close both programs and move the
 application to Trash. Its data directory and Keychain item remain. To reclaim
 game storage, first back up worlds, then deliberately remove only the data you
@@ -136,7 +169,7 @@ to clear its saved user session. No automatic CrossOver world migration exists.
 | Keychain prompt on every launch | Check whether you chose **Allow** instead of **Always Allow**, or rebuilt/replaced the helper. Report prompts from an unchanged build separately. |
 | Purchase or content-license error | Verify the signed-in account owns Minecraft for Windows. Sign out and switch accounts if needed. |
 | Game/component connection error | Check connectivity, then retry. Report the exact stage if it persists; a successful Microsoft login does not prove the download service is reachable. |
-| Incomplete existing game | Close the app, preserve `game` as a separately named folder in the data directory, then retry. Never remove `bottles` to fix a download. |
+| Incomplete existing game | Close Minecraft and choose **Update Minecraft…** to repair using a fresh owned-game download. Keep worlds and backups; never remove `bottles` to repair a download. |
 | Another setup/helper is running | Return to the active launcher, finish or cancel setup, or quit Minecraft normally. Do not delete `/tmp/xodus.sock` or kill every Wine process. If the conflict persists after a normal restart, report it. |
 | Minecraft exits or shows a blank window | Keep your saves. Record the game version and whether the failure followed a runtime/app update; include a short reviewed error excerpt. |
 

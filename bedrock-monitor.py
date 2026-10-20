@@ -12,9 +12,11 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
-ROOT = Path(__file__).resolve().parent
+SCRIPTS = Path(__file__).resolve().parent
+ROOT = Path(os.environ.get('BEDROCK_HOME', SCRIPTS))
 DATA = ROOT / 'logs/standalone/monitor'
 WINE = ROOT / 'runtime/standalone/wine'
 LATEST = DATA / 'latest.json'
@@ -33,23 +35,32 @@ def stamp():
 
 
 def atomic_json(path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + '.' + str(os.getpid()) + '.tmp')
-    temporary.write_text(json.dumps(data, indent=2) + '\n')
-    temporary.chmod(0o600)
-    os.replace(temporary, path)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # The temporary file must be private before writing, not only before rename.
+    with tempfile.NamedTemporaryFile(mode='w', dir=path.parent,
+                                     prefix=path.name + '.', suffix='.tmp', delete=False) as output:
+        temporary = Path(output.name)
+        try:
+            output.write(json.dumps(data, indent=2) + '\n')
+            output.flush()
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 def read_json(path):
     try:
-        return json.loads(path.read_text())
+        value = json.loads(path.read_text())
+        return value if isinstance(value, dict) else {}
     except (OSError, ValueError):
         return {}
 
 
 def append_json(path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open('a') as output:
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, 'a') as output:
+        os.fchmod(output.fileno(), 0o600)
         fcntl.flock(output, fcntl.LOCK_EX)
         output.write(json.dumps(data) + '\n')
 
@@ -92,8 +103,11 @@ def owned_game(pid):
     # Windows process names alone do not distinguish this build from CrossOver.
     try:
         files = command(['/usr/sbin/lsof', '-a', '-p', str(pid), '-d', 'txt', '-Fn'])
-        return any(line.startswith('n' + str(WINE) + '/') for line in files.splitlines())
-    except (OSError, subprocess.SubprocessError):
+        # Packaged runtime links point into the app; lsof reports mapped targets.
+        runtime = WINE.resolve()
+        return any(line.startswith('n/') and runtime in Path(line[1:]).resolve().parents
+                   for line in files.splitlines())
+    except (OSError, RuntimeError, subprocess.SubprocessError):
         return False
 
 
@@ -205,7 +219,8 @@ def crash_reports(pid, since):
 
 def capture(reason, games):
     directory = DATA / 'incidents' / stamp()
-    directory.mkdir(parents=True, exist_ok=False)
+    # Raw local stack reports can contain paths. Keep the whole incident private.
+    directory.mkdir(mode=0o700, parents=True, exist_ok=False)
     result = dict(time=now(), reason=reason, processes=games,
                   game_log=latest_game_log(), system=system_memory(), diagnostics=[])
     for game in games:
@@ -405,7 +420,7 @@ def main():
         start()
         forwarded = args.details[1:] if args.details[:1] == ['--'] else args.details
         started = event('launch-requested', 'Starting the regular standalone launcher.')
-        code = subprocess.call([sys.executable, str(ROOT / 'standalone.py'), 'launch', *forwarded], cwd=ROOT)
+        code = subprocess.call([sys.executable, str(SCRIPTS / 'standalone.py'), 'launch', *forwarded], cwd=ROOT)
         event('launcher-exited', 'Standalone launcher exited.', exit_code=code, launch_id=started['id'])
         if code:
             incident = capture('Standalone launcher exited with an error.', [])

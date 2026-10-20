@@ -27,16 +27,56 @@ signed download URL. Review logs before sharing excerpts.
   before anyone shares it. No automatic bug-report upload is implemented.
 - The helper checks the owner's Microsoft license for downloading and launching.
   A copied game directory does not establish ownership.
-- Account/catalog/license requests use certificate-verified HTTPS. Game downloads
-  use a separate client without account headers or cookies. It permits HTTP for
-  `assets1.xboxlive.com` and `assets2.xboxlive.com` on port 80 because the catalog
-  supplies those origins. **Some unencrypted package sections are not fully
-  authenticated.** A network attacker could tamper with unauthenticated bytes;
-  a hostname allowlist and matching length do not prevent that. Complete package
-  integrity is required before publishing a binary preview.
-- Downloads use private staging directories, validated relative paths, file-size
-  checks, and promotion after preparation. These filesystem checks do not close
-  the network integrity gap above.
+- Account/catalog/license requests use certificate-verified HTTPS and do not
+  follow redirects. The Xbox service uses the same transport restrictions.
+- The current source uses a separate package client with no account headers,
+  cookies, Referer or redirects. Only catalog-provided `assets1.xboxlive.com`
+  and `assets2.xboxlive.com` HTTP origins on port 80 are accepted, without query
+  strings, credentials or fragments. HTTPS on those hosts and
+  `dlassets-ssl.xboxlive.com` uses normal certificate and hostname validation.
+  HTTP bytes are untrusted and enter an exclusive mode-0600 quarantine file.
+- Before interpreting header-controlled offsets, the helper verifies the fixed
+  4096-byte header with the pinned production GreenGames RSA-4096 public key
+  (PSS, SHA-256, MGF1-SHA-256, 32-byte salt). It then checks the signed static
+  layout, catalog size and version. DisplayCatalog, PackageDetails, the selected
+  file and the signed header must agree on the content UUID before licensing.
+  The signed content ID supports the normal
+  Microsoft ownership check before polling further bulk download data.
+- Before the existing XVD parser or extraction runs, the complete quarantine
+  must pass signature, every hash-tree page, every stored data page and exact
+  signed package-full-name checks against the authenticated catalog. The final
+  header must match the header used for ownership. Parsing and extraction use
+  independently positioned readers of that verified local file; each read
+  rechecks its page proof. Unauthenticated padding/mutable areas return zeros.
+  No per-file network fetch is used. Hash entries retain the XVD format's
+  192-bit internal and 160/192-bit leaf digest widths.
+- The integrated helper
+  passes 36 default fixture tests and an isolated optimized build. Five explicit
+  signed-header cases also prove rejection/cleanup on wrong catalog identity,
+  denied ownership, EOF, stream error and cancellation. The cached package's
+  signed header, 2,975 tree pages and 589 metadata pages also pass isolated checks.
+  A fresh owned-package download then passed the current account-catalog UUID
+  and version binding, real ownership, complete signature/hash verification,
+  extraction and licensed executable preparation in isolated private output.
+  This checked 2,975 tree pages and all 502,386 data pages. No game/runtime was
+  replaced. Packaged integration, launch of this newly acquired copy, update
+  acceptance and clean-Mac distribution checks remain separate release gates. RC3 still contains
+  the older helper whose rewritten HTTPS package requests returned HTTP404;
+  a successful two-byte routing probe did not establish package availability.
+- Public-key provenance is recorded in
+  [LICENSES/XVD-PUBLIC-KEY-PROVENANCE.txt](LICENSES/XVD-PUBLIC-KEY-PROVENANCE.txt).
+  The retained Microsoft DLL's signed public-key region, Authenticode digest,
+  PKCS#7 signature and current chain/CRLs were checked independently. This does
+  not claim complete Windows Authenticode policy or timestamp validation.
+- Downloads use mode-0700 temporary staging, validated relative paths, exclusive
+  file creation, file-size checks and atomic no-replace promotion after preparation.
+  Traversal, colon paths, empty/dot components, trailing dots/spaces and reserved
+  staging names are rejected. The Microsoft threading component separately requires exact pinned
+  SHA-256 values for both downloaded compressed bytes and the final DLL.
+- Launcher-owned helpers can require a private parent-written session receipt
+  before accessing credentials. They monitor the actual parent process and stop
+  themselves if it dies, including during sign-in. Forced termination may leave
+  private staging and a stale receipt/socket for recognized recovery.
 - The Xbox service uses a user-owned mode-0600 Unix socket and process/lock checks.
   This is not a sandbox against other software already running as the same user.
 - Current app builds use ad-hoc signatures. Source/resource checksums detect

@@ -1,130 +1,73 @@
 # Bedrock for Mac
 
-Play your owned Windows edition of Minecraft Bedrock on an Apple Silicon Mac.
-Built with WineGDK, DXMT, and Xodus. No CrossOver subscription.
+**Source preview; no public installer yet.** Local RC4 includes the helper that
+passed verified acquisition outside the app. Native first-run, update, gameplay
+and clean-M1 qualification remain open in the [release record](docs/RELEASE.md).
 
-**Open-source preview.** The native app works on the development Mac; a public,
-notarized app is not available yet. This repository contains the source and build
-scripts. See [release readiness](docs/RELEASE.md) for tested behavior and remaining
-release work.
+Run your owned **Minecraft for Windows (Bedrock)** on an Apple Silicon Mac,
+using WineGDK, DXMT, and Xodus. The launcher is native macOS; the Windows game
+runs through Wine and Rosetta. No CrossOver subscription is required.
 
-## Documentation
+**Source preview — no public notarized installer yet.** A new local release
+candidate is being qualified. Download links remain pending; GitHub's source ZIP
+is not an installable app. See [release readiness](docs/RELEASE.md).
 
-| I want to… | Start here |
-| --- | --- |
-| Install, sign in, play, back up worlds, or troubleshoot | [User guide](docs/USER_GUIDE.md) |
-| Build or change the app locally | [Development guide](docs/DEVELOPMENT.md) |
-| Understand components, paths, and account/process ownership | [Project context](CONTEXT.md) |
-| Contribute a fix or run checks | [Contributing](CONTRIBUTING.md) and [testing](docs/TESTING.md) |
-| Work on this repository with a coding agent | [Agent guidance](AGENTS.md) |
-| Review release readiness or export source | [Release status](docs/RELEASE.md) and [publishing](docs/PUBLISHING.md) |
-| Review stability fixes and earlier Xbox/PS5 gameplay | [Stability notes](docs/STABILITY.md) |
-| Understand licenses or report a security problem | [Upstream notices](THIRD_PARTY.md) and [security](SECURITY.md) |
+## Play
 
-## The app
+With a complete, locally built app:
 
-For a complete locally built app (not GitHub's source ZIP):
-
-1. Open the disk image and drag **Bedrock for Mac** into **Applications**.
-2. Open the app and click **Install & Play**.
+1. Open the DMG and drag **Bedrock for Mac** into **Applications**.
+2. Open the app and choose **Install & Play**.
 3. Sign in with the Microsoft account that owns **Minecraft for Windows**.
+4. Let setup finish. If Minecraft asks, select **Sign in now**.
 
-The app downloads the game and its required Microsoft component, then opens
-Minecraft. Later launches show **Play**. Minecraft may show **Sign in now** on
-its first welcome screen; select it to use the account you just signed in with.
+Later launches show **Play**. Players using the complete bundle do not need
+Homebrew, Python, compilers, or a separate Wine install. Minecraft and your
+account are not included in the app.
 
-Setup can be cancelled and retried. Completed installation steps are reused;
-interrupted game downloads restart. **Bedrock for Mac → Sign Out of Microsoft…**
-lets you change accounts without deleting your game or worlds.
+You need Apple Silicon, Rosetta, internet access, a Windows-game entitlement,
+and at least 8 GB free for initial setup, plus space for worlds and backups.
+Local RC4 requires **macOS 15.0 or later**, based on its complete native-binary
+audit. Clean-M1 gameplay remains untested; later candidates need their own audit.
+See the [compatibility table](docs/COMPATIBILITY.md) before testing.
 
-Requirements: Apple Silicon, Rosetta, an internet connection, a Minecraft for
-Windows license, and at least 8 GB free for setup. The current local packaged
-build requires **macOS 26 or later**. The Swift interface and DXMT target macOS
-15; every binary must meet that target before an older-macOS package is advertised.
+## What has been tested?
 
-For now, developers can build the app below. These steps are build instructions,
-not extra tools that users of a packaged app need to install.
+Earlier development builds ran local worlds and user-confirmed Xbox/PS5
+friend-world sessions on an M4 Pro. Those observations do not qualify a new
+packaged build. Clean M1 installation, current-candidate multiplayer, app
+replacement, and long sessions are separate release gates.
 
-## Build locally
+Performance work has reduced measured CPU cost in bounded development tests.
+It does **not** establish a cumulative FPS improvement, lower power use, or a
+speedup for the release candidate. [Performance evidence](docs/PERFORMANCE.md)
+explains the measurements and their limits. Native ARM game execution is a
+separate research track, not a feature of this Windows-runtime preview.
 
-Build tools: Apple Command Line Tools, Git, Python 3.9+, Rust **1.98.0**, and
-Homebrew `llvm`, `bison`, `gnutls`, `freetype`, and `protobuf`. The scripts currently
-expect Homebrew at `/opt/homebrew`. Python **3.12+** is required for packaging.
+## Help and development
 
-```sh
-git clone https://github.com/1JRobertson/bedrock-mac.git
-cd bedrock-mac
-python3 bootstrap-sources.py
-./build-standalone-wine.sh
-./build-standalone-graphics.sh --wine-runtime "$PWD/runtime/standalone/wine"
-python3 standalone-setup.py --build-helper
-python3 -m venv build/packaging-env
-build/packaging-env/bin/python -m pip install -r packaging-requirements.txt
-python3 package-launcher.py
-python3 build-dmg.py
-```
+| Task | Guide |
+| --- | --- |
+| Install, sign in, retry setup, or resolve Mac prompts | [User guide](docs/USER_GUIDE.md) |
+| Back up worlds, update, restore, or uninstall | [Files and backups](docs/USER_GUIDE.md#your-files-backups-and-updates) |
+| Check hardware and game-feature evidence | [Compatibility](docs/COMPATIBILITY.md) |
+| Review candidate status and known limitations | [Release readiness](docs/RELEASE.md) · [Draft release notes](docs/RELEASE_NOTES.md) |
+| Build locally | [Development guide](docs/DEVELOPMENT.md) |
+| Understand the runtime and historical gameplay | [Context](CONTEXT.md) · [Stability notes](docs/STABILITY.md) |
+| Contribute or report a bug | [Contributing](CONTRIBUTING.md) · [Testing](docs/TESTING.md) |
+| Review source exports, licenses, or security | [Publishing](docs/PUBLISHING.md) · [Notices](THIRD_PARTY.md) · [Security](SECURITY.md) |
+| Work with a coding agent | [Agent guidance](AGENTS.md) |
 
-The output is `build/Bedrock for Mac.dmg`. The app includes its Python worker,
-Wine, DXMT, and account helper. It never installs Homebrew, downloads compilers,
-or builds source on a player's Mac. Game files, Microsoft DLLs, accounts, and
-worlds are **not** included. They are obtained or created on the user's Mac.
+Worlds live outside the application in
+`~/Library/Application Support/Bedrock for Mac/bottles/Bedrock-Standalone`.
+Quit Minecraft normally before backing up or replacing the app. There is no
+automatic app/game updater or supported offline-launch mode. The current source
+adds **Update Minecraft…** for manual game updates; live recovery testing is pending.
 
-The default package destination must not already exist. Pass
-`--output /path/to/Bedrock\ for\ Mac.app` to build another app without replacing a
-running copy; pass that path to `build-dmg.py --app` and choose a new `--output`.
-
-For tool installation, first-build checks, safe rebuilds, and build failures,
-follow the full [development guide](docs/DEVELOPMENT.md).
-
-For a development launcher tied to your checkout, use `./build-launcher.sh`.
-For command-line setup, probes, and download details, see
-[STANDALONE-SETUP.md](STANDALONE-SETUP.md).
-
-## Help
-
-**macOS blocks the downloaded app.** Local builds use ad-hoc signatures and are
-not notarized. GitHub hosting does not change that. Follow
-[Apple's guidance for opening apps](https://support.apple.com/en-us/102445) only
-if you trust the source. Do not disable Gatekeeper globally.
-
-**Rosetta is missing.** See [Apple's Rosetta instructions](https://support.apple.com/en-us/102527).
-The launcher checks for Rosetta before starting account setup.
-
-**Keychain requests access.** Microsoft credentials stay in macOS Keychain.
-One account helper reads one saved item per session and reuses it through setup
-and play. Rebuilding an ad-hoc signed helper changes its identity and may require
-new authorization. **Allow** grants access once; **Always Allow** remembers
-permission for that helper. Keychain access is separate from permission to open a
-downloaded app; zero-prompt upgrades have not been verified. See
-[Apple’s Keychain explanation](https://support.apple.com/guide/keychain-access/kyca1243/mac).
-
-**Setup failed.** Click **Try Again**. Closing Microsoft sign-in returns to the
-launcher; **Cancel** stops setup. Use **Help → Open Setup Logs** for diagnostics.
-If an existing game directory is incomplete, quit the app and rename the `game`
-folder in the data directory before retrying. Keep the old folder until you have
-verified the replacement; never remove `bottles` to repair a download.
-
-**Where are my worlds?** Packaged app data lives in
-`~/Library/Application Support/Bedrock for Mac/`. The Wine prefix is
-`bottles/Bedrock-Standalone`; worlds are inside that prefix's user profile under
-`AppData/Roaming/Minecraft Bedrock`. Updating the app or signing out keeps these
-files. Back up the data directory before experimenting with builds. The older
-CrossOver setup uses a separate prefix; it does not migrate automatically.
-See the [user guide](docs/USER_GUIDE.md#your-files-backups-and-updates) for backup,
-restore, app replacement, and uninstall steps. There is no automatic app/game
-updater or supported offline-launch mode.
-
-## Contribute
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for tests and bug reports,
-[docs/PUBLISHING.md](docs/PUBLISHING.md) for reviewed source exports, and
-[docs/LEGACY.md](docs/LEGACY.md) for the earlier CrossOver implementation.
-
-Original project code is **GPLv3**. Upstream components retain their licenses;
-see [THIRD_PARTY.md](THIRD_PARTY.md). Built on
-[WineGDK](https://github.com/Sightem/WineGDK),
+Original project code is **GPLv3**; upstream components retain their licenses.
+Built on [WineGDK](https://github.com/Sightem/WineGDK),
 [Wine](https://www.winehq.org/), [DXMT](https://github.com/3Shain/dxmt), and
 [Xodus](https://github.com/xodus-gaming/xodus).
 
-Not affiliated with Microsoft, Mojang, Apple, or CodeWeavers. Minecraft is not
-included; each player needs their own legitimate Windows license.
+Not affiliated with Microsoft, Mojang, Apple, or CodeWeavers.
+Each player needs their own legitimate Windows-game entitlement.

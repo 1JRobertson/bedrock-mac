@@ -11,8 +11,8 @@ body:
   - type: input
     id: mac
     attributes:
-      label: Mac chip and macOS version
-      placeholder: M4 Pro, macOS 26.6
+      label: Mac model, chip, memory, and macOS version
+      placeholder: MacBook Air M1, 8 GB, macOS 15.3.1
     validations:
       required: true
   - type: input
@@ -21,6 +21,16 @@ body:
       label: App version or source commit
     validations:
       required: true
+  - type: input
+    id: game_version
+    attributes:
+      label: Minecraft version
+      description: Copy the version shown in Minecraft, or say setup never reached the game.
+  - type: input
+    id: artifact
+    attributes:
+      label: DMG SHA-256 or build source
+      description: If known; this distinguishes locally rebuilt apps with the same display version.
   - type: dropdown
     id: install
     attributes:
