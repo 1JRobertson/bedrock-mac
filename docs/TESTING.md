@@ -194,11 +194,35 @@ Observed results:
   after app memory exceeded 8 GiB. Its owned game, helper and Wine server exited;
   the regular installation and saves were preserved.
 
-Do not close issue #4 on the strength of successful dialog/import checks.
-Persistence needs a separate diagnosis. Trace only profile-storage function names
-and result codes during save/restart when the guard permits; neither the picker
-nor normal prefix preparation contains skin-file deletion. A local GameSave
-opt-in or broader storage implementation is not a verified fix.
+The reported picker crash no longer reproduces on this local baseline. Issue #4
+remains open for verification on the reporter's setup; the restart failure has
+separate upstream evidence below. World import/export still needs regression QA.
+
+### October 20 skin persistence diagnosis
+
+The same isolated 26.52 baseline was tested sequentially through the resource
+guard. A temporary QA-only picker returned the known 64×64 PNG automatically and
+logged interface/method names; the maintainer selected the model in Minecraft.
+This diagnostic run did not retest the visible file dialog.
+
+- Two imports wrote valid PNGs to the user's `games/com.mojang/custom_skins`
+  folder. The selected skin ID was saved in `minecraftpe/options.txt`.
+- Import used the modern picker, `StorageFile.GetFileFromPathAsync` and
+  `IStorageItem.Path`. No unsupported StorageFile method, GameSave call or
+  ApplicationData stub was observed in that trace.
+- The game exited with code 0, leaving both PNGs on disk. On relaunch they still
+  existed immediately before the game process started, after prefix preparation.
+  A file-API trace then observed the game accessing `custom_skins`; both PNGs
+  disappeared during startup and the menu showed Alex. The second game also
+  exited with code 0. Both owned helpers and Wine servers cleaned up.
+
+This matches Mojang's [MCPE-241720](https://bugs.mojang.com/browse/MCPE-241720),
+whose fix is announced in the [26.60.24 Preview notes](https://feedback.minecraft.net/hc/en-us/articles/48940953884173-Minecraft-Beta-Preview-26-60-24).
+That is evidence of an upstream game defect consistent with this result, not
+verification of a newer game here. Do not enable local GameSave or add speculative
+storage APIs to address it. A game containing Mojang's fix needs its own import
+and restart test on this runtime. The regular game, saves and helper were not
+changed; temporary QA picker diagnostics were removed after testing.
 
 ## Wine and graphics
 

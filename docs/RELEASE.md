@@ -68,10 +68,13 @@ a known requirement is unmet. **Untested** means no qualifying candidate result.
   `StorageFile.GetFileFromPathAsync` dependency, with verified runtime staging,
   prefix registration, packaging and independent ABI contracts. October 19
   native testing on an M4 Pro passed dialog opening/cancellation, invalid-image
-  handling and PNG import/rendering, including a Unicode filename. **Persistence
-  failed after restart**, and world import/export regression remains pending
-  after the memory guard stopped QA. Issue #4 remains unresolved; see the
-  [dated test scope](TESTING.md#october-19-native-skin-check).
+  handling and PNG import/rendering, including a Unicode filename. The reported
+  picker crash no longer reproduces on that baseline; #4 remains open for
+  reporter verification. October 20 tracing found that 26.52 saves custom PNGs
+  then clears them during startup, consistent with Mojang's MCPE-241720.
+  Mojang announces a fix in 26.60.24 Preview; a newer game has not been validated
+  here. World import/export regression remains pending. See the
+  [dated diagnosis and limits](TESTING.md#october-20-skin-persistence-diagnosis).
 - [Adventure-preview scenery report (#5)](https://github.com/1JRobertson/bedrock-mac/issues/5):
   the report references `4ed3a6f` and scenery code absent from this source tree.
   It needs the correct repository or reproducible source before a fix can be

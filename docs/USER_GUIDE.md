@@ -172,6 +172,7 @@ to clear its saved user session. No automatic CrossOver world migration exists.
 | Incomplete existing game | Close Minecraft and choose **Update Minecraft…** to repair using a fresh owned-game download. Keep worlds and backups; never remove `bottles` to repair a download. |
 | Another setup/helper is running | Return to the active launcher, finish or cancel setup, or quit Minecraft normally. Do not delete `/tmp/xodus.sock` or kill every Wine process. If the conflict persists after a normal restart, report it. |
 | Minecraft exits or shows a blank window | Keep your saves. Record the game version and whether the failure followed a runtime/app update; include a short reviewed error excerpt. |
+| Imported skin resets after restarting 26.52 | Keep the original skin PNG and reimport it when needed. This matches Mojang's [MCPE-241720](https://bugs.mojang.com/browse/MCPE-241720); a fix is announced in 26.60.24 Preview, which has not been validated here. |
 
 Use **Help → Open Setup Logs** (or **Open Setup Log** on an error screen).
 `onboarding.log` covers the overall setup; `account.log` covers the helper;
