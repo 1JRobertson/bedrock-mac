@@ -2,9 +2,13 @@
  * Atomic controller for the optional, exact-build frame-slab experiment.
  * This changes one requested setting; existing frames keep their own pool.
  */
-/* Expose POSIX.1-2008 O_NOFOLLOW with strict C11 on glibc as well as macOS.
+/* Darwin exposes O_NOFOLLOW in its full namespace; glibc uses POSIX.1-2008.
  * Keep the actual flag: silently defining it to zero would follow symlinks. */
-#ifndef _POSIX_C_SOURCE
+#if defined(__APPLE__)
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE 1
+#endif
+#elif !defined(_POSIX_C_SOURCE)
 #define _POSIX_C_SOURCE 200809L
 #endif
 #include <errno.h>

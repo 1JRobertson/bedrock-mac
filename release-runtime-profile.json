@@ -51,12 +51,12 @@
     "verify-wine-source.py": "694f6ac69c24b928d86891dfe6c4872c8a3dc2adef49a153f943e6a0ee17ba5c",
     "standalone-pickers.py": "d2083ef94dd3183a397692b46c285478aebb0dab1a8389e9d968bf39a2111bae",
     "file-pickers/build.sh": "b7cdc035e626dd2b6f33967cd97f028f79a67bcd496c629fe74e4b7dc61d46ac",
-    "file-pickers/pickers.c": "68afa7c449266bb578b17157c127462297ed5daebc8c9ccce5de9d7124c1f906",
+    "file-pickers/pickers.c": "1a5b7acf11a54e68da7304c2f9ed53ce76231723bbb2c63a2289da4b0cc24611",
     "file-pickers/ids.h": "bb7abdd17907d65b53377e37c060e2ae0d163215083a1c79ef01e2aa355eef94",
     "file-pickers/pickers.spec": "9d1b11a9e8593a4f441bd54e837cee8501af423a4a0f56f45c75e3c4d9d7f5ec",
     "file-pickers/README.md": "4dc3775025b6f5fa78bdae6d0712ed4f7c183b4e56310cf7eb05e4ad578a4f10",
     "file-pickers/check-windows.cmd": "9a08f3b71009d793c54b253867338bef34b2a28d1ffad5ce8c7d9a6b1cd1637a",
-    "tests/file-picker-contract.c": "5cff8a92725eb62b9756deeb25f03aaa657881aa7d94896f234a1fc8f6608a90"
+    "tests/file-picker-contract.c": "8eff36decbac196f98848702d2ac0613d58d965ba989d51ff6959709c72ac03a"
   },
   "wine_standalone_patches": [
     "standalone-wine-dxmt-abi.patch",

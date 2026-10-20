@@ -4,6 +4,9 @@
 #define COBJMACROS
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <unknwn.h>
+#include <objbase.h>
+#include <roerrorapi.h>
 #include <commdlg.h>
 #include <cderr.h>
 #include <roapi.h>
