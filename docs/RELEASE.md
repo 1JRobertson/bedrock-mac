@@ -33,7 +33,7 @@ a known requirement is unmet. **Untested** means no qualifying candidate result.
 
 | Gate | Status | Evidence / remaining work |
 | --- | --- | --- |
-| Current source regression snapshot | Pass — source scope | October 7 coordinator run: 289 Python tests, zero skips; 181-file export boundary check with exact pinned public verification key; not candidate acquisition proof |
+| Current source regression snapshot | Pass — source scope | PR #6 CI at `d048f09`: all five jobs passed, including 336 Python tests on macOS, native launcher, helper and picker contracts; 193-file source inventory verified; not packaged-candidate acquisition/gameplay proof |
 | Historical source/runtime checks | Pass — historical only | Dated fixture and development records in [TESTING.md](TESTING.md) and [STABILITY.md](STABILITY.md) |
 | Public runtime reconstruction | Pass — build/graphics scope | v4 pinned source replay: ten build steps and two exact-bridge GPU validation steps passed; gameplay remains separate |
 | Actual RC3 packaged GPU probes | Pass — GPU probe scope | Disposable-prefix presentation/readback/texture/discard probes passed; all 1,959 resource hashes and signature remained intact; no account/game in these probes |
@@ -121,6 +121,10 @@ or performance result.
 
 ## Historical evidence retained
 
+- October 20 maintainer report: estimated **10+ total hours with Xbox and
+  PlayStation friends** across multiple sessions. This adds cumulative
+  user-reported experience to the two individually monitored sessions below;
+  [gameplay evidence](STABILITY.md#repeated-cross-platform-play).
 - September 30: M4 Pro, 24 GB, macOS 15.3.1, WineGDK 11.8, DXMT v0.80,
   Minecraft 1.26.52. User-confirmed Xbox and PS5 friend-world sessions;
   [stability notes](STABILITY.md) retain durations, memory observations and limits.

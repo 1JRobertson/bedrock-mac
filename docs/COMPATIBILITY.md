@@ -18,11 +18,11 @@ qualification remains pending. See [release readiness](RELEASE.md).
 | Packaged graphics probes | Actual RC3 GPU presentation/readback/texture/discard passed; resources/signature intact | Probe pass only; game/font behavior and save acceptance pending |
 | RC3 functioning / exit | User-confirmed same-Mac functioning with copied owned payload; normal return supported by UI/process cleanup | Bounded pass; save/reopen, soak and clean-M1 remain unverified |
 | Local worlds | Earlier development save/reopen observed | Current candidate save/reopen and clean-M1 test pending |
-| Xbox / PS5 friend worlds | User-confirmed on September 30 standalone build | Candidate join/disconnect/rejoin untested |
+| Xbox / PlayStation friend worlds | Maintainer estimates 10+ cumulative hours across repeated friend sessions (October 20 report); two monitored sessions in [gameplay evidence](STABILITY.md#repeated-cross-platform-play) | New packaged-candidate join/disconnect/rejoin still needs recording |
 | Featured servers | Earlier lobby entry observed | Candidate untested |
 | Realms | Earlier joined-Realm list observed | Active Realm entry untested |
 | Marketplace / controllers | No complete qualification record | Untested; no blanket support claim |
-| Custom skin import | [Choose New Skin crash reported at `99fc9aa`](https://github.com/1JRobertson/bedrock-mac/issues/4); current source adds a verified picker bridge | Native skin selection and persistence still need verification |
+| Custom skin import | October 19 local native checks passed dialog/cancellation and PNG import/rendering, including a Unicode filename | Restart persistence failed; [issue #4](https://github.com/1JRobertson/bedrock-mac/issues/4) remains unresolved; world import/export regression pending |
 | Offline launch | Account verified on Play | Unsupported |
 | Store market | Native UI uses CA; CLI accepts a market argument | Other native-UI markets unverified |
 | Cancel while waiting for Keychain | Actual RC3 native Cancel stopped helper; no socket/prefix/game; imported payload key hashes unchanged | Passed only this stage; retry/authentication/gameplay remain untested |

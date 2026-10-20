@@ -33,10 +33,13 @@ See the [compatibility table](docs/COMPATIBILITY.md) before testing.
 
 ## What has been tested?
 
-Earlier development builds ran local worlds and user-confirmed Xbox/PS5
-friend-world sessions on an M4 Pro. Those observations do not qualify a new
-packaged build. Clean M1 installation, current-candidate multiplayer, app
-replacement, and long sessions are separate release gates.
+The maintainer estimates **10+ total hours playing with Xbox and PlayStation
+friends** across multiple sessions. Development testing also verified local-world
+saving and reopening. The [gameplay evidence](docs/STABILITY.md#repeated-cross-platform-play)
+includes two monitored friend sessions on an M4 Pro.
+
+Fresh installation on an M1, multiplayer with the new packaged candidate, app
+replacement, and extended candidate sessions remain separate release checks.
 
 Performance work has reduced measured CPU cost in bounded development tests.
 It does **not** establish a cumulative FPS improvement, lower power use, or a
