@@ -21,6 +21,7 @@ CrossOver work is documented in [docs/LEGACY.md](docs/LEGACY.md).
 | Account helper | Keychain cache, Microsoft login and license, game download, Xbox IPC | `standalone-helper.rs` and pinned Xodus patches |
 | Acquisition tools | Helper compilation and verified Microsoft threading component | `standalone-setup.py` |
 | GameInput preparation | Verify/extract known MSI files and prepare registry entries | `standalone-gameinput.py` |
+| File picker compatibility | PNG/world dialogs, StorageFile conversion, verified DLL and guarded prefix registration | `file-pickers/`, `standalone-pickers.py` |
 | Windows compatibility | WineGDK with local GDK, Store, privilege, and Realms patches | `bootstrap-sources.py`, `patches/standalone-wine-*.patch` |
 | Graphics | Pinned upstream DXMT and optional verified display-lifetime bridge | `build-standalone-graphics.sh` |
 | Packaging | Swift bundle, frozen Python worker, runtime inventory, local DMG | `build-launcher.sh`, `package-launcher.py`, `build-dmg.py` |

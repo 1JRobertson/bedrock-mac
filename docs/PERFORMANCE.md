@@ -38,6 +38,20 @@ reported lower aggregate CPU cost per displayed frame with essentially unchanged
 FPS. Its OFF state still included instrumentation; separate normal-module runs
 had cross-launch variation. Neither establishes a precise candidate-wide benefit.
 
+## Render distance observation, October 15
+
+On the development M4 Pro with a 100 Hz display, foreground comparisons at
+1920×953 measured about 63 FPS at 53 chunks and 96 FPS at 16 chunks, using the
+same runtime and graphics quality. Returning to 53 chunks reproduced the
+slowdown at 59 FPS. Pause-menu measurements changed from 62 to 95 FPS; game
+memory fell from roughly 5.8 GiB to 2.2 GiB at 16 chunks.
+
+These are short local arena observations, not a runtime optimization comparison
+or a result for every world and Mac. A 16-chunk setting helped this machine by
+reducing distant terrain work; it changes terrain visibility. The title screen
+did not reproduce the slowdown. Raw captures remain private in the development
+workspace and are not part of the source distribution.
+
 ## A publishable comparison
 
 Compare one hash-identified original runtime with one hash-identified candidate

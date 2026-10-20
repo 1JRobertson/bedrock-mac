@@ -153,6 +153,20 @@ owned-package and cached-header/metadata fixtures require the documented
 complete package acquisition. Real account sign-in is a separate, explicit
 live test with the user handling credentials and security prompts.
 
+## File picker compatibility
+
+The Wine builder includes the source-built PNG/world picker bridge. Prefix setup
+checks its source receipt, preserves previous DLL/registry evidence, and refuses
+to replace an unknown provider. Its installation fixtures run in the Python
+suite; Windows CI independently compiles the DLL and runs the mocked-dialog ABI
+contracts against the Windows SDK. Neither needs Minecraft or an account.
+
+These checks do not prove that Minecraft imports a skin. Native acceptance must
+open and cancel **Dressing Room → Choose New Skin**, select a valid PNG, handle an
+invalid image, restart to check persistence, and regress world import/export.
+Use an isolated prefix and disposable worlds; retain the existing installation.
+See [bridge build and ABI notes](../file-pickers/README.md).
+
 ## Wine and graphics
 
 The opt-in allocator source has an additional local differential check:

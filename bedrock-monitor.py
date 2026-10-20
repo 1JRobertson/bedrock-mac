@@ -217,13 +217,16 @@ def crash_reports(pid, since):
     return reports
 
 
-def capture(reason, games):
+def capture(reason, games, *, deep=False):
     directory = DATA / 'incidents' / stamp()
     # Raw local stack reports can contain paths. Keep the whole incident private.
     directory.mkdir(mode=0o700, parents=True, exist_ok=False)
     result = dict(time=now(), reason=reason, processes=games,
-                  game_log=latest_game_log(), system=system_memory(), diagnostics=[])
-    for game in games:
+                  game_log=latest_game_log(), system=system_memory(), diagnostics=[],
+                  diagnostic_mode='deep' if deep else 'lightweight')
+    # Automatic alerts can occur while loading a world. Attaching diagnostic
+    # tools adds work when the game is busy; reserve it for explicit reports.
+    for game in games if deep else ():
         pid = game['pid']
         if not same_process(pid, game['birth']) or not owned_game(pid):
             continue
@@ -371,7 +374,7 @@ def mark(note):
     if not monitor_alive(state):
         raise RuntimeError('The monitor is not running. Launch Standalone.command starts it.')
     games = state.get('games', [])
-    incident = capture(note, games)
+    incident = capture(note, games, deep=True)
     event('player-report', note, incident=incident)
     print('Problem marked. Diagnostics: ' + incident)
 

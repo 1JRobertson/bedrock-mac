@@ -22,7 +22,7 @@ qualification remains pending. See [release readiness](RELEASE.md).
 | Featured servers | Earlier lobby entry observed | Candidate untested |
 | Realms | Earlier joined-Realm list observed | Active Realm entry untested |
 | Marketplace / controllers | No complete qualification record | Untested; no blanket support claim |
-| Custom skin import | [Choose New Skin crash reported at `99fc9aa`](https://github.com/1JRobertson/bedrock-mac/issues/4) | Native verification of a fix pending |
+| Custom skin import | [Choose New Skin crash reported at `99fc9aa`](https://github.com/1JRobertson/bedrock-mac/issues/4); current source adds a verified picker bridge | Native skin selection and persistence still need verification |
 | Offline launch | Account verified on Play | Unsupported |
 | Store market | Native UI uses CA; CLI accepts a market argument | Other native-UI markets unverified |
 | Cancel while waiting for Keychain | Actual RC3 native Cancel stopped helper; no socket/prefix/game; imported payload key hashes unchanged | Passed only this stage; retry/authentication/gameplay remain untested |

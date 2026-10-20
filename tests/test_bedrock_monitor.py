@@ -140,9 +140,62 @@ class MonitorTests(unittest.TestCase):
                  patch.object(monitor, 'system_memory', return_value={}), \
                  patch.object(monitor, 'latest_game_log', return_value=None), \
                  patch.object(monitor.subprocess, 'run') as run:
-                report = monitor.capture('freeze', [{'pid': 123, 'birth': 100}])
+                report = monitor.capture('freeze', [{'pid': 123, 'birth': 100}], deep=True)
                 self.assertTrue((Path(report) / 'incident.json').is_file())
                 run.assert_not_called()
+
+    def test_automatic_alert_saves_evidence_without_attaching_to_game(self):
+        games = [{'pid': 123, 'birth': 100, 'footprint_bytes': monitor.GIB}]
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.object(monitor, 'DATA', Path(temporary)), \
+                 patch.object(monitor, 'same_process') as same_process, \
+                 patch.object(monitor, 'owned_game') as owned_game, \
+                 patch.object(monitor, 'system_memory', return_value={'pressure_level': 1}), \
+                 patch.object(monitor, 'latest_game_log', return_value='game.log'), \
+                 patch.object(monitor.subprocess, 'run') as run:
+                report = monitor.capture('memory growth', games)
+                evidence = json.loads((Path(report) / 'incident.json').read_text())
+                self.assertEqual(evidence['processes'], games)
+                self.assertEqual(evidence['system'], {'pressure_level': 1})
+                self.assertEqual(evidence['game_log'], 'game.log')
+                self.assertEqual(evidence['diagnostic_mode'], 'lightweight')
+                self.assertEqual(evidence['diagnostics'], [])
+                same_process.assert_not_called()
+                owned_game.assert_not_called()
+                run.assert_not_called()
+
+    def test_explicit_player_report_still_requests_deep_diagnostics(self):
+        games = [{'pid': 123, 'birth': 100}]
+        with patch.object(monitor, 'read_json', return_value={'games': games}), \
+             patch.object(monitor, 'monitor_alive', return_value=True), \
+             patch.object(monitor, 'capture', return_value='incident') as capture, \
+             patch.object(monitor, 'event'), patch('builtins.print'):
+            monitor.mark('stutter')
+            capture.assert_called_once_with('stutter', games, deep=True)
+
+    def test_deep_diagnostics_check_game_ownership_and_keep_incident_private(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.object(monitor, 'DATA', Path(temporary)), \
+                 patch.object(monitor, 'same_process', return_value=True) as same_process, \
+                 patch.object(monitor, 'owned_game', return_value=True) as owned_game, \
+                 patch.object(monitor, 'system_memory', return_value={}), \
+                 patch.object(monitor, 'latest_game_log', return_value=None), \
+                 patch.object(monitor.subprocess, 'run', return_value=monitor.subprocess.CompletedProcess([], 0)) as run:
+                previous = os.umask(0)
+                try:
+                    report = Path(monitor.capture('freeze', [{'pid': 123, 'birth': 100}], deep=True))
+                finally:
+                    os.umask(previous)
+                same_process.assert_called_once_with(123, 100)
+                owned_game.assert_called_once_with(123)
+                self.assertEqual([call.args[0][0] for call in run.call_args_list],
+                                 ['/usr/bin/vmmap', '/usr/bin/sample'])
+                self.assertEqual(stat.S_IMODE(report.stat().st_mode), 0o700)
+                incident = report / 'incident.json'
+                self.assertEqual(stat.S_IMODE(incident.stat().st_mode), 0o600)
+                evidence = json.loads(incident.read_text())
+                self.assertEqual(evidence['diagnostic_mode'], 'deep')
+                self.assertEqual(len(evidence['diagnostics']), 2)
 
     @unittest.skipUnless(sys.platform == 'darwin', 'macOS libproc process metrics')
     def test_native_footprint_and_birth_can_be_read_for_this_test_process(self):

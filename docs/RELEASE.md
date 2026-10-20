@@ -64,8 +64,12 @@ a known requirement is unmet. **Untested** means no qualifying candidate result.
 
 - [Skin import crash (#4)](https://github.com/1JRobertson/bedrock-mac/issues/4):
   **Dressing Room → Choose New Skin** was reported to crash at source revision
-  `99fc9aa`. A source change alone does not establish resolution; the affected
-  game flow needs a native retest before this can be marked fixed.
+  `99fc9aa`. Current source adds modern/UWP open/save pickers and the game's
+  `StorageFile.GetFileFromPathAsync` dependency, with verified runtime staging,
+  prefix registration, packaging and independent ABI contracts. A source change
+  alone does not establish resolution: native PNG selection, cancellation,
+  invalid-image handling, persistence after restart and world import/export
+  need retesting before this can be marked fixed.
 - [Adventure-preview scenery report (#5)](https://github.com/1JRobertson/bedrock-mac/issues/5):
   the report references `4ed3a6f` and scenery code absent from this source tree.
   It needs the correct repository or reproducible source before a fix can be
