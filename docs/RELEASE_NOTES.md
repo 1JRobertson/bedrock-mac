@@ -60,7 +60,10 @@ backup restore, and changed-helper Keychain prompts are not yet qualified.
 **Dressing Room → Choose New Skin** has a
 [reported crash (#4)](https://github.com/1JRobertson/bedrock-mac/issues/4) at
 `99fc9aa`. Current source supplies picker compatibility, including PNG filters
-and the game's StorageFile conversion; native verification remains pending.
+and the game's StorageFile conversion. October 19 local native checks passed
+opening/cancelling the dialog and importing/rendering a PNG, but the custom skin
+reset after restart. Issue #4 remains unresolved; world import/export regression
+is still pending.
 Active Realm entry and complete Marketplace/controller support are unverified.
 Developer ID/notarization and acquisition/distribution gates remain visible in
 the [readiness table](RELEASE.md). No cumulative FPS, power, native-ARM-game,

@@ -18,10 +18,13 @@ import/export implementation. It registers these small, explicit WinRT surfaces:
   this static method.
 
 The owned 1.26.52 binary contains complete modern open-picker and StorageFile
-class names, but no standalone UWP open-picker class name. This establishes the
-modern API dependency; it does not establish an observed successful skin import.
-The UWP open class shares the same dialog implementation and is covered by the
-contracts.
+class names, but no standalone UWP open-picker class name. The UWP open class
+shares the same dialog implementation and is covered by the contracts.
+
+October 19 native testing on an M4 Pro passed opening/cancelling the skin dialog,
+PNG import and rendering, including a Unicode filename. The custom skin reset
+after restarting Minecraft, so issue #4 remains unresolved. See the dated
+[native evidence and limits](../docs/TESTING.md#october-19-native-skin-check).
 
 Open/Save dialogs use Wine's common-dialog APIs on the caller apartment. Open
 filters come from extensions such as `.png` and `.mcworld`; there is no hardcoded

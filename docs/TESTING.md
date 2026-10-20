@@ -167,6 +167,39 @@ invalid image, restart to check persistence, and regress world import/export.
 Use an isolated prefix and disposable worlds; retain the existing installation.
 See [bridge build and ABI notes](../file-pickers/README.md).
 
+### October 19 native skin check
+
+Source revision `4470fb5` was tested on an Apple M4 Pro, macOS 15.3.1, with the
+owned Bedrock 26.52 game and Wine 11.8. The picker DLL was built from this source;
+all **206 contract checks passed under Wine on this Mac**. Its exact DLL and four
+prefix registrations verified before gameplay.
+
+The game ran through the resource guard in a fresh, isolated prefix with a
+cloned existing development runtime and the existing authorized helper. Optional
+performance hooks were not activated. This tests the picker integration in that
+local baseline; it does not qualify a reconstructed runtime, packaged RC4, the
+reporter's M5 Pro/macOS 27 setup, or a clean Mac.
+
+Observed results:
+
+- **Pass:** Choose New Skin opened the PNG dialog; cancellation returned to
+  Dressing Room without a crash.
+- **Pass:** the invalid-dimension PNG produced Minecraft's supported-size message.
+- **Pass:** a generated 64×64 RGBA PNG showed both model previews and rendered as
+  the current skin. Selecting `Skin QA α.png` by browsing also succeeded.
+- **Fail:** the current skin reset to the default character after restart,
+  including after returning to the main menu and using Minecraft's own exit
+  confirmation. Both completed game sessions exited with code 0.
+- **Pending:** world import/export regression. The guard stopped the next session
+  after app memory exceeded 8 GiB. Its owned game, helper and Wine server exited;
+  the regular installation and saves were preserved.
+
+Do not close issue #4 on the strength of successful dialog/import checks.
+Persistence needs a separate diagnosis. Trace only profile-storage function names
+and result codes during save/restart when the guard permits; neither the picker
+nor normal prefix preparation contains skin-file deletion. A local GameSave
+opt-in or broader storage implementation is not a verified fix.
+
 ## Wine and graphics
 
 The opt-in allocator source has an additional local differential check:

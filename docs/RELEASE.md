@@ -66,10 +66,12 @@ a known requirement is unmet. **Untested** means no qualifying candidate result.
   **Dressing Room → Choose New Skin** was reported to crash at source revision
   `99fc9aa`. Current source adds modern/UWP open/save pickers and the game's
   `StorageFile.GetFileFromPathAsync` dependency, with verified runtime staging,
-  prefix registration, packaging and independent ABI contracts. A source change
-  alone does not establish resolution: native PNG selection, cancellation,
-  invalid-image handling, persistence after restart and world import/export
-  need retesting before this can be marked fixed.
+  prefix registration, packaging and independent ABI contracts. October 19
+  native testing on an M4 Pro passed dialog opening/cancellation, invalid-image
+  handling and PNG import/rendering, including a Unicode filename. **Persistence
+  failed after restart**, and world import/export regression remains pending
+  after the memory guard stopped QA. Issue #4 remains unresolved; see the
+  [dated test scope](TESTING.md#october-19-native-skin-check).
 - [Adventure-preview scenery report (#5)](https://github.com/1JRobertson/bedrock-mac/issues/5):
   the report references `4ed3a6f` and scenery code absent from this source tree.
   It needs the correct repository or reproducible source before a fix can be
