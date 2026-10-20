@@ -22,7 +22,7 @@ qualification remains pending. See [release readiness](RELEASE.md).
 | Featured servers | Earlier lobby entry observed | Candidate untested |
 | Realms | Earlier joined-Realm list observed | Active Realm entry untested |
 | Marketplace / controllers | No complete qualification record | Untested; no blanket support claim |
-| Custom skin import | October 19 local native checks passed dialog/cancellation and PNG import/rendering, including a Unicode filename | Restart persistence failed; [issue #4](https://github.com/1JRobertson/bedrock-mac/issues/4) remains unresolved; world import/export regression pending |
+| Custom skin import | October 19 local native checks passed dialog/cancellation and PNG import/rendering, including a Unicode filename | Picker crash no longer reproduces locally; #4 awaits reporter verification. 26.52 restart reset matches an [upstream bug](TESTING.md#october-20-skin-persistence-diagnosis); newer-game validation and world import/export regression pending |
 | Offline launch | Account verified on Play | Unsupported |
 | Store market | Native UI uses CA; CLI accepts a market argument | Other native-UI markets unverified |
 | Cancel while waiting for Keychain | Actual RC3 native Cancel stopped helper; no socket/prefix/game; imported payload key hashes unchanged | Passed only this stage; retry/authentication/gameplay remain untested |

@@ -22,9 +22,11 @@ class names, but no standalone UWP open-picker class name. The UWP open class
 shares the same dialog implementation and is covered by the contracts.
 
 October 19 native testing on an M4 Pro passed opening/cancelling the skin dialog,
-PNG import and rendering, including a Unicode filename. The custom skin reset
-after restarting Minecraft, so issue #4 remains unresolved. See the dated
-[native evidence and limits](../docs/TESTING.md#october-19-native-skin-check).
+PNG import and rendering, including a Unicode filename. October 20 tracing found
+that the game saves the PNGs, then clears them on startup, consistent with
+Mojang's [MCPE-241720](https://bugs.mojang.com/browse/MCPE-241720). The reported
+picker crash no longer reproduces locally; issue #4 remains open for reporter
+verification. See the [native evidence and limits](../docs/TESTING.md#october-20-skin-persistence-diagnosis).
 
 Open/Save dialogs use Wine's common-dialog APIs on the caller apartment. Open
 filters come from extensions such as `.png` and `.mcworld`; there is no hardcoded
