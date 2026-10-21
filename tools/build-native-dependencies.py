@@ -9,6 +9,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -23,6 +24,32 @@ EXTRA_NOTICES = {"freetype": (
     "src/autofit/ft-hb-ft.c", "src/autofit/ft-hb-decls.h",
     "src/autofit/ft-hb-types.h", "src/autofit/hb-script-list.h",
 )}
+
+
+def require_build_path(path, label):
+    """Keep Autoconf/make flag paths unambiguous, including symlink targets."""
+    path = Path(path).expanduser().absolute()
+    try:
+        targets = (path, path.resolve())
+    except (OSError, RuntimeError) as error:
+        raise ValueError("Cannot resolve " + label + " path") from error
+    if any(re.fullmatch(r"[A-Za-z0-9/._+-]+", str(target)) is None for target in targets):
+        raise ValueError("Unsupported " + label + " path: use only ASCII letters, digits, / . _ + - "
+                         "in build paths and their resolved targets; spaces and shell metacharacters "
+                         "are not supported by the native build tools.")
+    return path
+
+
+def build_tools():
+    pkg_config = shutil.which(os.environ.get("PKG_CONFIG", "pkg-config"))
+    if not pkg_config:
+        raise ValueError("pkg-config is required; set PKG_CONFIG to its executable before building")
+    pkg_config = require_build_path(pkg_config, "pkg-config")
+    sdk = require_build_path(subprocess.check_output(
+        ["/usr/bin/xcrun", "--show-sdk-path"], text=True).strip(), "macOS SDK")
+    clang = require_build_path(subprocess.check_output(
+        ["/usr/bin/xcrun", "--find", "clang"], text=True).strip(), "C compiler")
+    return str(sdk), str(clang), str(pkg_config)
 
 
 def digest(path):
@@ -120,6 +147,12 @@ def require_fresh_outputs(destination, sources, prefix):
 def build_environment(destination, prefix, sdk, clang, pkg_config):
     # Autoconf honors numerous *_CFLAGS/*_LIBS and cache/site variables. Do not
     # inherit shell overrides or loader/preload settings into a source receipt.
+    require_build_path(ROOT, "source checkout")
+    destination = require_build_path(destination, "dependency destination")
+    prefix = require_build_path(prefix, "dependency prefix")
+    sdk = str(require_build_path(sdk, "macOS SDK"))
+    clang = str(require_build_path(clang, "C compiler"))
+    pkg_config = str(require_build_path(pkg_config, "pkg-config"))
     home, temporary = destination / "build-home", destination / "build-tmp"
     home.mkdir(exist_ok=True, mode=0o700)
     temporary.mkdir(exist_ok=True, mode=0o700)
@@ -133,11 +166,17 @@ def build_environment(destination, prefix, sdk, clang, pkg_config):
 
 
 def build(destination, jobs, fetch_only=False):
+    # Validate before creating a cache or downloading anything. Fetch-only does
+    # not require a compiler/SDK, but its future build paths must still be safe.
+    require_build_path(ROOT, "source checkout")
+    destination = require_build_path(destination, "dependency destination")
+    for name in ("downloads", "source", "prefix", "logs", "build-home", "build-tmp"):
+        require_build_path(destination / name, "dependency " + name)
     if not hasattr(tarfile, "data_filter"):
         raise ValueError("Source extraction requires Python 3.12 or newer")
-    destination = destination.absolute()
     if destination.is_symlink():
         raise ValueError("Build destination must not be a symlink")
+    tools = None if fetch_only else build_tools()
     destination.mkdir(parents=True, exist_ok=True)
     marker = destination / "source-lock.sha256"
     if marker.exists():
@@ -170,11 +209,7 @@ def build(destination, jobs, fetch_only=False):
     # trees and installed outputs may not: a new manifest must never bless
     # edited cached headers, configure scripts or libraries.
     require_fresh_outputs(destination, sources, prefix)
-    pkg_config = shutil.which(os.environ.get("PKG_CONFIG", "pkg-config"))
-    if not pkg_config:
-        raise ValueError("pkg-config is required; set PKG_CONFIG to its executable before building")
-    sdk = subprocess.check_output(["xcrun", "--show-sdk-path"], text=True).strip()
-    clang = subprocess.check_output(["xcrun", "--find", "clang"], text=True).strip()
+    sdk, clang, pkg_config = tools
     env = build_environment(destination, prefix, sdk, clang, pkg_config)
     identity = {"builder_sha256": digest(Path(__file__)), "lock_sha256": digest(LOCK), "clang": subprocess.check_output([clang, "--version"], text=True).strip(), "sdk": sdk, "sdk_version": subprocess.check_output(["xcrun", "--show-sdk-version"], text=True).strip(), "pkg_config_version": subprocess.check_output([pkg_config, "--version"], text=True).strip(), "pkg_config_sha256": digest(Path(pkg_config).resolve()), "environment": env}
     identity_path = destination / "build-identity.json"

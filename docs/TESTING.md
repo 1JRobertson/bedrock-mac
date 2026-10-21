@@ -58,6 +58,12 @@ existing app-data root and that the pinned release plan creates no workspace.
 Packaging/picker fixtures separately verify flat shipped script names and strict
 acceptance of existing runtime receipts through retained build provenance.
 
+`test_start.py` exercises setup-cache writes against stale symlinks/hardlinks and
+simulated write/publication failures, preserving previous receipts and unrelated
+files. Source-build path regressions in it and `test_standalone_setup.py` reject
+unsupported paths before build tools, downloads or build output are created.
+These isolated fixtures do not rebuild Wine or qualify gameplay.
+
 ## Native app and helper
 
 Compile the interface on a Mac with Command Line Tools:

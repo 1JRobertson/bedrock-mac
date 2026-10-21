@@ -72,6 +72,18 @@ Rosetta is missing, follow [Apple's instructions](https://support.apple.com/en-u
 The native app only checks for Rosetta. `Start.command` can request Apple’s
 Rosetta installer during source setup; the user handles its license prompt.
 
+### Build paths
+
+Native dependency and Wine compilation require checkout, build, dependency
+prefix, SDK and compiler/tool paths containing only **ASCII letters, digits,
+`/`, `.`, `_`, `+` and `-`**. Spaces, other punctuation and non-ASCII names are
+not supported by the underlying Autoconf/make flag handling. Symlink targets
+must satisfy the same restriction; a short alias does not make an unsupported
+location safe. Builders reject these paths before downloads or output changes.
+Choose a location such as `~/git/bedrock-mac` with a compatible home-directory
+path. This build restriction does not require moving or renaming installed
+apps, game data or saves, whose paths can still contain spaces.
+
 Building Wine and Rust uses much more storage than the player's 8 GB setup
 check. Inspect `df -h .`, leave room for source, compiler output, archives, and
 both app/DMG copies, and use a separate backup location for worlds. No measured

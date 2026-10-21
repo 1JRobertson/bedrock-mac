@@ -6,6 +6,54 @@ BUILD="$ROOT/build/standalone-wine"
 PREFIX="$ROOT/runtime/standalone/wine"
 JOBS=${STANDALONE_JOBS:-3}
 SOURCE="$BUILD/source"
+# Autoconf/make consume these paths inside compiler flags. Reject unsupported
+# lexical paths and resolved symlink targets before any cache/runtime mutation.
+if [ -z "${STANDALONE_DEPENDENCY_PREFIX:-}" ]; then
+  printf 'Build pinned native dependencies first, then set STANDALONE_DEPENDENCY_PREFIX.\n' >&2
+  exit 1
+fi
+python3 -B - "$ROOT" "$STANDALONE_DEPENDENCY_PREFIX" "$BUILD" "$PREFIX" "$SOURCE" <<'PYPATHS'
+import importlib.util, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location("native_paths", root / "tools/build-native-dependencies.py")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+try:
+    for value, label in zip(sys.argv[1:], ("source checkout", "dependency prefix", "Wine build", "Wine runtime", "Wine source")):
+        module.require_build_path(value, label)
+    for name in ("lib", "include", "notices"):
+        module.require_build_path(pathlib.Path(sys.argv[4]) / name, "Wine " + name)
+except ValueError as error:
+    raise SystemExit("Wine build stopped: " + str(error)) from None
+PYPATHS
+SDK=$(/usr/bin/xcrun --show-sdk-path)
+CLANG=$(/usr/bin/xcrun --find clang)
+CLANGXX=$(/usr/bin/xcrun --find clang++)
+RUST_TOOLCHAIN=$(rustup run 1.98.0 rustc --print sysroot)
+PKG_CONFIG_BIN=$(command -v "${PKG_CONFIG:-pkg-config}" || true)
+case "$PKG_CONFIG_BIN" in
+  /*|'') ;;
+  *) PKG_CONFIG_BIN="$PWD/$PKG_CONFIG_BIN" ;;
+esac
+if [ -z "$PKG_CONFIG_BIN" ]; then
+  printf 'pkg-config is required to build Wine.\n' >&2
+  exit 1
+fi
+python3 -B - "$ROOT" "$SDK" "$CLANG" "$CLANGXX" "$RUST_TOOLCHAIN" "$PKG_CONFIG_BIN" <<'PYTOOLS'
+import importlib.util, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location("native_paths", root / "tools/build-native-dependencies.py")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+try:
+    for value, label in zip(sys.argv[2:], ("macOS SDK", "C compiler", "C++ compiler", "Rust sysroot", "pkg-config")):
+        module.require_build_path(value, label)
+    module.require_build_path(pathlib.Path(sys.argv[5]) / "lib/rustlib/aarch64-apple-darwin/bin/rust-lld", "Rust linker")
+    module.require_build_path("/opt/homebrew/opt/llvm/bin/clang", "MinGW compiler")
+except ValueError as error:
+    raise SystemExit("Wine build stopped: " + str(error)) from None
+PYTOOLS
+export PKG_CONFIG="$PKG_CONFIG_BIN"
 # Refuse runtime mutation while a prefix is using these installed Unix libraries.
 if [ -f "$PREFIX/lib/wine/x86_64-unix/ntdll.so" ] &&
    /usr/sbin/lsof -t "$PREFIX/lib/wine/x86_64-unix/ntdll.so" 2>/dev/null | read -r runtime_pid; then
@@ -17,10 +65,6 @@ export LC_ALL=en_US.UTF-8
 # Only a verified, source-built dependency closure is accepted. Prepare it in
 # a separate directory with tools/build-native-dependencies.py; do not reuse unknown
 # libraries from an older binary archive.
-if [ -z "${STANDALONE_DEPENDENCY_PREFIX:-}" ]; then
-  printf 'Build pinned native dependencies first, then set STANDALONE_DEPENDENCY_PREFIX.\n' >&2
-  exit 1
-fi
 python3 - "$ROOT" "$STANDALONE_DEPENDENCY_PREFIX" "$PREFIX" <<'PYDEPS'
 import importlib.util, pathlib, shutil, sys
 root, dependencies, prefix = map(pathlib.Path, sys.argv[1:])
@@ -47,8 +91,6 @@ for PATCH in "$ROOT"/patches/standalone-wine-*.patch; do
   fi
 done
 python3 "$ROOT/tools/verify-wine-source.py" --source "$SOURCE" --output "$BUILD/source-verification.json"
-RUST_TOOLCHAIN=$(rustup run 1.98.0 rustc --print sysroot)
-SDK=$(xcrun --show-sdk-path)
 cat > "$BUILD/toolbin/lld-link" <<EOF
 #!/bin/sh
 export DYLD_LIBRARY_PATH='$RUST_TOOLCHAIN/lib'
@@ -56,8 +98,8 @@ exec '$RUST_TOOLCHAIN/lib/rustlib/aarch64-apple-darwin/bin/rust-lld' -flavor lin
 EOF
 chmod +x "$BUILD/toolbin/lld-link"
 export PATH="$BUILD/toolbin:/opt/homebrew/opt/llvm/bin:/opt/homebrew/opt/bison/bin:/usr/bin:/bin:/opt/homebrew/bin:$PATH"
-export CC="$(xcrun --find clang) -arch x86_64 -isysroot $SDK"
-export CXX="$(xcrun --find clang++) -arch x86_64 -isysroot $SDK"
+export CC="$CLANG -arch x86_64 -isysroot $SDK"
+export CXX="$CLANGXX -arch x86_64 -isysroot $SDK"
 export OBJC="$CC"
 export MACOSX_DEPLOYMENT_TARGET=15.0
 export CFLAGS='-O2 -mmacosx-version-min=15.0'

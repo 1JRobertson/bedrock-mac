@@ -47,7 +47,7 @@
     "patches/standalone-wine-xuser-token-refresh.patch": "d7694c51561f0620f1df4cb5f1ab418be338be70cbfe3beaba24254a0265fdd4",
     "patches/standalone-wine-xuser-z-device-auth.patch": "26668fdc4b56f5eacc4a92ecbf9904884923cc09d343b5ee31f314c1ebbcf79f",
     "config/native-dependencies.lock.json": "decd9132c5c8038d8ef6f26af89066f0e4c73b09d0308f0b1c2d3f98c2c711bd",
-    "tools/build-standalone-wine.sh": "10a9e84de74f801f7e18eeb04765e98f64721856b3af19b68b5edfea5ccab396",
+    "tools/build-standalone-wine.sh": "0985e74a607ec94d98e5359e9443e1bff10841afe8576964c60ba6e2eea3c370",
     "tools/verify-wine-source.py": "38128498ac04a76f492481a9f73472d7a1b6c3323afcb1f1192a7f76f5b660d0",
     "client/standalone-pickers.py": "8378f075456eddc78e8cedcce35e6bc79b3213086b1533005c523a9ee551aba3",
     "native/file-pickers/build.sh": "c1f596e7b606f7e665c55dc8657cf63a271952f0aa036f86d7172c588a52ae13",
@@ -56,7 +56,8 @@
     "native/file-pickers/pickers.spec": "9d1b11a9e8593a4f441bd54e837cee8501af423a4a0f56f45c75e3c4d9d7f5ec",
     "native/file-pickers/README.md": "ad6d9beee3ec4547ef76bf27e4cf19eb1c129c8cfc7fb3cfb1486fbcd73977b3",
     "native/file-pickers/check-windows.cmd": "42851184bf4022cc26286992895309bb40d20eb57cff214c1567c6bb50f6fd78",
-    "tests/file-picker-contract.c": "dbc1e8e5d191b5f3786da6a8c68ccb4a21d7558fc951b583bbb1afe4f9ee028e"
+    "tests/file-picker-contract.c": "dbc1e8e5d191b5f3786da6a8c68ccb4a21d7558fc951b583bbb1afe4f9ee028e",
+    "tools/build-native-dependencies.py": "0dbb9793d24338d96af3202c42ac3ae2270f350f57e82b79a4d35b50c0e15999"
   },
   "wine_standalone_patches": [
     "standalone-wine-dxmt-abi.patch",

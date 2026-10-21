@@ -17,6 +17,9 @@ On an **Apple Silicon Mac with macOS 15 or later**:
 1. Clone this repository, or choose **Code → Download ZIP** and extract it.
 2. Keep the folder in a permanent location you control: it holds your game,
    settings, and saves. Do not replace or delete it when updating source.
+   Source builds require a full path containing only ASCII letters, digits,
+   `/`, `.`, `_`, `+` and `-` (for example, `~/git/bedrock-mac` after expanding `~`).
+   See [build path requirements](docs/DEVELOPMENT.md#build-paths).
 3. Double-click **Start.command**, or run `./Start.command` from Terminal in
    that folder. Keep Terminal open through setup and play.
 4. Follow the Apple/Homebrew prompts and sign in with the Microsoft account

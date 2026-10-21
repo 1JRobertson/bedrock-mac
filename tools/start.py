@@ -177,12 +177,31 @@ class Steps:
 
     def save(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.path.with_suffix('.tmp')
-        temporary.write_text(json.dumps(self.state, indent=2) + '\n')
-        temporary.replace(self.path)
+        temporary = None
+        try:
+            # Create exclusively in the destination directory. A predictable
+            # .tmp path can be a stale link to unrelated recovery data.
+            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
+                    prefix='.start-state-', suffix='.tmp',
+                    dir=self.path.parent, delete=False) as output:
+                temporary = Path(output.name)
+                json.dump(self.state, output, indent=2)
+                output.write('\n')
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(temporary, self.path)
+            temporary = None
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
 
 
 def setup(jobs, market):
+    dependencies_builder = module('build-native-dependencies')
+    dependencies_builder.require_build_path(ROOT, 'Source checkout')
+    if os.environ.get('STANDALONE_DEPENDENCY_PREFIX'):
+        dependencies_builder.require_build_path(
+            Path(os.environ['STANDALONE_DEPENDENCY_PREFIX']).expanduser(), 'Dependency prefix')
     run(['/bin/bash', str(ROOT / 'tools/install-build-tools.sh')], 'Preparing build tools')
     # Start.command deliberately bootstraps with Apple's Python. Use the modern
     # source-build interpreter installed above for extraction and subprocesses.

@@ -47,6 +47,81 @@ class StartTests(unittest.TestCase):
     def step(self, steps, name):
         steps.step(name, name, [[name]], [name + '.src'], [name + '.out'])
 
+    def test_cache_save_preserves_stale_temp_links_and_their_targets(self):
+        steps = start.Steps()
+        steps.path.parent.mkdir(parents=True)
+        recovery = self.root / 'recovery.json'
+        recovery.write_bytes(b'preserve recovery data')
+        stale = steps.path.with_suffix('.tmp')
+        for link_type in ('symlink', 'hardlink'):
+            with self.subTest(link_type=link_type):
+                if link_type == 'symlink':
+                    stale.symlink_to(recovery)
+                else:
+                    os.link(recovery, stale)
+                steps.state = {'wine': {'signature': link_type}}
+                steps.save()
+                self.assertEqual(recovery.read_bytes(), b'preserve recovery data')
+                self.assertEqual(stale.read_bytes(), b'preserve recovery data')
+                self.assertFalse(steps.path.is_symlink())
+                self.assertEqual(json.loads(steps.path.read_text()), steps.state)
+                self.assertEqual(steps.path.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(list(steps.path.parent.glob('.start-state-*.tmp')), [])
+                stale.unlink()
+
+    def test_cache_save_replaces_destination_link_without_modifying_target(self):
+        steps = start.Steps()
+        steps.path.parent.mkdir(parents=True)
+        recovery = self.root / 'recovery.json'
+        recovery.write_text('{"previous": true}')
+        steps.path.symlink_to(recovery)
+        steps.state = {'wine': {'signature': 'new'}}
+        steps.save()
+        self.assertEqual(recovery.read_text(), '{"previous": true}')
+        self.assertFalse(steps.path.is_symlink())
+        self.assertEqual(json.loads(steps.path.read_text()), steps.state)
+
+    def test_failed_cache_save_preserves_previous_state_and_cleans_owned_temp(self):
+        steps = start.Steps()
+        steps.state = {'wine': {'signature': 'previous'}}
+        steps.save()
+        previous = steps.path.read_bytes()
+        unrelated = steps.path.with_suffix('.tmp')
+        unrelated.write_bytes(b'preserve unrelated temporary file')
+        for operation in ('fsync', 'replace'):
+            with self.subTest(operation=operation):
+                steps.state = {'wine': {'signature': 'new'}}
+                with patch.object(start.os, operation, side_effect=OSError('fixture failure')):
+                    with self.assertRaisesRegex(OSError, 'fixture failure'):
+                        steps.save()
+                self.assertEqual(steps.path.read_bytes(), previous)
+                self.assertEqual(unrelated.read_bytes(), b'preserve unrelated temporary file')
+                self.assertEqual(list(steps.path.parent.glob('.start-state-*.tmp')), [])
+        steps.state = {'invalid': object()}
+        with self.assertRaises(TypeError):
+            steps.save()
+        self.assertEqual(steps.path.read_bytes(), previous)
+        self.assertEqual(list(steps.path.parent.glob('.start-state-*.tmp')), [])
+        steps.state = {'wine': {'signature': 'retry'}}
+        steps.save()
+        self.assertEqual(json.loads(steps.path.read_text()), steps.state)
+
+    def test_setup_rejects_unsupported_paths_before_installing_tools(self):
+        source = Path(__file__).resolve().parents[1]
+        with patch.object(start, 'ROOT', source):
+            builder = start.module('build-native-dependencies')
+        for root, prefix in ((self.root, ''), (source, str(self.root / 'prefix'))):
+            with self.subTest(root=root, prefix=prefix), \
+                    patch.object(start, 'ROOT', root), \
+                    patch.object(start, 'module', return_value=builder), \
+                    patch.object(start, 'run') as run, \
+                    patch.dict(os.environ, {'STANDALONE_DEPENDENCY_PREFIX': prefix}):
+                with self.assertRaisesRegex(ValueError, 'Unsupported'):
+                    start.setup(2, 'CA')
+                run.assert_not_called()
+        self.assertFalse((self.root / 'runtime').exists())
+        self.assertFalse((self.root / 'build').exists())
+
     def test_retry_skips_completed_steps_and_runs_failed_step_again(self):
         def fail_helper(command, label, log):
             if command[0] == 'helper':
@@ -305,6 +380,7 @@ sys.exit(start.cli())
                 recorded.append(args)
 
         bootstrap = SimpleNamespace(PROJECTS={'xodus': {'patches': ('account.patch',)}},
+                                    require_build_path=unittest.mock.Mock(),
                                     HELPER_INPUTS={'client/standalone-helper.rs': 'helper', 'client/standalone-xvd.rs': 'xvd'},
                                     SOURCE_INPUTS=('native/file-pickers/pickers.c', 'native/file-pickers/build.sh'),
                                     bootstrap=unittest.mock.Mock())
@@ -351,6 +427,7 @@ sys.exit(start.cli())
         bootstrap.PROJECTS = {'xodus': {'patches': ()}}
         bootstrap.SOURCE_INPUTS = ()
         with patch.object(start, 'module', return_value=bootstrap), \
+                patch.object(bootstrap, 'require_build_path', create=True), \
                 patch.object(bootstrap, 'verify_project', side_effect=verify) as check, \
                 patch.object(start, 'native_dependencies', return_value=self.root / 'dependencies'), \
                 patch.object(start, 'Steps') as steps, patch.object(start, 'run'):
