@@ -4,7 +4,8 @@ Review baseline: GitHub/local `main` at `92f6c1a`, including merged PRs #6 and #
 working tree clean before changes. Its [source CI run](https://github.com/1JRobertson/bedrock-mac/actions/runs/39461008662)
 was successful. No open PR or public release was listed at audit start. Fixes
 are prepared on `audit-public-setup-safety`; that baseline CI does not validate
-this branch. This record concerns source, not a rebuilt release candidate.
+this branch. Hosted CI is currently unavailable: the maintainer reports exhausted
+GitHub Actions minutes. This record concerns source, not a rebuilt release candidate.
 
 ## Verified fixes
 
@@ -46,7 +47,7 @@ this branch. This record concerns source, not a rebuilt release candidate.
 | Accounts/downloads | Reviewed account HTTPS/redirect policy, package origin checks, signature/hash-tree quarantine, extraction paths, real ownership and helper lifetime; no verified additional defect found in those paths; no live account or independent cryptographic certification |
 | Saves/updates | Reviewed journals, backup/recovery ownership and preservation fixtures; real packaged upgrade/restore and power-loss durability still need validation |
 | Packaging/licenses | Reviewed runtime/dependency receipts, contained links, private-payload rejection, source snapshots, notices and OS inventory; corresponding-source mapping and distribution clearance remain release gates |
-| Repository/CI | Reviewed explicit export inventory, pinned Actions/Rust, Python/native/picker jobs, relative documentation targets and current main CI; new branch CI is still required |
+| Repository/CI | Reviewed explicit export inventory, pinned Actions/Rust, Python/native/picker jobs, relative documentation targets and baseline main CI; hosted checks for this branch are unavailable because Actions minutes are exhausted |
 
 ## Validation
 
@@ -56,11 +57,16 @@ files/backends and owned subprocesses; they do not access Microsoft or Keychain.
 Shell syntax, relative documentation links, source export, checksum inventory,
 Git ignore paths and whitespace are checked separately.
 
-The guarded full Python suite was not run: the guard observed the desktop app
-above its 8 GiB footprint threshold; a later attempt also found the shared heavy
-QA lock occupied. The guard was not bypassed and no unrelated process was stopped.
+Initial full-suite attempts were blocked by the desktop app's 8 GiB footprint
+threshold and the shared heavy-QA lock. Once memory was safe, the guarded full
+suite passed on macOS with Python 3.9.6: **349 tests run, 5 skipped** in 6.060 s.
+Those five notice-collector tests require Python 3.11+; all five separately
+passed on the installed Python 3.14.5. A complete 3.14 suite attempt was refused
+by the occupied shared lock. These results provide local coverage; hosted CI
+has not passed on this branch. The guard was not bypassed and no unrelated
+process was stopped.
 No Wine/helper rebuild, native app/DMG creation, game launch, installation,
-world refresh, Keychain change, merge, publication or reporter contact occurred.
+world refresh, Keychain change, merge, binary publication or reporter contact occurred.
 DMG changes have fixture coverage; actual `hdiutil` acceptance remains pending.
 Atomic image publication requires hard-link support (normally local APFS/HFS+).
 
