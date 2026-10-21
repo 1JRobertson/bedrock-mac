@@ -192,6 +192,11 @@ def setup(jobs, market):
     bootstrap = module('bootstrap-sources')
     for name, project in bootstrap.PROJECTS.items():
         if (ROOT / 'sources' / name).exists():
+            if name == 'xodus':
+                # These examples are generated copies of this checkout's
+                # authoritative helper inputs. Refresh them before verifying a
+                # previously prepared tree after a source update.
+                bootstrap.copy_helper_inputs(ROOT / 'sources' / name, ROOT)
             bootstrap.verify_project(ROOT / 'sources' / name, name, project)
         else:
             bootstrap.bootstrap(ROOT / 'sources', (name,))
@@ -255,6 +260,10 @@ def main(argv=None):
         parser.error('--market must be a two-letter uppercase country code')
     if not 1 <= args.jobs <= 12:
         parser.error('--jobs must be between 1 and 12')
+    # Source setup owns this checkout's locks, runtime, game and saves. Do not
+    # let inherited packaged-worker variables redirect only part of the flow.
+    os.environ['BEDROCK_HOME'] = str(ROOT)
+    os.environ.pop('BEDROCK_BUNDLE', None)
     if args.check:
         ready = installed()
         print('Ready to launch.' if ready else 'Setup needed. Open Start.command to continue.')
@@ -286,12 +295,24 @@ def main(argv=None):
     return 0
 
 
-if __name__ == '__main__':
+def interrupted(_signal, _frame):
+    # Unwind run() so its separately owned compiler group cannot outlive Start
+    # when Terminal closes or the worker receives a termination request.
+    raise KeyboardInterrupt
+
+
+def cli():
+    signal.signal(signal.SIGTERM, interrupted)
+    signal.signal(signal.SIGHUP, interrupted)
     try:
-        sys.exit(main())
+        return main()
     except KeyboardInterrupt:
         print('\nStopped. Open Start.command again to retry.', file=sys.stderr)
-        sys.exit(130)
+        return 130
     except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
         print('Start: ' + str(error), file=sys.stderr)
-        sys.exit(1)
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(cli())

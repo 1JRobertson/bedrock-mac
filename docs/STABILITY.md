@@ -39,6 +39,10 @@ sessions below retain their own timing and memory evidence; the cumulative
 estimate is user-reported, not a continuous monitored soak or a test of a newly
 packaged release candidate.
 
+The maintainer also reports it working on an **M1 MacBook Air with 16 GB
+RAM**. Its OS, source/app revision, session duration and exact scenarios have not
+been recorded; this is a user report, not a clean-machine or RC4 acceptance test.
+
 ## Earlier gameplay results
 
 These observations belong to the September 30, 2026 standalone development build
@@ -64,7 +68,9 @@ fully explained, and a disconnect/rejoin cycle remains unverified.
 
 ## Optional local monitoring and diagnostics
 
-The monitor runs only when explicitly started; it does not upload diagnostics:
+`Start.command` starts the local monitor for its game session. The native app
+and `Launch Standalone.command` do not start it automatically. It does not upload
+diagnostics:
 
 ```sh
 python3 bedrock-monitor.py --help
@@ -77,9 +83,9 @@ Use `Mark Problem.command` and `Stop Monitor.command` for an existing monitor
 session. Raw captures stay private in `logs/standalone/monitor/` and are excluded
 from source exports. Review excerpts before sharing them.
 
-`Start.command` and `start.py` retain the older source-building setup path for
-development. They reuse a completed installation, but do not update an installed
-game or runtime. The native app remains the documented player entry point.
+`Start.command` and `start.py` provide the [source setup entry point](../README.md#start-from-source).
+They reuse a completed installation, but do not update an installed game or
+runtime. The separately packaged native app has its own data directory.
 
 ## Integration validation, October 5, 2026
 

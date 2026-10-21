@@ -1,8 +1,13 @@
 """Verify the advertised OS target includes every bundled native component."""
 import importlib.util
+import contextlib
+import io
 import hashlib
 import json
 import os
+import plistlib
+import subprocess
+import sys
 from pathlib import Path
 import shutil
 import tempfile
@@ -254,3 +259,92 @@ class PackagingTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256((captured / name).read_bytes()).hexdigest(), hashes[name])
                 self.assertNotEqual(hashlib.sha256((source / name).read_bytes()).hexdigest(), hashes[name])
             self.assertTrue(os.access(captured / 'build-launcher.sh', os.X_OK))
+
+
+class DiskImageTests(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location(
+            'dmg_builder', Path(__file__).resolve().parents[1] / 'build-dmg.py')
+        self.builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.builder)
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.app = self.root / 'Test.app'
+        resources = self.app / 'Contents/Resources'
+        resources.mkdir(parents=True)
+        (resources / 'payload-sha256.json').write_text('{}')
+        (self.app / 'Contents/Info.plist').write_bytes(plistlib.dumps({
+            'CFBundleShortVersionString': '0.3.0', 'CFBundleVersion': '6',
+            'LSMinimumSystemVersion': '15.0'}))
+        self.output = self.root / 'preview.dmg'
+
+    def command(self, command, **kwargs):
+        if command[:2] == ['hdiutil', 'create']:
+            Path(command[-1]).write_bytes(b'verified image fixture')
+
+    def build(self, command=None):
+        arguments = ['build-dmg.py', '--app', str(self.app), '--output', str(self.output)]
+        with patch.object(sys, 'argv', arguments), \
+                patch.object(self.builder.subprocess, 'run', side_effect=command or self.command), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.builder.main()
+
+    def test_verified_image_is_published_with_matching_receipt(self):
+        self.build()
+        self.assertEqual(self.output.read_bytes(), b'verified image fixture')
+        receipt = json.loads(self.output.with_suffix('.dmg.json').read_text())
+        self.assertEqual(receipt['sha256'], hashlib.sha256(self.output.read_bytes()).hexdigest())
+        self.assertEqual(receipt['bytes'], self.output.stat().st_size)
+        self.assertFalse(list(self.root.glob('bedrock-dmg-*')))
+
+    def test_receipt_describes_staged_app_when_source_changes(self):
+        original = (self.app / 'Contents/Resources/payload-sha256.json').read_bytes()
+        verified_apps = []
+        def command(arguments, **kwargs):
+            self.command(arguments, **kwargs)
+            if arguments[0] == 'codesign':
+                verified_apps.append(Path(arguments[-1]))
+            if arguments[:2] == ['hdiutil', 'create']:
+                (self.app / 'Contents/Resources/payload-sha256.json').write_text('changed source')
+        self.build(command)
+        receipt = json.loads(self.output.with_suffix('.dmg.json').read_text())
+        self.assertEqual(receipt['payload_inventory_sha256'], hashlib.sha256(original).hexdigest())
+        self.assertEqual(len(verified_apps), 2)
+        self.assertEqual(verified_apps[0], self.app.resolve())
+        self.assertNotEqual(verified_apps[1], self.app)
+
+    def test_failed_image_creation_or_verification_leaves_retryable_destination(self):
+        for failure in ('create', 'verify'):
+            def command(arguments, **kwargs):
+                self.command(arguments, **kwargs)
+                if arguments[:2] == ['hdiutil', failure]:
+                    raise subprocess.CalledProcessError(1, arguments)
+            with self.subTest(failure=failure), self.assertRaises(subprocess.CalledProcessError):
+                self.build(command)
+            self.assertFalse(self.output.exists())
+            self.assertFalse(self.output.with_suffix('.dmg.json').exists())
+            self.assertFalse(list(self.root.glob('bedrock-dmg-*')))
+        self.build()
+
+    def test_output_created_during_build_is_preserved(self):
+        def command(arguments, **kwargs):
+            self.command(arguments, **kwargs)
+            if arguments[:2] == ['hdiutil', 'verify']:
+                self.output.write_bytes(b'another build owns this destination')
+        with self.assertRaises(FileExistsError):
+            self.build(command)
+        self.assertEqual(self.output.read_bytes(), b'another build owns this destination')
+        self.assertFalse(self.output.with_suffix('.dmg.json').exists())
+
+    def test_image_hash_reads_bounded_chunks(self):
+        # Enforce bounded reads with a synthetic stream, without allocating a DMG.
+        content = b'fixture' * 200000
+        class BoundedStream(io.BytesIO):
+            def read(self, size=-1):
+                if not 0 < size <= 1024 * 1024:
+                    raise AssertionError('Unbounded disk-image read')
+                return super().read(size)
+        with patch.object(Path, 'open', return_value=BoundedStream(content)):
+            actual = self.builder.file_sha256(Path('image.dmg'))
+        self.assertEqual(actual, hashlib.sha256(content).hexdigest())

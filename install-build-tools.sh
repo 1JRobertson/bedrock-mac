@@ -10,7 +10,7 @@ if [ ! -x "/opt/homebrew/bin/brew" ]; then
   printf 'Installing Homebrew. It may ask for your Mac password.\n'
   installer=$(mktemp -t bedrock-homebrew)
   trap 'rm -f "$installer"' EXIT
-  /usr/bin/curl --fail --location --proto '=https' --proto-redir '=https' \
+  /usr/bin/curl --disable --fail --location --proto '=https' --proto-redir '=https' \
     https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o "$installer"
   /bin/bash "$installer"
   rm -f "$installer"

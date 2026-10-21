@@ -405,6 +405,21 @@ def setup_matches(desired):
         return False
 
 
+def write_setup_record(desired):
+    marker = PREFIX / '.bedrock-setup.json'
+    descriptor, name = tempfile.mkstemp(prefix='.bedrock-setup-', dir=PREFIX)
+    temporary = Path(name)
+    try:
+        with os.fdopen(descriptor, 'w', encoding='utf-8') as output:
+            json.dump(desired, output, indent=2)
+            output.write('\n')
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, marker)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def picker_bridge():
     source = Path(os.environ['BEDROCK_BUNDLE']) / 'scripts' if os.environ.get('BEDROCK_BUNDLE') else Path(__file__).resolve().parent
     spec = importlib.util.spec_from_file_location('standalone_pickers', source / 'standalone-pickers.py')
@@ -443,7 +458,6 @@ def prepare(game):
     PREFIX.parent.mkdir(parents=True, exist_ok=True)
     logs = ROOT / 'logs/standalone'
     logs.mkdir(parents=True, exist_ok=True)
-    marker = PREFIX / '.bedrock-setup.json'
     desired = setup_signature(game)
     pickers = picker_bridge()
     if setup_matches(desired) and pickers.installed(PREFIX, WINE):
@@ -489,9 +503,7 @@ def prepare(game):
     require(PREFIX / 'drive_c/Program Files/Microsoft GameInput/x64/GameInputRedistService.exe')
     if not pickers.installed(PREFIX, WINE):
         raise RuntimeError('The file picker registration did not persist. Preserve the picker backups and retry setup.')
-    temporary = marker.with_suffix('.new')
-    temporary.write_text(json.dumps(desired, indent=2) + '\n')
-    os.replace(temporary, marker)
+    write_setup_record(desired)
 
 
 def game_running():

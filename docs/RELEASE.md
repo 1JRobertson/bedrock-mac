@@ -4,7 +4,7 @@
 local release preparation is underway. Nothing has been posted or published by
 the release team. Public download: **pending**.
 
-Snapshot: October 7, 2026. Source baseline `73b120b0ed6e5e4bec8e0319b73fba6765f9135a`
+Artifact snapshot: October 7, 2026; source/report updates through October 21. Source baseline `73b120b0ed6e5e4bec8e0319b73fba6765f9135a`
 plus pre-existing staged work and current uncommitted release fixes. That commit
 alone does not identify a built artifact. The current local test artifact is
 **0.3.0 RC4 (build 6)**, built October 7 (Vancouver) from a captured source snapshot.
@@ -24,6 +24,9 @@ RC4 combines the source-built v4 runtime, verified acquisition helper and
 quit/window lifecycle fix. Earlier RC3 functioning, normal-return and quit-alert
 observations remain historical. No RC4 native first-run, gameplay, save/reopen,
 soak or M1 pass is claimed. Public download is **pending**.
+
+The [October 21 source audit](AUDIT.md) records subsequent fixes and focused
+checks. It does not update the RC4 artifact or close its native release gates.
 
 ## Current gates
 
@@ -46,7 +49,7 @@ a known requirement is unmet. **Untested** means no qualifying candidate result.
 | Corresponding-source / build provenance | Untested — final distribution mapping | RC4 uses source-built native dependencies and collected helper/Python notices; final binary corresponding-source mapping remains a gate; [THIRD_PARTY.md](../THIRD_PARTY.md) |
 | Local Gatekeeper assessment | Fail — expected for ad-hoc build | Packaging reports rejection; no clean signed/downloaded-app result |
 | Developer ID / notarization | External blocker | User has no Apple Developer membership; no Developer ID identity or notarization |
-| Clean M1 install and sign-in | Untested; external test needed | User's MacBook Air M1 offered; OS, RAM and actual test results pending |
+| Clean M1 install and sign-in | Untested; external test needed | Maintainer reports it working on an M1 MacBook Air, 16 GB; exact OS/revision/scenarios and clean-state acceptance receipt still needed |
 | RC3 functioning / normal return | Pass — bounded same-Mac report | User-confirmed functioning with copied owned payload; launcher returned to Play and owned processes exited. Direct exit code not captured; no save/reopen or timed-soak pass |
 | RC4 frozen update fixtures | Pass — synthetic scope | Success/failure/cancel cases and 12 interrupted-update guards passed using fake backend/journal/save data; real update/recovery pending |
 | RC4 quit/window fixture | Pass — exact-code synthetic scope | Final native SwiftUI close/reopen, repeated Quit, Keep Open and automatic dismissal passed; bundled code matches; real game lifecycle pending |
@@ -128,6 +131,9 @@ or performance result.
   PlayStation friends** across multiple sessions. This adds cumulative
   user-reported experience to the two individually monitored sessions below;
   [gameplay evidence](STABILITY.md#repeated-cross-platform-play).
+- Maintainer report: working on an **M1 MacBook Air with 16 GB RAM**. Exact OS,
+  source/app revision and scenarios are unrecorded; clean-machine and RC4
+  acceptance remain separate checks.
 - September 30: M4 Pro, 24 GB, macOS 15.3.1, WineGDK 11.8, DXMT v0.80,
   Minecraft 1.26.52. User-confirmed Xbox and PS5 friend-world sessions;
   [stability notes](STABILITY.md) retain durations, memory observations and limits.

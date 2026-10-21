@@ -44,6 +44,9 @@ That check is offline; the initial `bootstrap-sources.py` fetch is not. If an
 exported source file changed, first regenerate `SOURCE-SHA256.txt` following
 [PUBLISHING.md](PUBLISHING.md#update-the-source-inventory).
 
+The [October 21 source audit](AUDIT.md) records focused and subsequent guarded full-suite
+results for the source fixes, plus the unavailable hosted CI and native limits.
+
 ## Release-preparation source snapshot, October 7
 
 The coordinator's 23:56 UTC run passed **289 Python tests, zero skips**. The
