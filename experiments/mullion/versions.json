@@ -1,0 +1,23 @@
+{
+  "mullion": "v0.3",
+  "mullion_commit": "5dda0b9af63dd246003a9ee9f84fd738b81867f9",
+  "archive_sha256": "c7f97f29cd9bcb5e2aaf776ffa9e84adfe566399e91fccd78c089e1ea27bdfe9",
+  "wine": "WineGDK 11.8; independent APFS copy",
+  "wine_loader_sha256": "1cd42f0f8ad11d171250f38046fe34297d16966720e5ae45d2928cea7e7bc858",
+  "dxc": "v1.9.2609",
+  "dxc_archive_sha256": "ad31b1fc8443175d204f77a611fdb3ef2ec42759bdc2f1167368de24a4a7e7f1",
+  "mullion_dll_sha256": {
+    "d3d10core.dll": "72593a5919a50685fb9f1ae32845ec9c8b730aa2ddbff65fc7ce52b58dd7a355",
+    "d3d12core.dll": "a055645e208cd953115d91e90dde38bc099d563c7983918ad150ca098b95e1d3",
+    "d3d11.dll": "d1c02b50bbf557a347c4a8387d25ecbff5524dd8834731917472ae2bf188468e",
+    "d3d12.dll": "3672ca25bb3481e3ee298db822d4bd94cc2aa25af93c7f27633cfdeca420b2f8",
+    "winemetal.dll": "252eba552fa2b8d62e527a05f6ac36cc63e12aa246bdc9a9d77ec0ab536cc32f",
+    "dxgi.dll": "c4f18b05872d7e66ec0be287ea57b7f652ae0bee6d908a0737e73ec7b02518cf"
+  },
+  "production_baseline": {
+    "standalone.py": "e62e7ab697313c0b51801a1a26fd02d1c1ea30f5566f13e18d70c55e4203379d",
+    "runtime/standalone/wine/bin/wine": "1cd42f0f8ad11d171250f38046fe34297d16966720e5ae45d2928cea7e7bc858",
+    "runtime/standalone/wine/lib/wine/x86_64-windows/d3d11.dll": "d4c2fd49310750a330aaee525166c1984340d31324a2f960b2c6334391bccabf",
+    "runtime/standalone/wine/lib/wine/x86_64-unix/winemetal.so": "d6f06d26312e81ec4771cf344ddd4e22d9ae8e0915305fdd7d232f0e56017a85"
+  }
+}

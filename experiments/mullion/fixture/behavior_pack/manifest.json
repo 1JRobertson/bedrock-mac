@@ -1,0 +1,23 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Mullion Ray Proof Room",
+    "description": "Manual test room functions. Use only in an empty experimental world.",
+    "uuid": "b0d8843a-f1bf-452f-8950-541a7c68dfd7",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 21, 0]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "1ac652a5-839d-49c4-8726-56909db784f9",
+      "version": [1, 0, 0]
+    }
+  ],
+  "dependencies": [
+    {
+      "uuid": "2d067af9-9d92-4fda-837b-712428adffb6",
+      "version": [1, 0, 0]
+    }
+  ]
+}

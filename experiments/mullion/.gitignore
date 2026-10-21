@@ -1,0 +1,16 @@
+/downloads/
+/dxc/
+/source/
+/mullion-v0.3/
+/wine/
+/prefix/
+/game/
+/logs/
+/out/
+/Mullion Bedrock QA.app/
+__pycache__/
+
+/evidence/
+/review.txt
+.DS_Store
+*.pyc

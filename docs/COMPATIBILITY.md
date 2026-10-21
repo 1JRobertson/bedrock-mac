@@ -18,11 +18,11 @@ qualification remains pending. See [release readiness](RELEASE.md).
 | Packaged graphics probes | Actual RC3 GPU presentation/readback/texture/discard passed; resources/signature intact | Probe pass only; game/font behavior and save acceptance pending |
 | RC3 functioning / exit | User-confirmed same-Mac functioning with copied owned payload; normal return supported by UI/process cleanup | Bounded pass; save/reopen, soak and clean-M1 remain unverified |
 | Local worlds | Earlier development save/reopen observed | Current candidate save/reopen and clean-M1 test pending |
-| Xbox / PlayStation friend worlds | Maintainer estimates 10+ cumulative hours across repeated friend sessions (October 20 report); two monitored sessions in [gameplay evidence](STABILITY.md#repeated-cross-platform-play) | New packaged-candidate join/disconnect/rejoin still needs recording |
+| Xbox / PlayStation friend worlds | Maintainer estimates 10+ cumulative hours across repeated friend sessions (October 20 report); two monitored sessions in [gameplay evidence](history/GAMEPLAY.md#repeated-cross-platform-play) | New packaged-candidate join/disconnect/rejoin still needs recording |
 | Featured servers | Earlier lobby entry observed | Candidate untested |
 | Realms | Earlier joined-Realm list observed | Active Realm entry untested |
 | Marketplace / controllers | No complete qualification record | Untested; no blanket support claim |
-| Custom skin import | October 19 local native checks passed dialog/cancellation and PNG import/rendering, including a Unicode filename | Picker crash no longer reproduces locally; #4 awaits reporter verification. 26.52 restart reset matches an [upstream bug](TESTING.md#october-20-skin-persistence-diagnosis); newer-game validation and world import/export regression pending |
+| Custom skin import | October 19 local native checks passed dialog/cancellation and PNG import/rendering, including a Unicode filename | Picker crash no longer reproduces locally; #4 awaits reporter verification. 26.52 restart reset matches an [upstream bug](history/TESTING.md#october-20-skin-persistence-diagnosis); newer-game validation and world import/export regression pending |
 | Offline launch | Account verified on Play | Unsupported |
 | Store market | Native UI uses CA; CLI accepts a market argument | Other native-UI markets unverified |
 | Cancel while waiting for Keychain | Actual RC3 native Cancel stopped helper; no socket/prefix/game; imported payload key hashes unchanged | Passed only this stage; retry/authentication/gameplay remain untested |

@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-spec = importlib.util.spec_from_file_location('dxmt_unix', Path(__file__).resolve().parent.parent / 'standalone-dxmt-unix.py')
+spec = importlib.util.spec_from_file_location('dxmt_unix', Path(__file__).resolve().parent.parent / 'tools/standalone-dxmt-unix.py')
 bridge = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bridge)
 

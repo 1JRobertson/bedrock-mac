@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('wine_source', ROOT / 'verify-wine-source.py')
+spec = importlib.util.spec_from_file_location('wine_source', ROOT / 'tools/verify-wine-source.py')
 wine = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(wine)
 
@@ -18,6 +18,7 @@ class WineSourceTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
+        (self.root / 'tools').mkdir()
         self.source = self.root / 'source'; self.source.mkdir()
         self.patches = self.root / 'patches'; self.patches.mkdir()
         self.git('init', '-q')
@@ -29,7 +30,7 @@ class WineSourceTests(unittest.TestCase):
         self.git('add', '.')
         self.git('commit', '-qm', 'upstream fixture')
         self.revision = self.git('rev-parse', 'HEAD').strip()
-        (self.root / 'bootstrap-sources.py').write_text('PROJECTS = ' + repr({'winegdk': {
+        (self.root / 'tools/bootstrap-sources.py').write_text('PROJECTS = ' + repr({'winegdk': {
             'commit': self.revision, 'patches': ('base.patch',), 'url': 'https://example.invalid/wine'}}) + '\n')
         (self.patches / 'base.patch').write_text('--- a/source.c\n+++ b/source.c\n@@ -1 +1 @@\n-original\n+baseline\n')
         (self.patches / 'standalone-wine-fixture.patch').write_text(
@@ -88,8 +89,8 @@ class WineSourceTests(unittest.TestCase):
             self.assertEqual(self.verify()['source_revision'], self.revision)
 
     def test_builder_checks_before_compile_and_install_and_records_identity(self):
-        script = (ROOT / 'build-standalone-wine.sh').read_text()
-        initial = script.index('"$ROOT/verify-wine-source.py" --source "$SOURCE" --output')
+        script = (ROOT / 'tools/build-standalone-wine.sh').read_text()
+        initial = script.index('"$ROOT/tools/verify-wine-source.py" --source "$SOURCE" --output')
         compile_at = script.index('make -j"$JOBS"')
         first_recheck = script.index('--check-receipt')
         install_at = script.index('make install')

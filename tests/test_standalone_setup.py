@@ -3,6 +3,8 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
+import shutil
 from pathlib import Path
 import struct
 import subprocess
@@ -22,10 +24,10 @@ def module(name, filename):
     return result
 
 
-setup = module("setup_under_test", "standalone-setup.py")
-gameinput = module("input_under_test", "standalone-gameinput.py")
-bootstrap = module("bootstrap_under_test", "bootstrap-sources.py")
-native_dependencies = module("native_dependencies_under_test", "build-native-dependencies.py")
+setup = module("setup_under_test", "client/standalone-setup.py")
+gameinput = module("input_under_test", "client/standalone-gameinput.py")
+bootstrap = module("bootstrap_under_test", "tools/bootstrap-sources.py")
+native_dependencies = module("native_dependencies_under_test", "tools/build-native-dependencies.py")
 
 
 class DependencyPrefixTests(unittest.TestCase):
@@ -42,6 +44,102 @@ class DependencyPrefixTests(unittest.TestCase):
             self.assertEqual(env["CONFIG_SITE"], "/dev/null")
             self.assertEqual(env["ZLIB_CFLAGS"], "-I/sdk/usr/include")
             self.assertEqual(env["HOME"], str(root / "build-home"))
+
+    def test_native_build_paths_reject_unsupported_names_and_resolved_aliases(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in ("has space", "has'quote", "has$dollar", "has;command", "has&operator",
+                         "has:colon", "has,comma", "hasαunicode", "has\nnewline"):
+                with self.subTest(name=name), self.assertRaisesRegex(ValueError, "Unsupported"):
+                    native_dependencies.require_build_path(root / name, "fixture")
+            outside = root / "unsupported target"
+            outside.mkdir()
+            alias = root / "safe-alias"
+            alias.symlink_to(outside, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "resolved targets"):
+                native_dependencies.require_build_path(alias / "new-build", "fixture")
+            self.assertEqual(native_dependencies.require_build_path(root / "valid-name_1.0+build", "fixture"),
+                             root / "valid-name_1.0+build")
+            self.assertFalse((outside / "new-build").exists())
+
+    def test_build_environment_rejects_each_bad_tool_path_before_creating_directories(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for invalid in ("prefix", "sdk", "clang", "pkg_config"):
+                values = dict(prefix=root / "prefix", sdk="/sdk", clang="/clang", pkg_config="/pkg-config")
+                values[invalid] = root / "unsupported path"
+                with self.subTest(invalid=invalid), self.assertRaisesRegex(ValueError, "Unsupported"):
+                    native_dependencies.build_environment(root, **values)
+                self.assertEqual(set(root.iterdir()), set())
+
+    def test_dependency_build_rejects_tool_paths_before_download_or_output_mutation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for sdk, clang, pkg_config in (("/unsupported sdk", "/clang", "/pkg-config"),
+                                            ("/sdk", "/unsupported compiler", "/pkg-config"),
+                                            ("/sdk", "/clang", "/unsupported pkg-config")):
+                destination = root / "new-build"
+                with self.subTest(sdk=sdk, clang=clang, pkg_config=pkg_config), \
+                        patch.object(native_dependencies.tarfile, "data_filter", object(), create=True), \
+                        patch.object(native_dependencies.shutil, "which", return_value=pkg_config), \
+                        patch.object(native_dependencies.subprocess, "check_output", side_effect=[sdk, clang]), \
+                        patch.object(native_dependencies.subprocess, "run") as execute:
+                    with self.assertRaisesRegex(ValueError, "Unsupported"):
+                        native_dependencies.build(destination, 1)
+                    execute.assert_not_called()
+                self.assertFalse(destination.exists())
+
+    def test_dependency_entrypoint_rejects_bad_destination_before_fetch_only_creates_cache(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "unsupported destination"
+            result = subprocess.run([sys.executable, "-B", str(ROOT / "tools/build-native-dependencies.py"),
+                                     "--destination", str(destination), "--fetch-only"],
+                                    capture_output=True, text=True, timeout=10)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Unsupported dependency destination path", result.stderr)
+            self.assertFalse(destination.exists())
+            self.assertEqual(set(Path(temporary).iterdir()), set())
+
+    def test_wine_entrypoint_rejects_bad_root_prefix_and_alias_without_outputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            unsupported_target = base / "unsupported target"
+            unsupported_target.mkdir()
+            alias = base / "dependency-alias"
+            alias.symlink_to(unsupported_target, target_is_directory=True)
+            for checkout_name, dependency in (("unsupported checkout", base / "safe-prefix"),
+                                               ("safe-checkout-1", base / "unsupported prefix"),
+                                               ("safe-checkout-2", alias)):
+                checkout = base / checkout_name
+                tools = checkout / "tools"
+                tools.mkdir(parents=True)
+                for name in ("build-standalone-wine.sh", "build-native-dependencies.py"):
+                    shutil.copyfile(ROOT / "tools" / name, tools / name)
+                before = {str(path.relative_to(checkout)) for path in checkout.rglob("*")}
+                with self.subTest(checkout=checkout_name, dependency=dependency):
+                    result = subprocess.run(["/bin/sh", str(tools / "build-standalone-wine.sh")],
+                                            cwd=base, capture_output=True, text=True, timeout=10,
+                                            env=dict(os.environ, STANDALONE_DEPENDENCY_PREFIX=str(dependency)))
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("Unsupported", result.stderr)
+                    self.assertEqual(before, {str(path.relative_to(checkout)) for path in checkout.rglob("*")})
+                    self.assertFalse((checkout / "build").exists())
+                    self.assertFalse((checkout / "runtime").exists())
+            self.assertEqual(set(unsupported_target.iterdir()), set())
+
+    def test_supported_environment_passes_intact_arguments_to_compiler_fixture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            compiler = root / "compiler-fixture"
+            compiler.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
+            compiler.chmod(0o755)
+            sdk, prefix = root / "sdk", root / "prefix"
+            env = native_dependencies.build_environment(root, prefix, str(sdk), str(compiler), "/usr/bin/true")
+            arguments = subprocess.check_output(["/bin/sh", "-c", "$CC $CPPFLAGS $LDFLAGS $ZLIB_CFLAGS -c fixture.c"],
+                                                env=env, text=True).splitlines()
+            for expected in (str(sdk), "-I" + str(prefix / "include"), "-L" + str(prefix / "lib"),
+                             "-Wl,-rpath," + str(prefix / "lib"), "-I" + str(sdk / "usr/include"), "fixture.c"):
+                self.assertIn(expected, arguments)
 
     def test_cached_sources_outputs_and_build_identity_are_never_reblessed(self):
         with tempfile.TemporaryDirectory() as temporary:

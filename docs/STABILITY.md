@@ -1,4 +1,4 @@
-# Stability fixes and earlier gameplay evidence
+# Runtime stability and diagnostics
 
 The September 30 stability branch is integrated with the native launcher.
 The native app keeps its single account helper, progress reporting, cancellation,
@@ -19,7 +19,7 @@ structured errors, and one Keychain read per process. The additional fixes cover
 
 ## Graphics and packaging
 
-Follow [the graphics notes](../standalone-graphics-notes.md) to build, probe,
+Follow [the graphics notes](research/GRAPHICS.md) to build, probe,
 and explicitly stage the optional bridge into an idle runtime. The default
 [development build](DEVELOPMENT.md) still stages upstream DXMT. The memory fix
 is not enabled merely by merging source or rebuilding the Swift interface.
@@ -30,72 +30,38 @@ new library hashes after ad-hoc signing. The launcher checks those packaged
 bytes against the manifest. This preserves validation despite signature changes;
 it does not establish a new graphics or gameplay test result.
 
-## Repeated cross-platform play
+## Gameplay evidence
 
-On October 20, 2026, the maintainer reported an estimated **10+ cumulative hours
-playing with Xbox and PlayStation friends** across multiple sessions. This records
-repeated real-world use of the development setup. The two individually monitored
-sessions below retain their own timing and memory evidence; the cumulative
-estimate is user-reported, not a continuous monitored soak or a test of a newly
-packaged release candidate.
-
-The maintainer also reports it working on an **M1 MacBook Air with 16 GB
-RAM**. Its OS, source/app revision, session duration and exact scenarios have not
-been recorded; this is a user report, not a clean-machine or RC4 acceptance test.
-
-## Earlier gameplay results
-
-These observations belong to the September 30, 2026 standalone development build
-on an M4 Pro Mac mini with 24 GB RAM, macOS 15.3.1, WineGDK 11.8, DXMT v0.80,
-and Minecraft 1.26.52. They do not establish the native package's minimum OS or
-prove gameplay with the newly combined source.
-
-| Scenario | Recorded result |
-| --- | --- |
-| Xbox multiplayer | User-confirmed cross-play; 1 hour 51 minutes monitored; normal exit |
-| Xbox session memory | 4.18–5.15 GiB game footprint; normal system memory pressure throughout |
-| PS5 friend world | User-confirmed entry after the device/title authentication fix, a retry, and a resource-pack download |
-| PS5 session monitoring | 97 minutes; 3.39–5.10 GiB footprint; no detected crash, confirmed hang, or reported repeat join failure; subsequent normal exit |
-| Local play | World rendering, saving, reopening, movement, fullscreen switching, and normal exit verified |
-| Online services | Featured-server lobby entry and joined-Realm listing verified; active Realm entry untested |
-
-An earlier overnight session froze after about nine hours with roughly 20 GB of
-native small-object allocations. After the DXMT lifetime fixes, a five-minute
-comparison measured about 0.36 MB of small-allocation growth versus 7.4 MB before.
-The short comparisons and later multiplayer sessions do not prove overnight
-stability. The transient Guardian error before successful PS5 entry was not
-fully explained, and a disconnect/rejoin cycle remains unverified.
+The [gameplay history](history/GAMEPLAY.md#repeated-cross-platform-play) retains
+the maintainer's 10+ cumulative hours with Xbox/PlayStation friends on an M4 Pro
+Mac mini with 24 GB RAM, two monitored sessions and the M1 Air/16 GB working
+report. Those reports do not establish a continuous soak, exact-candidate or
+clean-machine acceptance. The earlier overnight freeze still needs retesting.
 
 ## Optional local monitoring and diagnostics
 
 `Start.command` starts the local monitor for its game session. The native app
-and `Launch Standalone.command` do not start it automatically. It does not upload
+and `client/Launch Standalone.command` do not start it automatically. It does not upload
 diagnostics:
 
 ```sh
-python3 bedrock-monitor.py --help
-python3 standalone.py launch --network-diagnostics
+python3 client/bedrock-monitor.py --help
+python3 client/standalone.py launch --network-diagnostics
 ```
 
 The second command launches the game and enables HTTP host/status diagnostics;
 it is not an offline test. Do not start it alongside a running game/helper.
-Use `Mark Problem.command` and `Stop Monitor.command` for an existing monitor
+Use `client/Mark Problem.command` and `client/Stop Monitor.command` for an existing monitor
 session. Raw captures stay private in `logs/standalone/monitor/` and are excluded
 from source exports. Review excerpts before sharing them.
 
-`Start.command` and `start.py` provide the [source setup entry point](../README.md#start-from-source).
+`Start.command` and `tools/start.py` provide the [source setup entry point](../README.md#start-from-source).
 They reuse a completed installation, but do not update an installed game or
 runtime. The separately packaged native app has its own data directory.
 
-## Integration validation, October 5, 2026
+## Validation
 
-The combined source passed Python regression checks, Rust helper tests using
-fixture credentials. A local native launcher build was blocked by duplicate
-`SwiftBridging` module definitions in this Mac's Apple Command Line Tools; the
-Swift sources are unchanged and the PR also requires the native CI build.
-The merged Wine patches apply
-in sequence and reproduce the existing runtime build source; that runtime passed
-31 account-claim, 19 Realms-routing, and 18 token-refresh checks in a separate test
-prefix. No existing game installation, saved world, or account was replaced.
-A complete packaged build, fresh sign-in, gameplay, and overnight testing of the
-combined version remain separate validation work.
+Use [current testing instructions](TESTING.md) for a change. The
+[October 5 integration record](history/GAMEPLAY.md#integration-validation-october-5-2026)
+preserves the source/runtime evidence and limitations at that time. A later
+source change or packaging pass needs its own record.

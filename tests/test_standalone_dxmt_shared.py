@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('dxmt_shared', ROOT / 'standalone-dxmt-shared.py')
+spec = importlib.util.spec_from_file_location('dxmt_shared', ROOT / 'experiments/standalone-dxmt-shared.py')
 graphics = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(graphics)
 
@@ -61,7 +61,7 @@ class GraphicsProfileTests(unittest.TestCase):
             sentinel.write_text('preserve')
             for command in ('stage', 'restore'):
                 result = subprocess.run([
-                    sys.executable, str(ROOT / 'standalone-dxmt-shared.py'), command,
+                    sys.executable, str(ROOT / 'experiments/standalone-dxmt-shared.py'), command,
                     '--wine', str(root), '--dxmt', str(root), '--borrow-constant-buffers',
                 ], text=True, capture_output=True)
                 self.assertEqual(result.returncode, 2)

@@ -72,6 +72,18 @@ Rosetta is missing, follow [Apple's instructions](https://support.apple.com/en-u
 The native app only checks for Rosetta. `Start.command` can request Apple’s
 Rosetta installer during source setup; the user handles its license prompt.
 
+### Build paths
+
+Native dependency and Wine compilation require checkout, build, dependency
+prefix, SDK and compiler/tool paths containing only **ASCII letters, digits,
+`/`, `.`, `_`, `+` and `-`**. Spaces, other punctuation and non-ASCII names are
+not supported by the underlying Autoconf/make flag handling. Symlink targets
+must satisfy the same restriction; a short alias does not make an unsupported
+location safe. Builders reject these paths before downloads or output changes.
+Choose a location such as `~/git/bedrock-mac` with a compatible home-directory
+path. This build restriction does not require moving or renaming installed
+apps, game data or saves, whose paths can still contain spaces.
+
 Building Wine and Rust uses much more storage than the player's 8 GB setup
 check. Inspect `df -h .`, leave room for source, compiler output, archives, and
 both app/DMG copies, and use a separate backup location for worlds. No measured
@@ -84,16 +96,16 @@ Clone the repository into a directory you control, then run:
 ```sh
 git clone https://github.com/1JRobertson/bedrock-mac.git
 cd bedrock-mac
-python3 bootstrap-sources.py
-python3 build-native-dependencies.py --destination "$PWD/build/native-dependencies" --jobs 3
+python3 tools/bootstrap-sources.py
+python3 tools/build-native-dependencies.py --destination "$PWD/build/native-dependencies" --jobs 3
 STANDALONE_DEPENDENCY_PREFIX="$PWD/build/native-dependencies/prefix" \
-  STANDALONE_JOBS=3 ./build-standalone-wine.sh
-./build-standalone-graphics.sh --wine-runtime "$PWD/runtime/standalone/wine"
-python3 standalone-setup.py --build-helper --jobs 4
+  STANDALONE_JOBS=3 ./tools/build-standalone-wine.sh
+./tools/build-standalone-graphics.sh --wine-runtime "$PWD/runtime/standalone/wine"
+python3 client/standalone-setup.py --build-helper --jobs 4
 python3 -m venv build/packaging-env
-build/packaging-env/bin/python -m pip install -r packaging-requirements.txt
-python3 package-launcher.py
-python3 build-dmg.py
+build/packaging-env/bin/python -m pip install -r tools/packaging-requirements.txt
+python3 tools/package-launcher.py
+python3 tools/build-dmg.py
 ```
 
 Use Python 3.12+ throughout this recipe. The native dependency destination must
@@ -112,7 +124,7 @@ existing venv.
 | Native dependencies | Downloads hash-pinned source archives and builds an isolated x86-64 prefix with matching headers and a verified receipt |
 | Wine build | Compiles WineGDK in `build/standalone-wine`, installs to `runtime/standalone/wine`; requires `STANDALONE_DEPENDENCY_PREFIX` and copies its verified source-built dependencies |
 | Graphics staging | Downloads/verifies pinned DXMT, installs its Wine overlay, and records original DLL backups |
-| Helper build | Copies `standalone-helper.rs` into Xodus and builds its release example with the locked dependencies |
+| Helper build | Copies `client/standalone-helper.rs` into Xodus and builds its release example with the locked dependencies |
 | Package | Builds Swift/icon and frozen Python worker; copies runtime/helper, signs locally, records resource hashes and actual OS requirement |
 | DMG | Creates `build/Bedrock for Mac.dmg` containing the app and an Applications shortcut; verifies the image |
 
@@ -132,7 +144,7 @@ explicit runtime/helper and packaging-tool paths. Choose fresh output and work
 directories; the packager refuses existing ones:
 
 ```sh
-python3 package-launcher.py \
+python3 tools/package-launcher.py \
   --wine /path/to/reviewed/wine --dxmt /path/to/reviewed/dxmt \
   --helper /path/to/reviewed/standalone_helper \
   --pyinstaller /path/to/packaging-env/bin/pyinstaller \
@@ -146,13 +158,13 @@ version, complete resource manifest, DMG checksum and whole-bundle minimum OS.
 These options do not qualify untested runtime profiles or authorize distribution.
 
 The optional memory-lifetime bridge can be built and validated following
-[the graphics notes](../standalone-graphics-notes.md) before packaging. Packaging
+[the graphics notes](research/GRAPHICS.md) before packaging. Packaging
 retains and verifies its provenance; see [stability notes](STABILITY.md).
 
 ## Reconstruct the selected release profile
 
-[build-release-runtime.py](../build-release-runtime.py) and
-[release-runtime-profile.json](../release-runtime-profile.json) pin the selected
+[tools/build-release-runtime.py](../tools/build-release-runtime.py) and
+[config/release-runtime-profile.json](../config/release-runtime-profile.json) pin the selected
 WineGDK/DXMT sources, local patches and tool versions. They target the same
 functional profile, not byte-identical binaries. The profile's validation/status
 fields describe the recipe's initial qualification state; dated observations
@@ -165,14 +177,14 @@ gameplay, or successful fresh acquisition.
 Start with a read-only plan, then prepare a fresh workspace whose parent exists:
 
 ```sh
-python3 build-release-runtime.py plan --workspace /absolute/new-build
-python3 build-release-runtime.py prepare --workspace /absolute/new-build
+python3 tools/build-release-runtime.py plan --workspace /absolute/new-build
+python3 tools/build-release-runtime.py prepare --workspace /absolute/new-build
 ```
 
 Before `build`, supply the profile's hash-verified LLVM-MinGW archive, a separate
 venv with its exact Meson/Ninja versions, and a source-built x86-64 dependency
 prefix with `dependency-manifest.json` and matching headers/libraries. The v4 replay used the audited source-built native dependency prefix;
-the driver refuses binary-only fallback. See `python3 build-release-runtime.py --help` for the
+the driver refuses binary-only fallback. See `python3 tools/build-release-runtime.py --help` for the
 explicit input, jobs and shared-lock options.
 
 The build records commands and logs without running a game or account probe.
@@ -185,7 +197,7 @@ M1, updates and multiplayer. Graphics probes do not pass those gates.
 
 ## Iterate without losing a working build
 
-`./build-launcher.sh` creates `build/Bedrock for Mac.app`, a development front end
+`./tools/build-launcher.sh` creates `build/Bedrock for Mac.app`, a development front end
 that points at this checkout and uses `/usr/bin/python3`. It is useful for Swift
 and worker changes after preparing the local runtime, but is not a portable app.
 `python3 launcher/setup.py --status` inspects its installation without sign-in.
@@ -193,8 +205,8 @@ and worker changes after preparing the local runtime, but is not a portable app.
 The packager refuses to overwrite an existing output. Use a new output name:
 
 ```sh
-python3 package-launcher.py --output 'build/iteration-2/Bedrock for Mac.app'
-python3 build-dmg.py --app 'build/iteration-2/Bedrock for Mac.app' \
+python3 tools/package-launcher.py --output 'build/iteration-2/Bedrock for Mac.app'
+python3 tools/build-dmg.py --app 'build/iteration-2/Bedrock for Mac.app' \
   --output 'build/Bedrock for Mac-iteration-2.dmg'
 ```
 
@@ -213,7 +225,7 @@ subsequent checkout edits do not update it. Repackage to test them.
 
 After a Wine rebuild, rerun graphics staging with `--wine-runtime`: Wine's
 installed D3D DLLs otherwise shadow DXMT. For helper source changes, use
-`standalone-setup.py --build-helper`; `build-helper.sh` compiles the historical
+`client/standalone-setup.py --build-helper`; `legacy/build-helper.sh` compiles the historical
 `bedrock_helper`, not the native launcher's `standalone_helper`.
 
 Rebuilding an ad-hoc helper can change Keychain authorization. To test remembered
@@ -227,7 +239,7 @@ of a packaged app's separate data directory. To read that installation's status:
 
 ```sh
 BEDROCK_HOME="$HOME/Library/Application Support/Bedrock for Mac" \
-  python3 standalone-setup.py --check
+  python3 client/standalone-setup.py --check
 ```
 
 `--check` is local and returns nonzero when installation is incomplete. It does
@@ -235,10 +247,10 @@ not access Microsoft or Keychain. `--dry-run` prints requested actions without
 performing them. For a source installation, these are the actual setup stages:
 
 ```sh
-python3 standalone-setup.py --threading
-python3 standalone-setup.py --download-game --game-dir "$PWD/game" --market CA
-python3 standalone.py prepare
-python3 standalone.py launch --market CA
+python3 client/standalone-setup.py --threading
+python3 client/standalone-setup.py --download-game --game-dir "$PWD/game" --market CA
+python3 client/standalone.py prepare
+python3 client/standalone.py launch --market CA
 ```
 
 Download and launch can sign in and contact Microsoft; they are not offline
@@ -251,22 +263,22 @@ in the same prepared prefix.
 For optional probes, after installing the owned game and runtime:
 
 ```sh
-./build-standalone-probes.sh
-python3 standalone.py probe graphics
+./tools/build-standalone-probes.sh
+python3 client/standalone.py probe graphics
 ```
 
 The graphics probe exercises the local Wine prefix. The `account`, `store`, and
 `privileges` probes also use the account helper and may prompt/contact Microsoft.
-See [STANDALONE-SETUP.md](../STANDALONE-SETUP.md),
-[graphics notes](../standalone-graphics-notes.md), and [testing](TESTING.md).
+See [CLI reference](CLI.md),
+[graphics notes](research/GRAPHICS.md), and [testing](TESTING.md).
 
 ## Build failures
 
 | Failure | Check |
 | --- | --- |
-| Bootstrap destination exists | Run `python3 bootstrap-sources.py --check`; preserve local changes before preparing a new source tree. Do not fetch a different branch into the pinned checkout to silence a mismatch. |
+| Bootstrap destination exists | Run `python3 tools/bootstrap-sources.py --check`; preserve local changes before preparing a new source tree. Do not fetch a different branch into the pinned checkout to silence a mismatch. |
 | Cargo lock or source patch mismatch | Compare tracked patches, `patches/Cargo.lock`, and the pinned source check. Keep `--locked`; update provenance and checksums intentionally. |
-| Missing native dependency prefix | Build a fresh prefix with `build-native-dependencies.py`, then set `STANDALONE_DEPENDENCY_PREFIX` to its `prefix/` directory. Homebrew dylibs or a binary-only archive do not satisfy the receipt check. |
+| Missing native dependency prefix | Build a fresh prefix with `tools/build-native-dependencies.py`, then set `STANDALONE_DEPENDENCY_PREFIX` to its `prefix/` directory. Homebrew dylibs or a binary-only archive do not satisfy the receipt check. |
 | `protoc` missing | Check the `protobuf` installation and PATH, or the intended `PROTOC` executable. |
 | Wine configure/compile/install failure | Read `build/standalone-wine/configure.log`, `build.log`, or `install.log`; confirm the required Homebrew paths and Rust toolchain. |
 | DXMT mismatch after runtime rebuild | Reapply the graphics overlay with `--wine-runtime` before preparing/launching. |

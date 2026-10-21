@@ -2,7 +2,9 @@
 
 Run your owned **Minecraft for Windows (Bedrock)** on an Apple Silicon Mac,
 using WineGDK, DXMT, and Xodus. The launcher is native macOS; the Windows game
-runs through Wine and Rosetta. No CrossOver subscription is required.
+runs through Wine and Rosetta. No CrossOver subscription is required. Setup
+gets you to vanilla Minecraft, which keeps its own worlds, packs, settings and
+friends menus.
 
 **Open-source preview.** Build scripts are available now; there is no public
 notarized app or downloadable installer. Local app candidates have separate
@@ -15,6 +17,9 @@ On an **Apple Silicon Mac with macOS 15 or later**:
 1. Clone this repository, or choose **Code → Download ZIP** and extract it.
 2. Keep the folder in a permanent location you control: it holds your game,
    settings, and saves. Do not replace or delete it when updating source.
+   Source builds require a full path containing only ASCII letters, digits,
+   `/`, `.`, `_`, `+` and `-` (for example, `~/git/bedrock-mac` after expanding `~`).
+   See [build path requirements](docs/DEVELOPMENT.md#build-paths).
 3. Double-click **Start.command**, or run `./Start.command` from Terminal in
    that folder. Keep Terminal open through setup and play.
 4. Follow the Apple/Homebrew prompts and sign in with the Microsoft account
@@ -59,7 +64,7 @@ new bundles need their own audit and gameplay qualification.
 
 The maintainer estimates **10+ total hours playing with Xbox and PlayStation
 friends** across multiple sessions. Development testing also verified local-world
-saving and reopening. The [gameplay evidence](docs/STABILITY.md#repeated-cross-platform-play)
+saving and reopening. The [gameplay evidence](docs/history/GAMEPLAY.md#repeated-cross-platform-play)
 includes two monitored friend sessions on an **M4 Pro Mac mini with 24 GB RAM**.
 The maintainer also reports it working on an **M1 MacBook Air with 16 GB RAM**;
 its exact OS, source/app revision, and test scenarios have not been recorded.
@@ -73,7 +78,16 @@ speedup for the release candidate. [Performance evidence](docs/PERFORMANCE.md)
 explains the measurements and their limits. Native ARM game execution is a
 separate research track, not a feature of this Windows-runtime preview.
 
+An optional [Mullion ray-tracing experiment](experiments/mullion/README.md)
+demonstrated reflections and indirect lighting on the maintainer's M4 Pro Mac
+with macOS 15.3.1. It includes GPU probes and a separate proof world; normal
+startup does not enable it. Read the [results and known limits](experiments/mullion/RESULTS.md)
+before opting in.
+
 ## Help and development
+
+The [documentation index and repository map](docs/README.md) separate current
+guides, supported source, build tools, experiments and dated evidence.
 
 | Task | Guide |
 | --- | --- |

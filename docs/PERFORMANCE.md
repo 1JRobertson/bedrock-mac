@@ -24,14 +24,14 @@ does not establish lower energy use without a separate power/energy measurement.
 
 Keep these records and raw evidence unchanged:
 
-- [Shared buffers](dxmt-shared-buffers-results.json)
-- [Packed constants](dxmt-packed-constants-results.json)
-- [Input-layout reuse](dxmt-input-layout-results.json)
-- [Wine heap reuse](wine-heap-reuse-results.json)
-- [Refmove](bedrock-refmove-results.json)
-- [Render redesign / frame slab](render-redesign-results.json)
-- [Synthetic M4 architecture study](m4-architecture-results.json)
-- [Detailed graphics notes](../standalone-graphics-notes.md)
+- [Shared buffers](research/dxmt-shared-buffers-results.json)
+- [Packed constants](research/dxmt-packed-constants-results.json)
+- [Input-layout reuse](research/dxmt-input-layout-results.json)
+- [Wine heap reuse](research/wine-heap-reuse-results.json)
+- [Refmove](research/bedrock-refmove-results.json)
+- [Render redesign / frame slab](research/render-redesign-results.json)
+- [Synthetic M4 architecture study](research/m4-architecture-results.json)
+- [Detailed graphics notes](research/GRAPHICS.md)
 
 For example, the October 7 instrumented OFF/16/OFF/16/OFF frame-slab observation
 reported lower aggregate CPU cost per displayed frame with essentially unchanged

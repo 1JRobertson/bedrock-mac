@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('exact_builder', ROOT / 'standalone-bedrock-allocator.py')
+spec = importlib.util.spec_from_file_location('exact_builder', ROOT / 'experiments/standalone-bedrock-allocator.py')
 exact = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(exact)
 run_spec = importlib.util.spec_from_file_location('exact_differential', ROOT / 'tests/run-bedrock-exact-differential.py')
@@ -91,10 +91,10 @@ class ExactBuildTests(unittest.TestCase):
                 prepare.assert_not_called()
 
     def test_cli_has_no_stage_or_launch_command(self):
-        result = subprocess.run(['python3', str(ROOT / 'standalone-bedrock-allocator.py'), '--help'],
+        result = subprocess.run(['python3', str(ROOT / 'experiments/standalone-bedrock-allocator.py'), '--help'],
                                 capture_output=True, text=True, check=True)
         self.assertIn('{prepare,build}', result.stdout)
-        result = subprocess.run(['python3', str(ROOT / 'standalone-bedrock-allocator.py'), 'stage'],
+        result = subprocess.run(['python3', str(ROOT / 'experiments/standalone-bedrock-allocator.py'), 'stage'],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 2)
 

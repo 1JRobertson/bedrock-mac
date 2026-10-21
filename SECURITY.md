@@ -89,7 +89,7 @@ process's socket. Report the failed boundary with redacted evidence instead.
 
 ## Source and binary distribution
 
-Only files explicitly listed in `export-source.py` enter source exports.
+Only files explicitly listed in `tools/export-source.py` enter source exports.
 Ignored runtime directories are not a publication boundary by themselves.
 Review the staged file list and checksum inventory before pushing changes.
 Never include a game, user data, Microsoft payloads, or raw local logs.
