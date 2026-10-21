@@ -1,7 +1,6 @@
 import ast,importlib.util,io,struct,tarfile,tempfile,unittest
 from pathlib import Path
-script=Path(__file__).with_name('collect-python-notices.py')
-if not script.is_file():script=Path(__file__).resolve().parents[1]/'collect-python-notices.py'
+script=Path(__file__).resolve().parents[1]/'tools/collect-python-notices.py'
 spec=importlib.util.spec_from_file_location('collector',script);collector=importlib.util.module_from_spec(spec);spec.loader.exec_module(collector)
 class Tests(unittest.TestCase):
     def test_toc_is_literal_only(self):

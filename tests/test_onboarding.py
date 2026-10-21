@@ -20,12 +20,23 @@ from types import SimpleNamespace
 spec = importlib.util.spec_from_file_location('onboarding', Path(__file__).resolve().parents[1] / 'launcher/setup.py')
 worker = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(worker)
-runtime_spec = importlib.util.spec_from_file_location('session_runtime', Path(__file__).resolve().parents[1] / 'standalone.py')
+runtime_spec = importlib.util.spec_from_file_location('session_runtime', Path(__file__).resolve().parents[1] / 'client/standalone.py')
 runtime = importlib.util.module_from_spec(runtime_spec)
 runtime_spec.loader.exec_module(runtime)
 
 
 class OnboardingTests(unittest.TestCase):
+    def test_worker_selects_relocated_source_or_flat_bundle_commands(self):
+        source = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temporary, patch.object(worker, 'ROOT', Path(temporary)):
+            with patch.object(worker, 'BUNDLE', None):
+                self.assertEqual(worker.script_path('standalone.py'), source / 'client/standalone.py')
+                self.assertEqual(Path(worker.load('source_fixture', 'standalone.py').__file__),
+                                 source / 'client/standalone.py')
+            with patch.object(worker, 'BUNDLE', Path(temporary) / 'app'):
+                self.assertEqual(worker.script_path('standalone.py'), Path(temporary) / 'standalone.py')
+            self.assertEqual(list(Path(temporary).iterdir()), [])
+
     def test_bundle_setup_preserves_existing_staging_files_and_links(self):
         for linked in (False, True):
             with self.subTest(linked=linked), tempfile.TemporaryDirectory() as temporary:

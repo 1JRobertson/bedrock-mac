@@ -64,7 +64,7 @@ and the game's StorageFile conversion. October 19 local native checks passed
 opening/cancelling the dialog and importing/rendering a PNG. The picker crash no
 longer reproduces locally; #4 awaits reporter verification. The 26.52 restart
 reset matches Mojang's MCPE-241720, with a fix announced in 26.60.24 Preview.
-[Newer-game validation](TESTING.md#october-20-skin-persistence-diagnosis) and world
+[Newer-game validation](history/TESTING.md#october-20-skin-persistence-diagnosis) and world
 import/export regression are still pending.
 Active Realm entry and complete Marketplace/controller support are unverified.
 Developer ID/notarization and acquisition/distribution gates remain visible in

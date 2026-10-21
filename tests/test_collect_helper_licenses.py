@@ -6,8 +6,7 @@ import tempfile
 import unittest
 import sys
 
-script=Path(__file__).with_name('collect-helper-licenses.py')
-if not script.is_file():script=Path(__file__).resolve().parents[1]/'collect-helper-licenses.py'
+script=Path(__file__).resolve().parents[1]/'tools/collect-helper-licenses.py'
 collector = None
 if sys.version_info >= (3, 11):
     spec = importlib.util.spec_from_file_location('collector', script)
@@ -62,7 +61,7 @@ class CollectorTests(unittest.TestCase):
             with self.assertRaises(ValueError):collector.validate_xodus(project,source,config,upstream)
             (source/'unapproved.json').unlink();helper.write_text('modified')
             with self.assertRaises(ValueError):collector.validate_xodus(project,source,config,upstream)
-            helper.unlink();helper.symlink_to(project/'standalone-helper.rs')
+            helper.unlink();helper.symlink_to(project/'client/standalone-helper.rs')
             with self.assertRaises(ValueError):collector.validate_xodus(project,source,config,upstream)
 
 if __name__=='__main__':unittest.main()

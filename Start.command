@@ -41,4 +41,4 @@ if [ "$read_only" -eq 0 ] && ! /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; 
 fi
 export PATH="${CARGO_HOME:-$HOME/.cargo}/bin:/opt/homebrew/opt/rustup/bin:/opt/homebrew/bin:/opt/homebrew/opt/llvm/bin:/opt/homebrew/opt/bison/bin:$PATH"
 export STANDALONE_JOBS="${STANDALONE_JOBS:-2}"
-/usr/bin/python3 "$ROOT/start.py" "$@"
+/usr/bin/python3 "$ROOT/tools/start.py" "$@"

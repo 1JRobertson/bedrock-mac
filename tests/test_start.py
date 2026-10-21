@@ -14,7 +14,7 @@ import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
 
-spec = importlib.util.spec_from_file_location('start', Path(__file__).resolve().parents[1] / 'start.py')
+spec = importlib.util.spec_from_file_location('start', Path(__file__).resolve().parents[1] / 'tools/start.py')
 start = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(start)
 
@@ -24,6 +24,8 @@ class StartTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix='bedrock start ')
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+        for directory in ('client', 'tools', 'config'):
+            (self.root / directory).mkdir()
         self.root_patch = patch.object(start, 'ROOT', self.root)
         self.root_patch.start()
         self.addCleanup(self.root_patch.stop)
@@ -115,14 +117,14 @@ class StartTests(unittest.TestCase):
 
     def test_fresh_checkout_check_does_not_even_write_python_cache(self):
         source = Path(__file__).resolve().parents[1]
-        (self.root / 'standalone.py').write_bytes((source / 'standalone.py').read_bytes())
+        (self.root / 'client/standalone.py').write_bytes((source / 'client/standalone.py').read_bytes())
         before = set(self.root.rglob('*'))
         self.assertEqual(start.main(['--check']), 1)
         self.assertEqual(set(self.root.rglob('*')), before)
 
     def test_source_check_uses_checkout_even_with_inherited_app_environment(self):
         source = Path(__file__).resolve().parents[1]
-        (self.root / 'standalone.py').write_bytes((source / 'standalone.py').read_bytes())
+        (self.root / 'client/standalone.py').write_bytes((source / 'client/standalone.py').read_bytes())
         app_home = self.root / 'app-data'
         app_bundle = self.root / 'app-resources'
         with patch.dict(os.environ, {'BEDROCK_HOME': str(app_home),
@@ -137,7 +139,7 @@ class StartTests(unittest.TestCase):
         self.assertFalse((self.root / 'runtime').exists())
 
     def test_termination_and_terminal_close_stop_owned_logged_job(self):
-        source = Path(__file__).resolve().parents[1] / 'start.py'
+        source = Path(__file__).resolve().parents[1] / 'tools/start.py'
         worker = self.root / 'worker.py'
         worker.write_text('''import importlib.util
 from pathlib import Path
@@ -206,7 +208,7 @@ sys.exit(start.cli())
         self.assertEqual(run.call_args.args[0][-4:], ['play', '--', '--market', 'US'])
 
     def dependency_inputs(self):
-        for name in ('build-native-dependencies.py', 'native-dependencies.lock.json'):
+        for name in ('tools/build-native-dependencies.py', 'config/native-dependencies.lock.json'):
             (self.root / name).write_text(name)
 
     def test_source_dependencies_build_once_then_verify_outputs_before_reusing(self):
@@ -303,8 +305,8 @@ sys.exit(start.cli())
                 recorded.append(args)
 
         bootstrap = SimpleNamespace(PROJECTS={'xodus': {'patches': ('account.patch',)}},
-                                    HELPER_INPUTS={'standalone-helper.rs': 'helper', 'standalone-xvd.rs': 'xvd'},
-                                    SOURCE_INPUTS=('file-pickers/pickers.c', 'file-pickers/build.sh'),
+                                    HELPER_INPUTS={'client/standalone-helper.rs': 'helper', 'client/standalone-xvd.rs': 'xvd'},
+                                    SOURCE_INPUTS=('native/file-pickers/pickers.c', 'native/file-pickers/build.sh'),
                                     bootstrap=unittest.mock.Mock())
         with patch.object(start, 'run') as run, patch.object(start, 'Steps', Steps), \
                 patch.object(start, 'module', return_value=bootstrap), \
@@ -317,14 +319,14 @@ sys.exit(start.cli())
         wine_command = recorded[0][2][0]
         self.assertEqual(wine_command[:2], ['/usr/bin/env', 'STANDALONE_DEPENDENCY_PREFIX=' + str(prefix)])
         self.assertIn(str(prefix / 'dependency-manifest.json'), recorded[0][3])
-        self.assertIn('verify-wine-source.py', recorded[0][3])
-        self.assertIn('file-pickers/pickers.c', recorded[0][3])
+        self.assertIn('tools/verify-wine-source.py', recorded[0][3])
+        self.assertIn('native/file-pickers/pickers.c', recorded[0][3])
         self.assertIn('runtime/standalone/wine/lib/wine/x86_64-windows/bedrock-pickers.dll', recorded[0][4])
         self.assertIn('runtime/standalone/wine/file-pickers-build.json', recorded[0][4])
         helper_inputs = next(step[3] for step in recorded if step[0] == 'helper')
-        self.assertIn('standalone-xvd.rs', helper_inputs)
+        self.assertIn('client/standalone-xvd.rs', helper_inputs)
         self.assertIn('patches/account.patch', helper_inputs)
-        self.assertEqual(run.call_args_list[0].args[0][-1], str(self.root / 'install-build-tools.sh'))
+        self.assertEqual(run.call_args_list[0].args[0][-1], str(self.root / 'tools/install-build-tools.sh'))
 
     def test_source_update_refreshes_generated_helper_before_existing_tree_verification(self):
         source = Path(__file__).resolve().parents[1]
@@ -360,7 +362,7 @@ sys.exit(start.cli())
         source = Path(__file__).resolve().parents[1]
         with patch.object(start, 'ROOT', source):
             exporter = start.module('export-source')
-        for name in ('Start.command', 'start.py', 'install-build-tools.sh',
+        for name in ('Start.command', 'tools/start.py', 'tools/install-build-tools.sh',
                      'tests/test_start.py', 'patches/standalone-wine-xuser-z-device-auth.patch'):
             self.assertIn(name, exporter.ALLOWED_FILES)
 
@@ -378,7 +380,7 @@ chmod +x "$(dirname "$0")/../opt/rustup/bin/rustup"
 ''')
         brew.chmod(0o755)
         script = self.root / 'tools.sh'
-        script.write_text((source / 'install-build-tools.sh').read_text()
+        script.write_text((source / 'tools/install-build-tools.sh').read_text()
                           .replace('/opt/homebrew', str(brew_root))
                           .replace('/usr/bin/arch', '/usr/bin/true'))
         result = subprocess.run(['/bin/bash', str(script)],

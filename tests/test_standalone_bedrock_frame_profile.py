@@ -16,7 +16,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('frame_profile', ROOT / 'standalone-bedrock-frame-profile.py')
+spec = importlib.util.spec_from_file_location('frame_profile', ROOT / 'experiments/standalone-bedrock-frame-profile.py')
 profile = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(profile)
 ref = profile.ref

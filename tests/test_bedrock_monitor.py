@@ -10,7 +10,7 @@ import unittest
 import sys
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location('monitor', Path(__file__).resolve().parents[1] / 'bedrock-monitor.py')
+spec = importlib.util.spec_from_file_location('monitor', Path(__file__).resolve().parents[1] / 'client/bedrock-monitor.py')
 monitor = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(monitor)
 

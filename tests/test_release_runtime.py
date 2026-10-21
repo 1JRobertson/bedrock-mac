@@ -13,7 +13,7 @@ import unittest
 from unittest.mock import patch
 
 
-spec = importlib.util.spec_from_file_location('release_runtime', Path(__file__).resolve().parents[1] / 'build-release-runtime.py')
+spec = importlib.util.spec_from_file_location('release_runtime', Path(__file__).resolve().parents[1] / 'tools/build-release-runtime.py')
 runtime = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runtime)
 
@@ -30,7 +30,7 @@ class ReleaseRuntimeTests(unittest.TestCase):
         self.patch_name = 'standalone-wine-fixture.patch'
         self.put(self.source / 'patches' / self.patch_name, b'fixture patch')
         self.upstream = {'winegdk': {'url': 'https://example.invalid/wine.git', 'commit': 'a' * 40}}
-        self.put(self.source / 'bootstrap-sources.py', 'PROJECTS = ' + repr(self.upstream) + '\n')
+        self.put(self.source / 'tools/bootstrap-sources.py', 'PROJECTS = ' + repr(self.upstream) + '\n')
         self.profile = {
             'schema': 1, 'source_files': {
                 'patches/' + self.patch_name: runtime.digest(self.source / 'patches' / self.patch_name)},
@@ -74,7 +74,7 @@ class ReleaseRuntimeTests(unittest.TestCase):
         return path
 
     def inventory(self):
-        names = ['patches/' + self.patch_name, 'bootstrap-sources.py', runtime.PROFILE]
+        names = ['patches/' + self.patch_name, 'tools/bootstrap-sources.py', runtime.PROFILE]
         self.put(self.source / 'SOURCE-SHA256.txt', ''.join(
             runtime.digest(self.source / name) + '  ' + name + '\n' for name in names))
 
@@ -98,9 +98,9 @@ class ReleaseRuntimeTests(unittest.TestCase):
         self.check_output.assert_not_called()
 
     def exporter_fixture(self, allowed=True):
-        entries = {'build-release-runtime.py', runtime.PROFILE, 'tests/test_release_runtime.py',
-                   'build-native-dependencies.py', 'native-dependencies.lock.json'} if allowed else set()
-        self.put(self.source / 'export-source.py',
+        entries = {'tools/build-release-runtime.py', runtime.PROFILE, 'tests/test_release_runtime.py',
+                   'tools/build-native-dependencies.py', 'config/native-dependencies.lock.json'} if allowed else set()
+        self.put(self.source / 'tools/export-source.py',
                  'import shutil\nALLOWED_FILES = ' + repr(entries) + '\n'
                  'def export_sources(root, destination):\n    shutil.copytree(root, destination)\n')
 
@@ -146,12 +146,12 @@ class ReleaseRuntimeTests(unittest.TestCase):
 
     def test_profile_rejects_changed_upstream_revision(self):
         changed = {'winegdk': dict(self.upstream['winegdk'], commit='b' * 40)}
-        (self.source / 'bootstrap-sources.py').write_text('PROJECTS = ' + repr(changed))
+        (self.source / 'tools/bootstrap-sources.py').write_text('PROJECTS = ' + repr(changed))
         with self.assertRaises(RuntimeError):
             runtime.verify_profile(self.source)
 
     def test_source_inventory_rejects_tampered_bytes(self):
-        (self.source / 'bootstrap-sources.py').write_text('changed')
+        (self.source / 'tools/bootstrap-sources.py').write_text('changed')
         with self.assertRaises(RuntimeError):
             runtime.verify_source_snapshot(self.source)
 
@@ -295,7 +295,7 @@ class ReleaseRuntimeTests(unittest.TestCase):
         self.check_output.assert_not_called()
 
     def test_builder_integration_must_exist_before_external_steps(self):
-        self.put(self.source / 'build-standalone-wine.sh', '#!/bin/sh\n')
+        self.put(self.source / 'tools/build-standalone-wine.sh', '#!/bin/sh\n')
         with self.assertRaises(RuntimeError):
             runtime.build(self.args, self.prepared.copy(), self.profile)
         self.run.assert_not_called()
@@ -315,7 +315,7 @@ class ReleaseRuntimeTests(unittest.TestCase):
         self.run.assert_not_called()
 
     def mocked_build_prerequisites(self, exit_code=0):
-        self.put(self.source / 'build-standalone-wine.sh', '# fixture STANDALONE_DEPENDENCY_PREFIX\n')
+        self.put(self.source / 'tools/build-standalone-wine.sh', '# fixture STANDALONE_DEPENDENCY_PREFIX\n')
         self.args.toolchain_archive = self.put(self.root / 'toolchain-fixture.tar', b'archive fixture')
         self.profile['toolchain']['sha256'] = runtime.digest(self.args.toolchain_archive)
         self.args.build_python = self.root / 'build-python'

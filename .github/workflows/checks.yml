@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m unittest discover -s tests -p 'test_*.py'
-      - run: python export-source.py --check
+      - run: python tools/export-source.py --check
       - run: sha256sum --check --quiet SOURCE-SHA256.txt
   native-launcher:
     runs-on: macos-15
@@ -33,7 +33,7 @@ jobs:
           /usr/bin/xcrun --sdk macosx --toolchain default swiftc --version
           /usr/bin/xcrun --sdk macosx --toolchain default --show-sdk-path
       - run: python3 -m unittest discover -s tests -p 'test_*.py'
-      - run: ./build-launcher.sh
+      - run: ./tools/build-launcher.sh
       - run: python3 tests/check-launcher-lifecycle.py --output build/launcher-lifecycle-check
         timeout-minutes: 5
   account-helper:
@@ -41,11 +41,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: python3 bootstrap-sources.py --project xodus
+      - run: python3 tools/bootstrap-sources.py --project xodus
       - run: command -v protoc || brew install protobuf
       - run: rustup toolchain install 1.98.0 --profile minimal
       # bootstrap-sources copies the helper, verifier and pinned public key.
-      # Match the feature set used by standalone-setup.py for the shipped helper.
+      # Match the feature set used by client/standalone-setup.py for the shipped helper.
       - run: cargo +1.98.0 test --locked --no-default-features --manifest-path sources/xodus/Cargo.toml -p xodus-cli --example standalone_helper
   file-pickers:
     runs-on: windows-2025
@@ -59,4 +59,4 @@ jobs:
           if not defined BEDROCK_VS exit /b 1
           call "%BEDROCK_VS%\VC\Auxiliary\Build\vcvars64.bat"
           if errorlevel 1 exit /b 1
-          call file-pickers\check-windows.cmd
+          call native\file-pickers\check-windows.cmd

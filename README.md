@@ -2,7 +2,9 @@
 
 Run your owned **Minecraft for Windows (Bedrock)** on an Apple Silicon Mac,
 using WineGDK, DXMT, and Xodus. The launcher is native macOS; the Windows game
-runs through Wine and Rosetta. No CrossOver subscription is required.
+runs through Wine and Rosetta. No CrossOver subscription is required. Setup
+gets you to vanilla Minecraft, which keeps its own worlds, packs, settings and
+friends menus.
 
 **Open-source preview.** Build scripts are available now; there is no public
 notarized app or downloadable installer. Local app candidates have separate
@@ -59,7 +61,7 @@ new bundles need their own audit and gameplay qualification.
 
 The maintainer estimates **10+ total hours playing with Xbox and PlayStation
 friends** across multiple sessions. Development testing also verified local-world
-saving and reopening. The [gameplay evidence](docs/STABILITY.md#repeated-cross-platform-play)
+saving and reopening. The [gameplay evidence](docs/history/GAMEPLAY.md#repeated-cross-platform-play)
 includes two monitored friend sessions on an **M4 Pro Mac mini with 24 GB RAM**.
 The maintainer also reports it working on an **M1 MacBook Air with 16 GB RAM**;
 its exact OS, source/app revision, and test scenarios have not been recorded.
@@ -74,6 +76,9 @@ explains the measurements and their limits. Native ARM game execution is a
 separate research track, not a feature of this Windows-runtime preview.
 
 ## Help and development
+
+The [documentation index and repository map](docs/README.md) separate current
+guides, supported source, build tools, experiments and dated evidence.
 
 | Task | Guide |
 | --- | --- |

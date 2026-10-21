@@ -38,7 +38,8 @@ if FROZEN and len(sys.argv) > 1 and sys.argv[1].endswith('.py'):
     runpy.run_path(str(script), run_name='__main__')
     raise SystemExit(0)
 
-ROOT = Path(os.environ.get('BEDROCK_HOME', Path(__file__).resolve().parents[1]))
+SOURCE_ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(os.environ.get('BEDROCK_HOME', SOURCE_ROOT))
 os.environ['PATH'] = '/usr/bin:/bin:/usr/sbin:/sbin'
 os.environ.update(XODUS_LOG='off', RUST_LOG='off', PYTHONUNBUFFERED='1')
 
@@ -79,8 +80,13 @@ def event(state, title, detail='', progress=None):
     print(json.dumps(dict(state=state, title=title, detail=detail, progress=progress)), flush=True)
 
 
+def script_path(filename):
+    # Bundles retain flat copied scripts and the existing data directory.
+    return ROOT / filename if BUNDLE else SOURCE_ROOT / 'client' / filename
+
+
 def load(name, filename):
-    source = BUNDLE / 'scripts' / filename if BUNDLE else ROOT / filename
+    source = BUNDLE / 'scripts' / filename if BUNDLE else script_path(filename)
     spec = importlib.util.spec_from_file_location(name, source)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -126,7 +132,7 @@ def initialize_bundle():
 
 
 def installed():
-    if not (ROOT / 'standalone.py').is_file():
+    if not script_path('standalone.py').is_file():
         return False
     # Status must describe this app's components, not an older app that still
     # owns the data directory's links. Only Play is allowed to change the links.
@@ -231,10 +237,10 @@ def validate_install():
 
 def install(log):
     event('busy', 'Preparing Minecraft', 'Checking the required Microsoft game component…', 0.9)
-    run([sys.executable, ROOT / 'standalone-setup.py', '--threading'], log,
+    run([sys.executable, script_path('standalone-setup.py'), '--threading'], log,
         'Could not download the Microsoft game component. Check your connection and try again.')
     event('busy', 'Finishing setup', '', 0.95)
-    run([sys.executable, ROOT / 'standalone.py', 'prepare'], log,
+    run([sys.executable, script_path('standalone.py'), 'prepare'], log,
         'Could not finish setting up the game. Open the setup log for details.')
 
 
@@ -383,8 +389,8 @@ def update_minecraft(runtime, log):
     # Both profiles reject a different game hash even with their gate disabled.
     # Keep the playable installation intact until the source developer restores
     # these deliberately installed experiments in reverse staging order.
-    for marker, tool in (('bedrock-frame-slab.json', 'standalone-bedrock-frame-profile.py'),
-                         ('bedrock-refmove.json', 'standalone-bedrock-refmove.py')):
+    for marker, tool in (('bedrock-frame-slab.json', 'experiments/standalone-bedrock-frame-profile.py'),
+                         ('bedrock-refmove.json', 'experiments/standalone-bedrock-refmove.py')):
         if os.path.lexists(ROOT / 'runtime/standalone/wine' / marker):
             raise RuntimeError('Restore the local game-specific runtime profile before updating Minecraft: '
                                f'python3 {tool} restore --wine runtime/standalone/wine. '
@@ -407,7 +413,7 @@ def update_minecraft(runtime, log):
     try:
         event('busy', 'Updating Minecraft', 'Downloading the latest version available to your Microsoft account.', 0.2)
         with update_account(runtime, transaction / 'download'):
-            run([sys.executable, ROOT / 'standalone-setup.py', '--threading'], log,
+            run([sys.executable, script_path('standalone-setup.py'), '--threading'], log,
                 'Could not download the Microsoft game component. Check your connection and retry.')
             runtime.prerequisites(transaction / 'download')
             event('busy', 'Keeping a backup', 'Your game and worlds will be kept.', 0.9)
@@ -499,7 +505,7 @@ def main():
                     if not ready:
                         install(log)
                     event('playing', 'Minecraft is running', 'You can close this window. Quit Minecraft to end your session.')
-                    run([sys.executable, ROOT / 'standalone.py', 'launch'], log,
+                    run([sys.executable, script_path('standalone.py'), 'launch'], log,
                         'Minecraft stopped unexpectedly. Open the setup log for details, then try again.')
             except runtime.AccountError as error:
                 raise RuntimeError(ACCOUNT_ERRORS.get(error.code, str(error))) from error

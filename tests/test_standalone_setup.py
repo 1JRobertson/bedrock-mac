@@ -22,10 +22,10 @@ def module(name, filename):
     return result
 
 
-setup = module("setup_under_test", "standalone-setup.py")
-gameinput = module("input_under_test", "standalone-gameinput.py")
-bootstrap = module("bootstrap_under_test", "bootstrap-sources.py")
-native_dependencies = module("native_dependencies_under_test", "build-native-dependencies.py")
+setup = module("setup_under_test", "client/standalone-setup.py")
+gameinput = module("input_under_test", "client/standalone-gameinput.py")
+bootstrap = module("bootstrap_under_test", "tools/bootstrap-sources.py")
+native_dependencies = module("native_dependencies_under_test", "tools/build-native-dependencies.py")
 
 
 class DependencyPrefixTests(unittest.TestCase):

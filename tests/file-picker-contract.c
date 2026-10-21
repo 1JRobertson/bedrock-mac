@@ -21,7 +21,7 @@ static HRESULT WINAPI mock_duplicate(HSTRING source,HSTRING *out);
 #define GetSaveFileNameW mock_save
 #define CommDlgExtendedError mock_error
 #define WindowsDuplicateString mock_duplicate
-#include "../file-pickers/pickers.c"
+#include "../native/file-pickers/pickers.c"
 #undef GetOpenFileNameW
 #undef GetSaveFileNameW
 #undef CommDlgExtendedError

@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 
-spec = importlib.util.spec_from_file_location("export_source", Path(__file__).resolve().parents[1] / "export-source.py")
+spec = importlib.util.spec_from_file_location("export_source", Path(__file__).resolve().parents[1] / "tools/export-source.py")
 export = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(export)
 

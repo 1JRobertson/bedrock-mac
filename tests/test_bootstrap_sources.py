@@ -7,7 +7,7 @@ import unittest
 from unittest import mock
 
 
-spec = importlib.util.spec_from_file_location("bootstrap_sources", Path(__file__).resolve().parents[1] / "bootstrap-sources.py")
+spec = importlib.util.spec_from_file_location("bootstrap_sources", Path(__file__).resolve().parents[1] / "tools/bootstrap-sources.py")
 bootstrap = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bootstrap)
 

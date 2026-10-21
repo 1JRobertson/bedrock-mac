@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location('pickers', Path(__file__).resolve().parents[1] / 'standalone-pickers.py')
+spec = importlib.util.spec_from_file_location('pickers', Path(__file__).resolve().parents[1] / 'client/standalone-pickers.py')
 pickers = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pickers)
 
@@ -68,7 +68,7 @@ class PickerTests(unittest.TestCase):
         self.assertTrue((self.prefix / record['backup']).is_dir())
 
     def test_source_and_dll_changes_fail_before_prefix_mutation(self):
-        for path in (self.source / 'file-pickers/pickers.c', self.dll):
+        for path in (self.source / 'native/file-pickers/pickers.c', self.dll):
             original = path.read_bytes()
             path.write_bytes(b'changed source or dll')
             before = self.snapshot()
@@ -84,14 +84,14 @@ class PickerTests(unittest.TestCase):
             pickers.verify_runtime(self.wine)
 
     def test_documentation_and_contract_edits_do_not_invalidate_runtime(self):
-        for name in ('file-pickers/README.md', 'file-pickers/check-windows.cmd',
+        for name in ('native/file-pickers/README.md', 'native/file-pickers/check-windows.cmd',
                      'tests/file-picker-contract.c'):
             path = self.source / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('original documentation or test source')
         self.build_receipt()
         expected = pickers.verify_runtime(self.wine)
-        for name in ('file-pickers/README.md', 'file-pickers/check-windows.cmd',
+        for name in ('native/file-pickers/README.md', 'native/file-pickers/check-windows.cmd',
                      'tests/file-picker-contract.c'):
             (self.source / name).write_text('updated documentation or contract test')
             with self.subTest(path=name):
@@ -103,6 +103,32 @@ class PickerTests(unittest.TestCase):
         (self.source / pickers.SOURCE_INPUTS[0]).unlink()
         with self.assertRaisesRegex(RuntimeError, 'verification'):
             pickers.verify_runtime(self.wine, self.source)
+
+    def test_legacy_receipt_keeps_existing_runtime_verified_after_source_move(self):
+        legacy_recipe = self.source / 'native/file-pickers/provenance/build-v1.sh.txt'
+        legacy_recipe.parent.mkdir(parents=True)
+        legacy_recipe.write_bytes(b'original reviewed build recipe')
+        receipt = json.loads((self.wine / 'file-pickers-build.json').read_text())
+        receipt['source_sha256'] = {old: pickers.digest(self.source / current)
+                                    for old, current in pickers.LEGACY_SOURCE_INPUTS.items()}
+        (self.wine / 'file-pickers-build.json').write_text(json.dumps(receipt))
+        # A new builder path/recipe does not change the old compiled DLL.
+        (self.source / 'native/file-pickers/build.sh').write_text('new relocated build recipe')
+        self.assertEqual(pickers.verify_runtime(self.wine)['dll_sha256'], pickers.digest(self.dll))
+        for name in ('native/file-pickers/pickers.c',
+                     'native/file-pickers/provenance/build-v1.sh.txt'):
+            path = self.source / name
+            original = path.read_bytes()
+            path.write_bytes(b'changed source')
+            with self.subTest(name=name), self.assertRaisesRegex(RuntimeError, 'verification'):
+                pickers.verify_runtime(self.wine)
+            path.write_bytes(original)
+        mixed = dict(receipt['source_sha256'])
+        mixed['native/file-pickers/build.sh'] = mixed.pop('file-pickers/build.sh')
+        receipt['source_sha256'] = mixed
+        (self.wine / 'file-pickers-build.json').write_text(json.dumps(receipt))
+        with self.assertRaisesRegex(RuntimeError, 'verification'):
+            pickers.verify_runtime(self.wine)
 
     def test_unknown_registration_preserves_every_prefix_byte(self):
         for path in (r'C:\custom\picker.dll', pickers.DLL, None):

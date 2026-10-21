@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location('packager', Path(__file__).resolve().parents[1] / 'package-launcher.py')
+spec = importlib.util.spec_from_file_location('packager', Path(__file__).resolve().parents[1] / 'tools/package-launcher.py')
 packager = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(packager)
 
@@ -24,7 +24,7 @@ class PackagingTests(unittest.TestCase):
         wine, dxmt = root / 'wine', root / 'dxmt'
         wine.mkdir()
         dxmt.mkdir()
-        profile = json.loads((packager.ROOT / 'release-runtime-profile.json').read_text())
+        profile = json.loads((packager.ROOT / 'config/release-runtime-profile.json').read_text())
         graphics = {'source_commit': profile['upstream']['dxmt']['commit'], 'files': {}}
         for name in ('x86_64-windows/d3d11.dll', 'x86_64-windows/dxgi.dll',
                      'x86_64-windows/d3d10core.dll', 'x86_64-windows/winemetal.dll',
@@ -34,7 +34,7 @@ class PackagingTests(unittest.TestCase):
             for path in (dxmt / name, wine / 'lib/wine' / name):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(data)
-        lock = packager.ROOT / 'native-dependencies.lock.json'
+        lock = packager.ROOT / 'config/native-dependencies.lock.json'
         receipt = {'source_built': True, 'architecture': 'x86_64',
                    'lock_sha256': hashlib.sha256(lock.read_bytes()).hexdigest(),
                    'source_archives': json.loads(lock.read_text())['components'], 'files': {}}
@@ -47,7 +47,7 @@ class PackagingTests(unittest.TestCase):
         (wine / 'build-manifest.json').write_text(json.dumps(manifest))
         (wine / 'native-dependency-manifest.json').write_text(json.dumps(receipt))
         (dxmt / 'manifest.json').write_text(json.dumps(graphics))
-        spec = importlib.util.spec_from_file_location('packaging_picker_fixture', packager.ROOT / 'standalone-pickers.py')
+        spec = importlib.util.spec_from_file_location('packaging_picker_fixture', packager.ROOT / 'client/standalone-pickers.py')
         pickers = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(pickers)
         dll = wine / 'lib/wine/x86_64-windows/bedrock-pickers.dll'
@@ -58,6 +58,54 @@ class PackagingTests(unittest.TestCase):
                           'source_sha256': {name: pickers.digest(packager.ROOT / name) for name in pickers.SOURCE_INPUTS}}
         (wine / 'file-pickers-build.json').write_text(json.dumps(picker_receipt))
         return wine, dxmt
+
+    def test_relocated_source_scripts_keep_flat_shipped_entry_points(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            captured, resources = root / 'captured', root / 'resources'
+            resources.mkdir()
+            for source, _relative in packager.BUNDLED_SCRIPTS + packager.BRIDGE_SOURCES:
+                path = captured / source
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(('captured ' + source).encode())
+            packager.copy_bundle_scripts(captured, resources, include_bridge=True)
+            scripts = resources / 'scripts'
+            for source, relative in packager.BUNDLED_SCRIPTS + packager.BRIDGE_SOURCES:
+                self.assertEqual((scripts / relative).read_bytes(), (captured / source).read_bytes())
+            self.assertTrue((scripts / 'standalone.py').is_file())
+            self.assertTrue((scripts / 'standalone-setup.py').is_file())
+            self.assertTrue((scripts / 'winrt.reg').is_file())
+            self.assertFalse((scripts / 'client').exists())
+            self.assertTrue((scripts / 'native/file-pickers/pickers.c').is_file())
+            self.assertTrue((scripts / 'native/file-pickers/provenance/build-v1.sh.txt').is_file())
+            self.assertTrue((scripts / 'standalone-dxmt-display-trace.c').is_file())
+
+    def test_packaged_legacy_picker_receipt_uses_retained_exact_build_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            wine, dxmt = self.release_runtime(root)
+            spec = importlib.util.spec_from_file_location('source_picker', packager.ROOT / 'client/standalone-pickers.py')
+            pickers = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(pickers)
+            path = wine / 'file-pickers-build.json'
+            receipt = json.loads(path.read_text())
+            receipt['source_sha256'] = {old: pickers.digest(packager.ROOT / source)
+                                       for old, source in pickers.LEGACY_SOURCE_INPUTS.items()}
+            path.write_text(json.dumps(receipt))
+            captured = root / 'captured'
+            packager.snapshot_sources(captured)
+            packager.validate_release_runtime(wine, dxmt, captured)
+            resources = root / 'resources'
+            resources.mkdir()
+            packager.copy_bundle_scripts(captured, resources)
+            spec = importlib.util.spec_from_file_location('shipped_picker', resources / 'scripts/standalone-pickers.py')
+            shipped = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(shipped)
+            with patch.dict(os.environ, {'BEDROCK_BUNDLE': str(resources)}):
+                self.assertEqual(shipped.verify_runtime(wine)['source_sha256'], receipt['source_sha256'])
+                (resources / 'scripts/native/file-pickers/provenance/build-v1.sh.txt').write_text('changed build provenance')
+                with self.assertRaisesRegex(RuntimeError, 'verification'):
+                    shipped.verify_runtime(wine)
 
     def test_signed_bridge_retains_provenance_and_checks_packaged_bytes(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -75,7 +123,7 @@ class PackagingTests(unittest.TestCase):
                 'source_commit': '589adb780354b461645b29999cefaf533594ee99',
                 'files': {name: digest(libraries / name) for name in ('winemetal.so', 'winemetal-upstream.so')},
                 'patch_sha256': digest(packager.ROOT / 'patches/standalone-dxmt-memory-lifetime.patch'),
-                'trace_source_sha256': digest(packager.ROOT / 'standalone-dxmt-display-trace.c'),
+                'trace_source_sha256': digest(packager.ROOT / 'native/graphics/standalone-dxmt-display-trace.c'),
             }
             (wine / 'dxmt-unix-bridge.json').write_text(json.dumps(metadata))
             with patch.dict(os.environ, {}, clear=True):
@@ -83,10 +131,7 @@ class PackagingTests(unittest.TestCase):
             resources = root / 'app/Contents/Resources'
             shutil.copytree(wine, resources / 'runtime/wine')
             shutil.copytree(dxmt, resources / 'runtime/dxmt')
-            for name in ('patches/standalone-dxmt-memory-lifetime.patch', 'standalone-dxmt-display-trace.c'):
-                target = resources / 'scripts' / name
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(packager.ROOT / name, target)
+            packager.copy_bundle_scripts(packager.ROOT, resources, include_bridge=True)
             packaged_libs = resources / 'runtime/wine/lib/wine/x86_64-unix'
             for name in metadata['files']:
                 (packaged_libs / name).write_bytes(('signed ' + name).encode())
@@ -94,7 +139,7 @@ class PackagingTests(unittest.TestCase):
             packager.record_packaged_bridge(resources, metadata)
             recorded = json.loads((resources / 'runtime/wine/dxmt-unix-bridge.json').read_text())
             self.assertEqual(recorded['source_files'], metadata['files'])
-            spec = importlib.util.spec_from_file_location('bridge_runtime', packager.ROOT / 'standalone.py')
+            spec = importlib.util.spec_from_file_location('bridge_runtime', packager.ROOT / 'client/standalone.py')
             runtime = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(runtime)
             runtime.ROOT = root / 'player-data-without-sources'
@@ -253,18 +298,18 @@ class PackagingTests(unittest.TestCase):
             captured = root / 'captured'
             with patch.object(packager, 'ROOT', source):
                 hashes = packager.snapshot_sources(captured)
-            (source / 'standalone.py').write_bytes(b'changed during packaging')
+            (source / 'client/standalone.py').write_bytes(b'changed during packaging')
             (source / 'launcher/setup.py').write_bytes(b'changed worker during freeze')
-            for name in ('standalone.py', 'launcher/setup.py'):
+            for name in ('client/standalone.py', 'launcher/setup.py'):
                 self.assertEqual(hashlib.sha256((captured / name).read_bytes()).hexdigest(), hashes[name])
                 self.assertNotEqual(hashlib.sha256((source / name).read_bytes()).hexdigest(), hashes[name])
-            self.assertTrue(os.access(captured / 'build-launcher.sh', os.X_OK))
+            self.assertTrue(os.access(captured / 'tools/build-launcher.sh', os.X_OK))
 
 
 class DiskImageTests(unittest.TestCase):
     def setUp(self):
         spec = importlib.util.spec_from_file_location(
-            'dmg_builder', Path(__file__).resolve().parents[1] / 'build-dmg.py')
+            'dmg_builder', Path(__file__).resolve().parents[1] / 'tools/build-dmg.py')
         self.builder = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.builder)
         temporary = tempfile.TemporaryDirectory()
@@ -284,7 +329,7 @@ class DiskImageTests(unittest.TestCase):
             Path(command[-1]).write_bytes(b'verified image fixture')
 
     def build(self, command=None):
-        arguments = ['build-dmg.py', '--app', str(self.app), '--output', str(self.output)]
+        arguments = ['tools/build-dmg.py', '--app', str(self.app), '--output', str(self.output)]
         with patch.object(sys, 'argv', arguments), \
                 patch.object(self.builder.subprocess, 'run', side_effect=command or self.command), \
                 contextlib.redirect_stdout(io.StringIO()):

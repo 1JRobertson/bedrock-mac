@@ -16,7 +16,7 @@ import struct
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location('exact_builder', ROOT / 'standalone-bedrock-allocator.py')
+SPEC = importlib.util.spec_from_file_location('exact_builder', ROOT / 'experiments/standalone-bedrock-allocator.py')
 exact = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(exact)
 BASE_RVA = 0x52f5000

@@ -11,7 +11,7 @@ of compatibility work, not an independently implemented Windows or Xbox runtime.
 | Xodus | [xodus-gaming/xodus](https://github.com/xodus-gaming/xodus/tree/0670e25aeb0e0e9f800f8f2f4968ae3b681842a7) | GPLv3; Xodus contributors. The root [LICENSE](LICENSE) is an unchanged copy of this revision's license. |
 | WineGDK and Wine | [Sightem/WineGDK](https://github.com/Sightem/WineGDK/tree/b5d23b074cfd5e28e79acceaaefaf41a26ce6272) | LGPL 2.1 or later; Wine project authors and WineGDK contributors. Upstream XUser identifies Olivia Ryan. See the unchanged [notice](LICENSES/Wine-NOTICE.txt), [license](LICENSES/Wine-LGPL-2.1-or-later.txt), and upstream AUTHORS/per-file notices. |
 | macOS Store/runtime integration | [wtfsayo/cricket26-crossover](https://github.com/wtfsayo/cricket26-crossover/tree/81c7a2f80023a9f03fc42fbc16f491d97306c54b) | GPLv3 for original scripts and Xodus-derived work; its README expressly retains LGPL terms for Wine-derived patches. Credit belongs to that repository's contributors and the upstream authors identified there. |
-| GameInput MSI/CAB reader | [Wyze3306/BedrockOnLinux](https://github.com/Wyze3306/BedrockOnLinux/tree/7a315c836b7ae8068042bc466b0540c16ffe3a5e) | MIT; BedrockOnLinux contributors. The adapted OLE/MSZIP reader in `standalone-gameinput.py` preserves the full upstream notice. Microsoft payloads are obtained from the owned game's installer and are not included here. |
+| GameInput MSI/CAB reader | [Wyze3306/BedrockOnLinux](https://github.com/Wyze3306/BedrockOnLinux/tree/7a315c836b7ae8068042bc466b0540c16ffe3a5e) | MIT; BedrockOnLinux contributors. The adapted OLE/MSZIP reader in `client/standalone-gameinput.py` preserves the full upstream notice. Microsoft payloads are obtained from the owned game's installer and are not included here. |
 | DXMT 0.80 | [3Shain/dxmt](https://github.com/3Shain/dxmt/tree/589adb780354b461645b29999cefaf533594ee99) | MIT at this revision; copyright 2023 Feifan He. The [license](LICENSES/dxmt-LICENSE.txt) is copied unchanged. Its vendored code carries additional [DXVK](LICENSES/dxmt-DXVK-LICENSE.txt), [LLVM](LICENSES/dxmt-LLVM-LICENSE.txt), and [MinGW](LICENSES/dxmt-MinGW-LICENSE.txt) notices. |
 
 `patches/xodus-real-store-license.patch` and `patches/winegdk-macos-local.patch`
@@ -19,7 +19,7 @@ are unchanged copies from the reference revision above. The first is GPLv3;
 the second is LGPL 2.1 or later. `patches/minecraft-store-callback.patch`
 modifies the reference WineGDK implementation and retains LGPL 2.1 or later.
 `patches/keychain-cache.patch`, `patches/unified-helper.patch`,
-`bedrock-helper.rs`, `standalone-helper.rs`, and `prepare-owned-game.rs` extend
+`legacy/bedrock-helper.rs`, `client/standalone-helper.rs`, and `legacy/prepare-owned-game.rs` extend
 Xodus under GPLv3. `patches/standalone-wine-dxmt-abi.patch` changes Wine's macOS
 driver, `patches/standalone-wine-idl-list.patch` fixes a duplicate install entry,
 and `patches/standalone-wine-storage-linkage.patch` fixes C/C++ linkage in
@@ -42,7 +42,7 @@ pinned `security-framework` 3.7.0 crate for Keychain updates that do not reread
 secrets. The patch retains GPLv3; security-framework retains its MIT/Apache-2.0
 licensing.
 
-`standalone-xvd.rs` is original GPLv3 verification code using the already pinned
+`client/standalone-xvd.rs` is original GPLv3 verification code using the already pinned
 `rsa` 0.9.10 crate (MIT/Apache-2.0) with its SHA-256 feature. The build includes
 only the 539-byte production verification public key documented in
 [LICENSES/XVD-PUBLIC-KEY-PROVENANCE.txt](LICENSES/XVD-PUBLIC-KEY-PROVENANCE.txt).
@@ -53,7 +53,7 @@ remain tied to their recorded binary; the changed helper needs a fresh inventory
 
 The WineGDK startup fixes reuse its `windows.web`, `twinapi.appcore`,
 `windows.ui.core.textinput`, and `wintypes` implementations. Their full source
-and notices are in the pinned WineGDK tree fetched by `bootstrap-sources.py`.
+and notices are in the pinned WineGDK tree fetched by `tools/bootstrap-sources.py`.
 
 No license in this package grants rights to Minecraft, its assets or trademarks,
 Microsoft's GDK/GameInput DLLs, CrossOver, D3DMetal, Apple SDKs, or Rosetta. These
@@ -83,9 +83,9 @@ and source requirements still need inventory before any binary bundle is shipped
 The archive, extracted libraries, and compiled Wine are excluded from this source
 release.
 
-`build-standalone-graphics.sh` retrieves a pinned official DXMT 0.80 binary release
+`tools/build-standalone-graphics.sh` retrieves a pinned official DXMT 0.80 binary release
 for local use, verifies its SHA-256, and saves the source revision and notices.
-The optional `standalone-dxmt-shared.py` build applies
+The optional `experiments/standalone-dxmt-shared.py` build applies
 `patches/standalone-dxmt-shared-buffers.patch` to that pinned source revision and
 rebuilds the Windows graphics DLL locally. Its `--packed-constants` profile also
 applies `patches/standalone-dxmt-packed-constants.patch`, reusing the existing
@@ -108,7 +108,7 @@ The optional `patches/experimental-wine-heap-reuse.patch` retains Wine's LGPL
 and that project's `patches/wine/lfh48-group-cache.patch`. Credit for identifying
 this optimization belongs to that project. Local tests evaluate it separately
 with WineGDK 11.8 and DXMT on M4 Pro; upstream benchmark results are not our results.
-`standalone-wine-heap.py` records the exact local patch, source-input and artifact
+`experiments/standalone-wine-heap.py` records the exact local patch, source-input and artifact
 checksums and provides explicit staging and rollback. The experimental filename
 keeps it outside the standard Wine builder's automatic patch selection.
 
@@ -117,7 +117,7 @@ experiment under Wine's LGPL 2.1-or-later terms. It transfers existing allocator
 ownership instead of copying and immediately releasing the same reference in
 one exact, checksum-verified Bedrock executable. It changes only the loaded
 process image; the source export contains no game executable or game assets.
-`standalone-bedrock-refmove.py` records the reviewed Wine sources and frozen
+`experiments/standalone-bedrock-refmove.py` records the reviewed Wine sources and frozen
 artifact, defaults to disabled, and provides verified staging and rollback.
 This experiment is independent of the LFH cache optimization credited above.
 
@@ -169,7 +169,7 @@ payloads, CrossOver/D3DMetal, Rosetta or Apple SDKs under this inventory.
 
 ## Pinned-source native dependency alternative
 
-`build-native-dependencies.py` and `native-dependencies.lock.json` now provide an
+`tools/build-native-dependencies.py` and `config/native-dependencies.lock.json` now provide an
 isolated source build for GMP 6.3.0, Nettle 3.10.2, libtasn1 4.21.0,
 libunistring 1.4.2, GnuTLS 3.8.13 and FreeType 2.14.3. The source archives are
 HTTPS-acquired with exact SHA-256 pins. The output retains license/author files,
@@ -195,7 +195,7 @@ Existing receipts are checked with `--verify`; they are never regenerated to
 approve changed files. Source archives and build records remain local outputs
 until distribution is separately approved.
 
-`collect-helper-licenses.py` generates the macOS helper's locked dependency
+`tools/collect-helper-licenses.py` generates the macOS helper's locked dependency
 notices and corresponding-source materials, with exact-input verification and
 an included reconstruction script. The tested standalone target uses
 `--no-default-features`: its conservative normal/build graph has 436 packages,
@@ -208,7 +208,7 @@ Earlier candidates built with the default legacy feature retain their separate
 notice inventory and unresolved xmlserde notice gap. Generated bulk archives
 and local machine evidence do not enter the source allowlist or app automatically.
 
-`collect-python-notices.py` records the frozen worker's actual PyInstaller inputs,
+`tools/collect-python-notices.py` records the frozen worker's actual PyInstaller inputs,
 CPython source and license texts, bundled native extensions, and source mappings.
 The reviewed local worker uses CPython 3.14.5 and PyInstaller 6.22.3; 73 notice
 texts cover its selected Python/native inputs. All 49 packaged native code

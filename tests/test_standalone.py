@@ -10,12 +10,71 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-spec = importlib.util.spec_from_file_location('standalone', Path(__file__).resolve().parents[1] / 'standalone.py')
+spec = importlib.util.spec_from_file_location('standalone', Path(__file__).resolve().parents[1] / 'client/standalone.py')
 standalone = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(standalone)
 
 
 class IsolationTests(unittest.TestCase):
+    def test_source_code_paths_are_independent_of_selected_data_home(self):
+        source = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {'BEDROCK_HOME': temporary}):
+            with patch.dict(os.environ):
+                os.environ.pop('BEDROCK_BUNDLE', None)
+                selected = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(selected)
+                self.assertEqual(selected.ROOT, Path(temporary))
+                self.assertEqual(selected.SOURCE_ROOT, source)
+                self.assertEqual(selected.SCRIPTS, source / 'client')
+                picker = selected.picker_bridge()
+                self.assertEqual(Path(picker.__file__), source / 'client/standalone-pickers.py')
+                self.assertEqual(picker.source_root(), source)
+            self.assertEqual(list(Path(temporary).iterdir()), [])
+
+    def test_flat_packaged_scripts_keep_existing_data_paths(self):
+        source = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temporary:
+            home, bundle = Path(temporary) / 'data', Path(temporary) / 'app'
+            home.mkdir()
+            scripts = bundle / 'scripts'
+            scripts.mkdir(parents=True)
+            runtime = home / 'standalone.py'
+            runtime.write_bytes((source / 'client/standalone.py').read_bytes())
+            (scripts / 'standalone-pickers.py').write_bytes((source / 'client/standalone-pickers.py').read_bytes())
+            with patch.dict(os.environ, {'BEDROCK_HOME': str(home), 'BEDROCK_BUNDLE': str(bundle)}):
+                bundled_spec = importlib.util.spec_from_file_location('flat_runtime', runtime)
+                bundled = importlib.util.module_from_spec(bundled_spec)
+                bundled_spec.loader.exec_module(bundled)
+                self.assertEqual(bundled.ROOT, home)
+                self.assertEqual(bundled.PREFIX, home / 'bottles/Bedrock-Standalone')
+                self.assertEqual(bundled.SCRIPTS, home.resolve())
+                picker = bundled.picker_bridge()
+                self.assertEqual(Path(picker.__file__), scripts / 'standalone-pickers.py')
+                self.assertEqual(picker.source_root(), scripts)
+
+    def test_registry_import_uses_code_bytes_and_owned_data_prefix_then_cleans_up(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            data, scripts = root / 'data', root / 'source/client'
+            prefix = data / 'bottles/Bedrock-Standalone'
+            prefix.mkdir(parents=True)
+            scripts.mkdir(parents=True)
+            (scripts / 'winrt.reg').write_bytes(b'reviewed registry source')
+            seen = []
+            def wine(command, game, **kwargs):
+                self.assertEqual(command[:2], ['reg', 'import'])
+                self.assertTrue(command[2].startswith('R:\\bottles\\Bedrock-Standalone\\.bedrock-winrt-'))
+                registry = data / command[2][3:].replace('\\', '/')
+                self.assertEqual(registry.read_bytes(), b'reviewed registry source')
+                self.assertEqual(registry.stat().st_mode & 0o777, 0o600)
+                seen.append(registry)
+            with patch.object(standalone, 'ROOT', data), patch.object(standalone, 'SCRIPTS', scripts), \
+                    patch.object(standalone, 'PREFIX', prefix), patch.object(standalone, 'wine_run', side_effect=wine):
+                standalone.import_winrt_registry(data / 'game', None)
+            self.assertEqual(len(seen), 1)
+            self.assertFalse(seen[0].exists())
+            self.assertEqual(list(prefix.iterdir()), [])
+
     def test_helper_receipt_is_private_atomic_and_does_not_follow_existing_link(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -523,7 +582,8 @@ class IsolationTests(unittest.TestCase):
             (dxmt / 'x86_64-unix').mkdir(parents=True)
             (root / 'patches').mkdir()
             patch_file = root / 'patches/standalone-dxmt-memory-lifetime.patch'
-            trace = root / 'standalone-dxmt-display-trace.c'
+            trace = root / 'native/graphics/standalone-dxmt-display-trace.c'
+            trace.parent.mkdir(parents=True)
             patch_file.write_text('reviewed patch')
             trace.write_text('reviewed trace source')
             (dxmt / 'x86_64-unix/winemetal.so').write_bytes(b'upstream')
@@ -538,8 +598,8 @@ class IsolationTests(unittest.TestCase):
                 'trace_source_sha256': standalone.sha256(trace),
             }
             (wine / 'dxmt-unix-bridge.json').write_text(json.dumps(metadata))
-            with patch.object(standalone, 'ROOT', root), patch.object(standalone, 'WINE', wine), \
-                 patch.object(standalone, 'DXMT', dxmt):
+            with patch.object(standalone, 'ROOT', root), patch.object(standalone, 'SOURCE_ROOT', root), \
+                 patch.object(standalone, 'WINE', wine), patch.object(standalone, 'DXMT', dxmt):
                 standalone.verify_unix_bridge()
                 (installed / 'winemetal-upstream.so').write_bytes(b'wrong dependency')
                 with self.assertRaises(RuntimeError):
