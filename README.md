@@ -78,6 +78,12 @@ speedup for the release candidate. [Performance evidence](docs/PERFORMANCE.md)
 explains the measurements and their limits. Native ARM game execution is a
 separate research track, not a feature of this Windows-runtime preview.
 
+An optional [Mullion ray-tracing experiment](experiments/mullion/README.md)
+demonstrated reflections and indirect lighting on the maintainer's M4 Pro Mac
+with macOS 15.3.1. It includes GPU probes and a separate proof world; normal
+startup does not enable it. Read the [results and known limits](experiments/mullion/RESULTS.md)
+before opting in.
+
 ## Help and development
 
 The [documentation index and repository map](docs/README.md) separate current

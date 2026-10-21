@@ -2,6 +2,7 @@
 """Guarded, isolated Mullion experiment. Never launches the normal bottle."""
 import argparse
 import fcntl
+import getpass
 import hashlib
 import importlib.util
 import json
@@ -154,7 +155,7 @@ def prepare_game():
     fixture = BASE / 'fixture/build_fixture.py'
     if fixture.exists():
         subprocess.run([sys.executable, str(fixture)], check=True)
-        profile = PREFIX / 'drive_c/users' / os.environ.get('USER', 'jake') / 'AppData/Roaming/Minecraft Bedrock/Users/Shared/games/com.mojang'
+        profile = PREFIX / 'drive_c/users' / getpass.getuser() / 'AppData/Roaming/Minecraft Bedrock/Users/Shared/games/com.mojang'
         for kind, name in [('resource_packs', 'Mullion_RayProof_RP'), ('behavior_packs', 'Mullion_RayProof_BP')]:
             target = profile / kind / name
             writable_path(target)
@@ -185,7 +186,7 @@ def launch_game():
         if not normal.account_ready():
             if os.path.lexists('/tmp/xodus.sock'):
                 raise RuntimeError('Account socket is occupied; it was preserved.')
-            helper_log = (LOGS / 'account-helper.log').open('w')
+            helper_log = writable_path(LOGS / 'account-helper.log').open('w')
             env = environment(graphics=False)
             env.update(XODUS_LOG='off', RUST_LOG='off')
             helper = subprocess.Popen([str(normal.HELPER), '--serve', str(GAME)],
@@ -274,14 +275,14 @@ def worker(action):
         elif action == 'capabilities':
             wine(winpath(OUT / 'dxr-render-probe.exe'), '--capabilities-only', cwd=OUT)
         elif action == 'presentation':
-            shutil.copy2(CLIENT / 'runtime/standalone/probes/standalone-graphics-probe.exe', OUT / 'presentation.exe')
+            shutil.copy2(CLIENT / 'runtime/standalone/probes/standalone-graphics-probe.exe', writable_path(OUT / 'presentation.exe'))
             wine(winpath(OUT / 'presentation.exe'), cwd=OUT, timeout=45)
         elif action in ('probe', 'inline-probe'):
             inline = action == 'inline-probe'
             name = 'inline' if inline else 'triangle'
             marker = OUT / ('inline-passed.json' if inline else 'dxr-passed.json')
             marker.unlink(missing_ok=True)
-            report_path = OUT / ('inline-readback.txt' if inline else 'render-readback.txt')
+            report_path = writable_path(OUT / ('inline-readback.txt' if inline else 'render-readback.txt'))
             with report_path.open('w') as report:
                 result = subprocess.run([str(WINE / 'bin/wine'), winpath(OUT / 'dxr-render-probe.exe'),
                                          *(['--inline'] if inline else []), winpath(OUT / (name + '.dxil'))], cwd=OUT, env=environment(),
@@ -328,9 +329,14 @@ def main():
     if args.worker:
         worker(args.action)
         return 0
+    # Guard output is opened before its worker starts. Validate destinations
+    # here, before mkdir/chmod or guard dispatch can follow an external link.
+    safe_paths()
+    log_path = writable_path(LOGS / (args.action + ('-compat' if COMPAT else '') + ('-relaxed' if RELAXED_LEVEL else '-diagnostic' if DIAGNOSTIC_LEVEL else '') + ('-gdi' if GDI else '') + '.log'))
+    for name in ('game-host-memory.ndjson', 'game-host-memory-latest.json'):
+        writable_path(LOGS / name)
     LOGS.mkdir(exist_ok=True, mode=0o700)
     LOGS.chmod(0o700)
-    log_path = LOGS / (args.action + ('-compat' if COMPAT else '') + ('-relaxed' if RELAXED_LEVEL else '-diagnostic' if DIAGNOSTIC_LEVEL else '') + ('-gdi' if GDI else '') + '.log')
     command = [sys.executable, str(Path(__file__).resolve()), args.action, '--worker',
                *(['--compat'] if COMPAT else []),
                *(['--diagnostic-level'] if DIAGNOSTIC_LEVEL else []),

@@ -49,6 +49,13 @@ build/probe commands and measurement limits are indexed in
 [research](research/README.md). Dated source, frame-slab, graphics and skin results
 are retained in [test history](history/TESTING.md); they do not certify a new app.
 
+The [Mullion ray-tracing experiment](../experiments/mullion/README.md) has offline
+fixtures in `test_mullion_experiment.py` and `test_mullion_staging.py`. These
+check data-root isolation, guarded shortcuts/staging, safe log/download paths and
+proof-pack generation without running Wine or accessing a game/account. Native
+GPU readback and world observations are recorded separately in its results;
+offline checks do not repeat or extend those measurements.
+
 ## Source layout and packaged scripts
 
 `python3 -m unittest discover -s tests -p 'test_repository_layout.py'` exports

@@ -14,6 +14,7 @@ import tempfile
 # Add individually reviewed source files here. Directories and globs are forbidden.
 # Both runtime paths and the source clones are deliberately absent.
 ALLOWED_FILES = (
+    "tests/test_mullion_staging.py",
     "tests/test_mullion_experiment.py",
     'tools/qa_resource_guard.py',
     'LICENSES/Mullion-LGPL-2.1-or-later.txt',

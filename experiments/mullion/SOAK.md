@@ -31,8 +31,8 @@ guard. For the explicitly user-authorized pressure investigation, append
 `--unguarded-game`: this bypasses memory refusal/termination for this game only,
 retains the shared exclusive QA lock and normal owned-process cleanup, and
 records host pressure/swap in `logs/game-host-memory.ndjson`. It does not change
-the shared guard or working client. The experimental launch shortcut uses this
-override. Optionally prefix the command with `MTL_HUD_ENABLED=1`,
+the shared guard or working client. The public experimental launch shortcut uses
+normal guard limits. Optionally prefix the command with `MTL_HUD_ENABLED=1`,
 `MTL_HUD_LOG_ENABLED=1` and `MTL_HUD_LOGGING_ENABLED=1`; the last spelling supports
 older HUD versions. The [Apple Metal HUD documentation](https://developer.apple.com/documentation/xcode/monitoring-your-metal-apps-graphics-performance)
 describes the presentation intervals, GPU times and memory telemetry.

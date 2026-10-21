@@ -25,6 +25,57 @@ def load(name, filename):
 
 
 class MullionExperimentTests(unittest.TestCase):
+    def test_public_shortcut_keeps_memory_guard_enabled(self):
+        with tempfile.TemporaryDirectory(prefix='mullion shortcut ') as temporary:
+            root = Path(temporary)
+            shortcut = root / 'Launch.command'
+            shutil.copyfile(BASE / 'Launch Bedrock Experiment.command', shortcut)
+            interpreter = root / 'python3'
+            interpreter.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$MULLION_COMMAND_CAPTURE"\n')
+            interpreter.chmod(0o755)
+            capture = root / 'command.txt'
+            result = subprocess.run(['/bin/sh', str(shortcut)], capture_output=True, text=True,
+                env=dict(os.environ, PATH=str(root) + ':/usr/bin:/bin', MULLION_COMMAND_CAPTURE=str(capture)),
+                timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(capture.read_text().splitlines(), ['run.py', 'game', '--compat', '--relaxed-level'])
+
+    def test_external_log_links_are_rejected_before_dispatch_or_mutation(self):
+        for kind in ('directory', 'log-file', 'memory-file'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory(prefix='mullion logs ') as temporary:
+                root = Path(temporary).resolve()
+                experiment = root / 'experiment'
+                experiment.mkdir()
+                outside = root / 'preserve'
+                outside.mkdir(mode=0o705)
+                sentinel = outside / 'probe.log'
+                sentinel.write_bytes(b'preserve unrelated file')
+                mode = outside.stat().st_mode
+                wine = experiment / 'wine'
+                (wine / 'bin').mkdir(parents=True)
+                (wine / 'bin/wine').write_bytes(b'non-executable fixture')
+                logs = experiment / 'logs'
+                if kind == 'directory':
+                    logs.symlink_to(outside, target_is_directory=True)
+                else:
+                    logs.mkdir()
+                    name = 'probe.log' if kind == 'log-file' else 'game-host-memory.ndjson'
+                    (logs / name).symlink_to(sentinel)
+                runner = load('mullion_log_links', 'run.py')
+                arguments = ['run.py', 'game', '--unguarded-game'] if kind == 'memory-file' else ['run.py', 'probe']
+                with patch.multiple(runner, BASE=experiment, WINE=wine, PREFIX=experiment / 'prefix',
+                                    GAME=experiment / 'game', LOGS=logs, OUT=experiment / 'out'), \
+                        patch.object(sys, 'argv', arguments), patch.object(runner.os, 'umask'), \
+                        patch.object(runner.subprocess, 'call') as dispatch, \
+                        patch.object(runner.subprocess, 'Popen') as launch:
+                    with self.assertRaisesRegex(RuntimeError, 'link'):
+                        runner.main()
+                    dispatch.assert_not_called()
+                    launch.assert_not_called()
+                self.assertEqual(outside.stat().st_mode, mode)
+                self.assertEqual(sentinel.read_bytes(), b'preserve unrelated file')
+                self.assertEqual(set(outside.iterdir()), {sentinel})
+
     def test_current_checkout_paths_do_not_depend_on_installed_data(self):
         with patch.dict(os.environ, {'BEDROCK_HOME': '/unrelated/installed-data',
                                      'BEDROCK_BUNDLE': '/unrelated/application'}):
@@ -53,7 +104,8 @@ class MullionExperimentTests(unittest.TestCase):
 
     def test_memory_override_cannot_launch_a_build_or_probe(self):
         runner = load('mullion_override_scope', 'run.py')
-        with patch.object(runner.subprocess, 'call') as launch, patch.object(runner, 'worker') as worker:
+        with patch.object(runner.subprocess, 'call') as launch, patch.object(runner, 'worker') as worker, \
+                patch.object(runner.os, 'umask'):
             with patch.object(sys, 'argv', ['run.py', 'probe', '--unguarded-game']):
                 with contextlib.redirect_stderr(io.StringIO()):
                     with self.assertRaises(SystemExit) as result:

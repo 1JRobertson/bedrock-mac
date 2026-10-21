@@ -11,8 +11,8 @@ Prepared shortcuts:
 - **Launch Bedrock Experiment.command**: verifies both tests, then launches the
   separate Minecraft copy with the limited compatibility profile. It checks the
   cached GPU-readback fingerprints against current files; rerun **Run Ray Probe.command**
-  after changing the renderer. The launch shortcut uses the user-requested
-  memory-observation override, retaining isolation and the exclusive QA lock.
+  after changing the renderer. The launch shortcut uses the memory resource
+  guard and exclusive QA lock.
 
 ## Rebuild on this prepared development Mac
 
@@ -35,13 +35,13 @@ python3 run.py game-setup --compat --relaxed-level
 python3 run.py game --compat --relaxed-level
 ```
 
-Each build/native action automatically uses the shared QA resource guard. If
+Staging and each build/native action use the shared QA resource guard. If
 another guarded job owns the lock, wait and retry. Do not invoke workers directly.
 Close the experimental game before changing its runtime, prefix or settings.
 The explicit game-only `--unguarded-game` option records memory without guard
 aborts, as requested for the October 21 pressure investigation. It retains the
-exclusive QA lock and owned-process cleanup. It is used by the experiment launch
-shortcut; the standalone working client and shared guard are unchanged.
+exclusive QA lock and owned-process cleanup. It is an explicit diagnostic option;
+the launch shortcut uses the normal guard limits.
 
 `--compat` injects a process-local shim that recognizes Mullion's rejected
 internal MSL4.1 library and compiles matching source as MSL3.2. `--relaxed-level`
