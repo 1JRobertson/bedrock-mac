@@ -1,0 +1,18 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Mullion Ray Proof Materials",
+    "description": "Isolated DXR test: mirror iron, red and blue emissive blocks.",
+    "uuid": "2d067af9-9d92-4fda-837b-712428adffb6",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 21, 0]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "929c34f9-5465-4d81-9a34-87dbbf9eb571",
+      "version": [1, 0, 0]
+    }
+  ],
+  "capabilities": ["raytraced"]
+}

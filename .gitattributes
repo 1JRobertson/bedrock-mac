@@ -1,2 +1,5 @@
 # Unified patch context lines intentionally contain a single space.
 *.patch -whitespace
+
+# Preserve the upstream Mullion notice verbatim.
+LICENSES/Mullion-LGPL-2.1-or-later.txt -whitespace

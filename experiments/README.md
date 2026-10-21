@@ -15,3 +15,11 @@ Start with [the research index](../docs/research/README.md) and
 [measurement limits](../docs/PERFORMANCE.md). A synthetic test, CPU-cost reduction
 or locally enabled profile does not establish native ARM game support or a
 packaged-app FPS gain. The HUD startup crash/rollback remains documented.
+
+## Bedrock ray tracing
+
+[Mullion ray tracing](mullion/README.md) is an isolated, default-off D3D12/DXR
+experiment on macOS 15.3.1. The recorded test demonstrated offscreen reflections
+and indirect light, about 25 minutes without a fault, and save/restart/reload.
+See its [results and limits](mullion/RESULTS.md). It does not change ordinary
+startup or claim hours-long stability; Vibrant Visuals has a separate known crash.

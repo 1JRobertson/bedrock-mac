@@ -216,3 +216,16 @@ sections matched the build inputs, and the candidate's 73 packaged notices
 matched the generated texts. These checks do not establish a complete rebuild
 of Homebrew's original dependencies. Preserve the matching source archives,
 build evidence and per-candidate index separately from app notice texts.
+
+## Default-off Mullion ray-tracing experiment
+
+`experiments/mullion/` uses [Mullion v0.3](https://github.com/dttdrv/mullion),
+commit `5dda0b9af63dd246003a9ee9f84fd738b81867f9`, under LGPL2.1-or-later.
+Its small derived feature-level/ray wrappers preserve the upstream behavior and
+remain under those terms; see [the upstream notice](LICENSES/Mullion-LGPL-2.1-or-later.txt) and
+[full LGPL text](LICENSES/Wine-LGPL-2.1-or-later.txt).
+The internal Metal library is generated locally from pinned source, not shipped.
+The probe's BedrockOnLinux-derived declarations retain their
+[MIT notice](experiments/mullion/probes/LICENSE-BedrockOnLinux.txt). Microsoft DXC
+and all game/runtime binaries are retrieved separately and are not in this source
+export. No experimental files alter the normal launcher by their presence.

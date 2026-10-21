@@ -13,3 +13,6 @@ __pycache__/
 /.minecraft-update/
 /.minecraft-update-staging-*/
 /.minecraft-discard-*/
+
+# Shared local QA lock and host-memory samples.
+/work/qa-resource-guard/
