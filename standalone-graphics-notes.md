@@ -213,7 +213,7 @@ unresolved Rosetta frames and repeated Wine syscall-dispatch frames, limiting
 attribution. The game log contained startup graphics warnings without a new
 connection timeout or device-lost error. These observations establish neither
 a memory leak nor the cause of the lag. No additional graphics fix was justified
-by this evidence. See the [session results](README.md#september-30-gameplay-session);
+by this evidence. See the [session results](docs/STABILITY.md#earlier-gameplay-results);
 raw diagnostics remain private under `logs/standalone/monitor/`.
 
 The same probe builder produces the existing account and Store-callback probes.

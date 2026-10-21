@@ -5,6 +5,23 @@ Start with [CONTEXT.md](../CONTEXT.md) for component ownership and
 run from the repository root on the local Mac. The standalone build does not
 require CrossOver or an Apple Developer membership.
 
+## Build and play from source
+
+For the automated source setup, clone or extract the repository into a permanent
+folder and run `./Start.command`. It installs missing tools, builds the runtime,
+validates/stages the graphics memory fixes, downloads the owned game, and launches
+it. Reopen it to retry or play; use `--setup-only` to stop before launch and
+`--check` for read-only readiness. See [the README](../README.md#start-from-source).
+This path stores game data and worlds in the checkout. Keep it when updating
+source; it does not automatically update a completed runtime or game. Source
+setup always uses the checkout, including when `BEDROCK_HOME` or `BEDROCK_BUNDLE`
+was inherited from a packaged-app command. Lower-level CLI commands still honor
+`BEDROCK_HOME` when explicitly selected.
+
+The manual recipe below builds a **separate, self-contained app**, with a data
+root under Application Support. It does not import source-run worlds or game
+files. Source setup and packaging use separate commands and validation records.
+
 ## Prerequisites
 
 The documented build host is Apple Silicon. Swift/DXMT target macOS 15, but the
@@ -52,7 +69,8 @@ pkg-config --version
 
 The last command must exit successfully for the Intel runtime to work. If
 Rosetta is missing, follow [Apple's instructions](https://support.apple.com/en-us/102527).
-The launcher only checks for Rosetta; it does not install it for the user.
+The native app only checks for Rosetta. `Start.command` can request Apple’s
+Rosetta installer during source setup; the user handles its license prompt.
 
 Building Wine and Rust uses much more storage than the player's 8 GB setup
 check. Inspect `df -h .`, leave room for source, compiler output, archives, and
@@ -90,7 +108,7 @@ existing venv.
 
 | Step | Result and behavior |
 | --- | --- |
-| Bootstrap | Fetches pinned WineGDK and Xodus into `sources/`, applies tracked patches and Cargo lockfile; refuses an existing destination |
+| Bootstrap | Fetches pinned WineGDK, Xodus and DXMT into `sources/`, applies tracked patches and Cargo lockfile; refuses an existing destination |
 | Native dependencies | Downloads hash-pinned source archives and builds an isolated x86-64 prefix with matching headers and a verified receipt |
 | Wine build | Compiles WineGDK in `build/standalone-wine`, installs to `runtime/standalone/wine`; requires `STANDALONE_DEPENDENCY_PREFIX` and copies its verified source-built dependencies |
 | Graphics staging | Downloads/verifies pinned DXMT, installs its Wine overlay, and records original DLL backups |
@@ -179,6 +197,12 @@ python3 package-launcher.py --output 'build/iteration-2/Bedrock for Mac.app'
 python3 build-dmg.py --app 'build/iteration-2/Bedrock for Mac.app' \
   --output 'build/Bedrock for Mac-iteration-2.dmg'
 ```
+
+A failed DMG creation or verification leaves the chosen final output absent,
+so that output can be retried. An existing output is preserved, including one
+created by another build during packaging. Atomic DMG publication requires a
+filesystem with hard-link support, such as APFS or HFS+. Build locally there,
+then copy the verified DMG and its receipt to an exFAT/FAT volume if needed.
 
 Choose a fresh suffix for each retained build. Launcher, frozen worker and
 PyInstaller intermediates live in the isolated work directory, which defaults

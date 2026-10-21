@@ -6,7 +6,10 @@ qualification remain open in the [release record](RELEASE.md).
 This is an open-source preview. There is no public notarized installer yet.
 The steps below describe a complete local app built from this repository;
 GitHub's **Download ZIP** contains source, not an installable app. Developers can
-follow [the build guide](DEVELOPMENT.md).
+follow [the build guide](DEVELOPMENT.md). To play directly from source using
+`Start.command`, begin with [the README](../README.md#start-from-source). Source
+setup installs build tools and compiles locally; the app instructions below
+apply to a complete bundle.
 
 ## Before you start
 
@@ -101,6 +104,11 @@ Choose **Help → Open Game Data**. Alternatively, in Finder choose
 | `runtime`, `sources` | Runtime links, helper link, and session records |
 | `downloads` | Locally acquired component downloads, if present |
 | `game-backups` | Previous game/prefix copies retained by completed manual game updates |
+
+For `Start.command` and the source CLI, the data root is the **checkout folder**,
+and worlds live in `<checkout>/bottles/Bedrock-Standalone`. Keep that folder when
+updating source. The source setup does not automatically migrate data into the
+packaged app. The app menu actions below apply to the native launcher.
 
 Worlds are inside the prefix's `drive_c/users/<wine-user>/AppData/Roaming/Minecraft Bedrock/`
 tree, under the account's `games/com.mojang/minecraftWorlds` directory. The Wine

@@ -7,6 +7,14 @@ Export only reviewed client source, not this entire development directory or
 any adjacent server repository. Read [THIRD_PARTY.md](../THIRD_PARTY.md) for
 component notices and [RELEASE.md](RELEASE.md) for binary release gates.
 
+## Authoritative source
+
+Make public fixes in tracked files in the `bedrock-mac` checkout. Its surrounding
+Mac development directory can contain older experiments and private runtime
+state; it is not a mirror to copy recursively over this repository. Fetch/build
+upstreams from the tracked pins and patches. Export only the explicit allowlist
+below, and review the destination inventory before using it elsewhere.
+
 ## Update the source inventory
 
 Every new public file, including documentation and `AGENTS.md`, must be added
@@ -57,7 +65,8 @@ script, patch, test, and notice to that allowlist before exporting a later versi
 Do not replace it with a recursive copy or an extension glob.
 
 The package omits game assets/executables, downloaded archives, source checkouts,
-compiled binaries, Wine prefixes and worlds, Keychain data, helper session files,
+compiled binaries, Wine prefixes and worlds, manual-update backups and recovery
+journals, Keychain data, helper session files,
 logs, screenshots, CrossOver, D3DMetal, and Microsoft runtime DLLs. `.gitignore`
 alone is not the release boundary. Review the exported source and the inventory
 before publishing them to the intended repository.

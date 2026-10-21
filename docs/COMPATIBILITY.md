@@ -1,6 +1,6 @@
 # Compatibility
 
-Snapshot: October 7, 2026. **Historical observations and source behavior are not
+Updated October 21, 2026; local RC4 artifact evidence dates to October 7. **Historical observations and source behavior are not
 release-candidate certification.** Local **0.3.0 RC4, build 6** has an inspected macOS 15.0 floor; gameplay
 qualification remains pending. See [release readiness](RELEASE.md).
 
@@ -8,7 +8,7 @@ qualification remains pending. See [release readiness](RELEASE.md).
 | --- | --- | --- |
 | Apple Silicon | Required by launcher source | Target platform; clean-machine verification pending |
 | M4 Pro, 24 GB, macOS 15.3.1 | Earlier standalone gameplay recorded September 30 | Historical only; not the new app bundle |
-| MacBook Air M1 | User offered a second test machine; OS/RAM unknown | Untested |
+| MacBook Air M1, 16 GB | Maintainer reports it working; exact OS/revision/scenarios unrecorded | Reported working; clean-machine and exact-candidate qualification pending |
 | Minimum macOS | 0.3.0 RC4 whole-bundle audit: 15.0 across 95 native files | Clean-M1 / game execution on the minimum OS untested |
 | Intel Mac | Rejected by launcher hardware check | Unsupported |
 | Rosetta | Required for x86-64 Wine/graphics/game path | Required; native ARM game execution is not shipped |

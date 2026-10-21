@@ -5,8 +5,11 @@ import io
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
@@ -24,6 +27,9 @@ class StartTests(unittest.TestCase):
         self.root_patch = patch.object(start, 'ROOT', self.root)
         self.root_patch.start()
         self.addCleanup(self.root_patch.stop)
+        environment = patch.dict(os.environ)
+        environment.start()
+        self.addCleanup(environment.stop)
         self.output = contextlib.redirect_stdout(io.StringIO())
         self.output.__enter__()
         self.addCleanup(self.output.__exit__, None, None, None)
@@ -113,6 +119,73 @@ class StartTests(unittest.TestCase):
         before = set(self.root.rglob('*'))
         self.assertEqual(start.main(['--check']), 1)
         self.assertEqual(set(self.root.rglob('*')), before)
+
+    def test_source_check_uses_checkout_even_with_inherited_app_environment(self):
+        source = Path(__file__).resolve().parents[1]
+        (self.root / 'standalone.py').write_bytes((source / 'standalone.py').read_bytes())
+        app_home = self.root / 'app-data'
+        app_bundle = self.root / 'app-resources'
+        with patch.dict(os.environ, {'BEDROCK_HOME': str(app_home),
+                                     'BEDROCK_BUNDLE': str(app_bundle)}):
+            self.assertEqual(start.main(['--check']), 1)
+            launcher = start.module('standalone')
+            self.assertEqual(launcher.ROOT, self.root)
+            self.assertEqual(launcher.PREFIX, self.root / 'bottles/Bedrock-Standalone')
+            self.assertNotIn('BEDROCK_BUNDLE', os.environ)
+        self.assertFalse(app_home.exists())
+        self.assertFalse(app_bundle.exists())
+        self.assertFalse((self.root / 'runtime').exists())
+
+    def test_termination_and_terminal_close_stop_owned_logged_job(self):
+        source = Path(__file__).resolve().parents[1] / 'start.py'
+        worker = self.root / 'worker.py'
+        worker.write_text('''import importlib.util
+from pathlib import Path
+import sys
+spec = importlib.util.spec_from_file_location('start', sys.argv[1])
+start = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(start)
+start.ROOT = Path(__file__).parent
+def fixture():
+    start.run([sys.executable, '-c',
+               'import os, pathlib, sys, time; pathlib.Path(sys.argv[1]).write_text(str(os.getpid())); time.sleep(60)',
+               sys.argv[2]], 'Owned fixture job', start.ROOT / 'job.log')
+    return 0
+start.main = fixture
+sys.exit(start.cli())
+''')
+        for requested in (signal.SIGTERM, signal.SIGHUP):
+            with self.subTest(signal=requested):
+                receipt = self.root / f'child-{requested}.pid'
+                process = subprocess.Popen([sys.executable, str(worker), str(source), str(receipt)],
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                           text=True, start_new_session=True)
+                child_pid = None
+                try:
+                    deadline = time.monotonic() + 5
+                    while not receipt.exists() and process.poll() is None and time.monotonic() < deadline:
+                        time.sleep(0.01)
+                    self.assertTrue(receipt.exists(), 'fixture child did not become ready')
+                    child_pid = int(receipt.read_text())
+                    process.send_signal(requested)
+                    _output, error = process.communicate(timeout=8)
+                    self.assertEqual(process.returncode, 130, error)
+                    self.assertIn('Stopped. Open Start.command again to retry.', error)
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(child_pid, 0)
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                    process.communicate(timeout=5)
+                    # If an assertion fails, still remove only this fixture's
+                    # known child group; never leave a sleeping QA job behind.
+                    if child_pid is None and receipt.exists():
+                        child_pid = int(receipt.read_text())
+                    if child_pid is not None:
+                        try:
+                            os.killpg(child_pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
 
     def test_complete_installation_launches_without_installing_tools(self):
         class Launcher:
@@ -252,6 +325,36 @@ class StartTests(unittest.TestCase):
         self.assertIn('standalone-xvd.rs', helper_inputs)
         self.assertIn('patches/account.patch', helper_inputs)
         self.assertEqual(run.call_args_list[0].args[0][-1], str(self.root / 'install-build-tools.sh'))
+
+    def test_source_update_refreshes_generated_helper_before_existing_tree_verification(self):
+        source = Path(__file__).resolve().parents[1]
+        with patch.object(start, 'ROOT', source):
+            bootstrap = start.module('bootstrap-sources')
+        tree = self.root / 'sources/xodus'
+        tree.mkdir(parents=True)
+        for original, generated in bootstrap.HELPER_INPUTS.items():
+            author = self.root / original
+            author.parent.mkdir(parents=True, exist_ok=True)
+            author.write_bytes(b'updated authoritative source')
+            target = tree / generated
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b'previous generated copy')
+
+        def verify(repository, name, project):
+            self.assertEqual(repository, tree)
+            for original, generated in bootstrap.HELPER_INPUTS.items():
+                self.assertEqual((repository / generated).read_bytes(),
+                                 (self.root / original).read_bytes())
+
+        bootstrap.PROJECTS = {'xodus': {'patches': ()}}
+        bootstrap.SOURCE_INPUTS = ()
+        with patch.object(start, 'module', return_value=bootstrap), \
+                patch.object(bootstrap, 'verify_project', side_effect=verify) as check, \
+                patch.object(start, 'native_dependencies', return_value=self.root / 'dependencies'), \
+                patch.object(start, 'Steps') as steps, patch.object(start, 'run'):
+            start.setup(2, 'CA')
+        check.assert_called_once()
+        self.assertTrue(any(call.args[0] == 'helper' for call in steps.return_value.step.call_args_list))
 
     def test_source_release_includes_start_and_console_authentication(self):
         source = Path(__file__).resolve().parents[1]

@@ -55,7 +55,11 @@ class ExportTests(unittest.TestCase):
             export.collect_sources(self.source, ("copy.md",))
 
     def test_unsafe_allowlist_paths_are_rejected(self):
-        entries = ("../private", "/private", "docs/../../private", "./README.md", "docs//file", "runtime/helper-session.json", "logs/private.log", "game/Minecraft.Windows.exe", "bottles/world", "sources/xodus/LICENSE")
+        entries = ("../private", "/private", "docs/../../private", "./README.md", "docs//file", "runtime/helper-session.json", "logs/private.log", "game/Minecraft.Windows.exe", "bottles/world", "sources/xodus/LICENSE",
+                   "game-backups/minecraft-fixture/previous-prefix/world",
+                   ".minecraft-update/download/Minecraft.Windows.exe",
+                   ".minecraft-update-staging-fixture/transaction.json",
+                   ".minecraft-discard-fixture/download/package")
         for path in entries:
             with self.subTest(path=path), self.assertRaises(ValueError):
                 export.collect_sources(self.source, (path,))

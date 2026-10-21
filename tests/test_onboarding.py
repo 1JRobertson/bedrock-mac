@@ -26,6 +26,61 @@ runtime_spec.loader.exec_module(runtime)
 
 
 class OnboardingTests(unittest.TestCase):
+    def test_bundle_setup_preserves_existing_staging_files_and_links(self):
+        for linked in (False, True):
+            with self.subTest(linked=linked), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                home, bundle = root / 'data', root / 'app'
+                home.mkdir()
+                (bundle / 'scripts').mkdir(parents=True)
+                for name in ('standalone.py', 'standalone-setup.py', 'standalone-gameinput.py', 'standalone-pickers.py', 'winrt.reg'):
+                    (bundle / 'scripts' / name).write_bytes(b'current bundled script')
+                recovery = root / 'recovery-file'
+                recovery.write_bytes(b'preserve recovery bytes')
+                staging = home / 'standalone.py.new'
+                if linked:
+                    staging.symlink_to(recovery)
+                else:
+                    staging.write_bytes(b'preserve staged bytes')
+                with patch.object(worker, 'ROOT', home), patch.object(worker, 'BUNDLE', bundle):
+                    worker.initialize_bundle()
+                self.assertEqual(recovery.read_bytes(), b'preserve recovery bytes')
+                self.assertEqual(staging.is_symlink(), linked)
+                self.assertEqual(staging.read_bytes(), b'preserve recovery bytes' if linked else b'preserve staged bytes')
+                self.assertFalse((home / 'standalone.py').is_symlink())
+                self.assertEqual((home / 'standalone.py').read_bytes(), b'current bundled script')
+
+    def test_update_journal_preserves_existing_staging_files_and_links(self):
+        for linked in (False, True):
+            with self.subTest(linked=linked), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                transaction = root / '.minecraft-update'
+                transaction.mkdir()
+                recovery = root / 'world-backup'
+                recovery.write_bytes(b'preserve world bytes')
+                staging = transaction / 'transaction.new'
+                if linked:
+                    staging.symlink_to(recovery)
+                else:
+                    staging.write_bytes(b'preserve staged journal')
+                record = {'phase': 'preparing'}
+                worker.write_update(transaction, record)
+                self.assertEqual(json.loads((transaction / 'transaction.json').read_text()), record)
+                self.assertEqual(recovery.read_bytes(), b'preserve world bytes')
+                self.assertEqual(staging.is_symlink(), linked)
+                self.assertEqual(staging.read_bytes(), b'preserve world bytes' if linked else b'preserve staged journal')
+
+    def test_failed_file_replacement_preserves_original_and_cleans_owned_staging(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / 'transaction.json'
+            target.write_bytes(b'previous complete journal')
+            with patch.object(worker.os, 'replace', side_effect=OSError('fixture replacement failure')):
+                with self.assertRaisesRegex(OSError, 'replacement failure'):
+                    worker.replace_bytes(target, b'next complete journal')
+            self.assertEqual(target.read_bytes(), b'previous complete journal')
+            self.assertEqual(set(root.iterdir()), {target})
+
     def test_dangling_update_transaction_routes_to_preserving_recovery(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

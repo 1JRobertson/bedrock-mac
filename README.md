@@ -1,42 +1,68 @@
 # Bedrock for Mac
 
-**Source preview; no public installer yet.** Local RC4 includes the helper that
-passed verified acquisition outside the app. Native first-run, update, gameplay
-and clean-M1 qualification remain open in the [release record](docs/RELEASE.md).
-
 Run your owned **Minecraft for Windows (Bedrock)** on an Apple Silicon Mac,
 using WineGDK, DXMT, and Xodus. The launcher is native macOS; the Windows game
 runs through Wine and Rosetta. No CrossOver subscription is required.
 
-**Source preview — no public notarized installer yet.** A new local release
-candidate is being qualified. Download links remain pending; GitHub's source ZIP
-is not an installable app. See [release readiness](docs/RELEASE.md).
+**Open-source preview.** Build scripts are available now; there is no public
+notarized app or downloadable installer. Local app candidates have separate
+[release checks](docs/RELEASE.md).
 
-## Play
+## Start from source
 
-With a complete, locally built app:
+On an **Apple Silicon Mac with macOS 15 or later**:
 
-1. Open the DMG and drag **Bedrock for Mac** into **Applications**.
-2. Open the app and choose **Install & Play**.
-3. Sign in with the Microsoft account that owns **Minecraft for Windows**.
-4. Let setup finish. If Minecraft asks, select **Sign in now**.
+1. Clone this repository, or choose **Code → Download ZIP** and extract it.
+2. Keep the folder in a permanent location you control: it holds your game,
+   settings, and saves. Do not replace or delete it when updating source.
+3. Double-click **Start.command**, or run `./Start.command` from Terminal in
+   that folder. Keep Terminal open through setup and play.
+4. Follow the Apple/Homebrew prompts and sign in with the Microsoft account
+   that owns **Minecraft for Windows**. A console/mobile purchase alone is
+   insufficient. If Minecraft asks, select **Sign in now**.
 
-Later launches show **Play**. Players using the complete bundle do not need
-Homebrew, Python, compilers, or a separate Wine install. Minecraft and your
-account are not included in the app.
+The first run installs missing build tools, fetches pinned sources, compiles
+Wine and the account helper, validates the graphics memory fixes, and downloads
+your owned game. It needs internet access, Rosetta, several GB of downloads,
+and room for source/build outputs as well as the game. Build time and minimum
+build-space requirements have not been measured. Apple Command Line Tools
+installation asks you to press Return when it finishes.
 
-You need Apple Silicon, Rosetta, internet access, a Windows-game entitlement,
-and at least 8 GB free for initial setup, plus space for worlds and backups.
-Local RC4 requires **macOS 15.0 or later**, based on its complete native-binary
-audit. Clean-M1 gameplay remains untested; later candidates need their own audit.
-See the [compatibility table](docs/COMPATIBILITY.md) before testing.
+Use **Start.command** again to play. It reuses a complete installation and
+retries interrupted setup; interrupted game downloads restart. It does not
+automatically update an installed game or runtime. Read-only status and
+setup-only commands are available:
+
+```sh
+./Start.command --check
+./Start.command --setup-only
+./Start.command --market US  # Store country; default CA
+```
+
+If macOS blocks opening the script, follow [Apple's opening guidance](https://support.apple.com/en-us/102445)
+after checking the source. A complete first run on a clean Mac still needs
+qualification. See [the build guide](docs/DEVELOPMENT.md) for manual stages,
+packaging and setup failures, and [compatibility](docs/COMPATIBILITY.md) for
+what has actually been observed.
+
+## Locally built app
+
+Developers can [build a complete app and DMG](docs/DEVELOPMENT.md#build-a-complete-local-app).
+Open that DMG, copy **Bedrock for Mac** to **Applications**, then choose
+**Install & Play**. The complete bundle includes its runtime and build outputs;
+players using it do not need build tools. Its data lives separately from the
+source checkout. Follow [the app user guide](docs/USER_GUIDE.md) for sign-in,
+backup and manual update actions. Local RC4's audited minimum OS is 15.0;
+new bundles need their own audit and gameplay qualification.
 
 ## What has been tested?
 
 The maintainer estimates **10+ total hours playing with Xbox and PlayStation
 friends** across multiple sessions. Development testing also verified local-world
 saving and reopening. The [gameplay evidence](docs/STABILITY.md#repeated-cross-platform-play)
-includes two monitored friend sessions on an M4 Pro.
+includes two monitored friend sessions on an **M4 Pro Mac mini with 24 GB RAM**.
+The maintainer also reports it working on an **M1 MacBook Air with 16 GB RAM**;
+its exact OS, source/app revision, and test scenarios have not been recorded.
 
 Fresh installation on an M1, multiplayer with the new packaged candidate, app
 replacement, and extended candidate sessions remain separate release checks.
@@ -51,7 +77,7 @@ separate research track, not a feature of this Windows-runtime preview.
 
 | Task | Guide |
 | --- | --- |
-| Install, sign in, retry setup, or resolve Mac prompts | [User guide](docs/USER_GUIDE.md) |
+| Use a locally built app, sign in, retry, or resolve Mac prompts | [User guide](docs/USER_GUIDE.md) |
 | Back up worlds, update, restore, or uninstall | [Files and backups](docs/USER_GUIDE.md#your-files-backups-and-updates) |
 | Check hardware and game-feature evidence | [Compatibility](docs/COMPATIBILITY.md) |
 | Review candidate status and known limitations | [Release readiness](docs/RELEASE.md) · [Draft release notes](docs/RELEASE_NOTES.md) |
@@ -61,7 +87,8 @@ separate research track, not a feature of this Windows-runtime preview.
 | Review source exports, licenses, or security | [Publishing](docs/PUBLISHING.md) · [Notices](THIRD_PARTY.md) · [Security](SECURITY.md) |
 | Work with a coding agent | [Agent guidance](AGENTS.md) |
 
-Worlds live outside the application in
+Source-run worlds live in `<checkout>/bottles/Bedrock-Standalone`. Packaged-app
+worlds live outside the application in
 `~/Library/Application Support/Bedrock for Mac/bottles/Bedrock-Standalone`.
 Quit Minecraft normally before backing up or replacing the app. There is no
 automatic app/game updater or supported offline-launch mode. The current source

@@ -87,6 +87,20 @@ def load(name, filename):
     return module
 
 
+def replace_bytes(target, contents):
+    """Replace one file without opening or overwriting an existing staging path."""
+    descriptor, name = tempfile.mkstemp(prefix='.' + target.name + '-', dir=target.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(descriptor, 'wb') as output:
+            output.write(contents)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def initialize_bundle():
     if not BUNDLE:
         return
@@ -97,9 +111,7 @@ def initialize_bundle():
         if target.is_symlink():
             raise RuntimeError('An unexpected file blocks app setup: ' + filename)
         if not target.exists() or target.read_bytes() != source.read_bytes():
-            temporary = target.with_suffix(target.suffix + '.new')
-            temporary.write_bytes(source.read_bytes())
-            os.replace(temporary, target)
+            replace_bytes(target, source.read_bytes())
     for relative, bundled in BUNDLE_LINKS.items():
         destination = ROOT / relative
         target = BUNDLE / bundled
@@ -231,12 +243,7 @@ def update_paths():
 
 
 def write_update(transaction, record):
-    temporary = transaction / 'transaction.new'
-    with temporary.open('w') as file:
-        json.dump(record, file)
-        file.flush()
-        os.fsync(file.fileno())
-    os.replace(temporary, transaction / 'transaction.json')
+    replace_bytes(transaction / 'transaction.json', json.dumps(record).encode('utf-8'))
 
 
 def finish_update(transaction, record):

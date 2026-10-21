@@ -7,3 +7,9 @@
 /game/
 /exports/
 __pycache__/
+
+# Manual game updates retain private game/world copies and recovery journals.
+/game-backups/
+/.minecraft-update/
+/.minecraft-update-staging-*/
+/.minecraft-discard-*/

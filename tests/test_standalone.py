@@ -338,6 +338,38 @@ class IsolationTests(unittest.TestCase):
             with patch.object(standalone, 'PREFIX', prefix):
                 self.assertFalse(standalone.setup_matches({'setup_version': 2}))
 
+    def test_setup_record_preserves_existing_staging_files_and_links(self):
+        for linked in (False, True):
+            with self.subTest(linked=linked), tempfile.TemporaryDirectory() as temporary:
+                prefix = Path(temporary)
+                world = prefix / 'world-backup'
+                world.write_bytes(b'preserve world bytes')
+                staging = prefix / '.bedrock-setup.new'
+                if linked:
+                    staging.symlink_to(world)
+                else:
+                    staging.write_bytes(b'preserve staged setup')
+                desired = {'setup_version': 4, 'game': '/fixture/game'}
+                with patch.object(standalone, 'PREFIX', prefix):
+                    standalone.write_setup_record(desired)
+                    self.assertTrue(standalone.setup_matches(desired))
+                self.assertEqual(world.read_bytes(), b'preserve world bytes')
+                self.assertEqual(staging.is_symlink(), linked)
+                self.assertEqual(staging.read_bytes(), b'preserve world bytes' if linked else b'preserve staged setup')
+                self.assertFalse((prefix / '.bedrock-setup.json').is_symlink())
+
+    def test_failed_setup_record_replacement_preserves_previous_complete_record(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix = Path(temporary)
+            marker = prefix / '.bedrock-setup.json'
+            marker.write_bytes(b'previous complete setup')
+            with patch.object(standalone, 'PREFIX', prefix), \
+                 patch.object(standalone.os, 'replace', side_effect=OSError('fixture disk error')):
+                with self.assertRaisesRegex(OSError, 'fixture disk error'):
+                    standalone.write_setup_record({'setup_version': 4})
+            self.assertEqual(marker.read_bytes(), b'previous complete setup')
+            self.assertEqual(set(prefix.iterdir()), {marker})
+
     def test_dll_only_app_update_invalidates_setup_without_changing_wine_executable(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

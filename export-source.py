@@ -31,6 +31,7 @@ ALLOWED_FILES = (
     "docs/USER_GUIDE.md",
     "docs/DEVELOPMENT.md",
     "docs/TESTING.md",
+    "docs/AUDIT.md",
     "docs/m4-architecture-results.json",
     "docs/STABILITY.md",
     "docs/LEGACY.md",
@@ -211,7 +212,7 @@ ALLOWED_FILES = (
 )
 PRIVATE_ROOTS = frozenset({
     "sources", "downloads", "runtime", "logs", "bottles", "build", "game",
-    ".git", "__pycache__", "exports",
+    ".git", "__pycache__", "exports", "game-backups", ".minecraft-update",
 })
 
 # This reviewed production PUBLIC verification key is the only binary source
@@ -227,7 +228,9 @@ def checked_relative(name):
     path = PurePosixPath(name)
     if (not name or path.is_absolute() or str(path) != name
             or any(part in (".", "..") for part in path.parts)
-            or path.parts[0] in PRIVATE_ROOTS or "\\" in name
+            or path.parts[0] in PRIVATE_ROOTS
+            or path.parts[0].startswith((".minecraft-update-staging-", ".minecraft-discard-"))
+            or "\\" in name
             or "\n" in name or "\r" in name):
         raise ValueError("Unsafe export entry: " + repr(name))
     return path

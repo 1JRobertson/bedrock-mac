@@ -91,6 +91,13 @@ The account helper uses the real owner's Microsoft content license. The Store
 callback compatibility patch does not fabricate ownership. DXMT handles
 Direct3D 11; the launcher disables Direct3D 12 for the tested game path.
 
+`Start.command` is the source-build entry point. It installs missing tools and
+builds locally before running the standalone session. Its `start.py` fixes
+`BEDROCK_HOME` to the checkout and clears inherited `BEDROCK_BUNDLE`, so its
+locks, build receipts, game, prefix and saves refer to the same installation.
+It reuses a completed installation; source changes alone do not update that
+runtime/game. See [source setup](README.md#start-from-source).
+
 ## Launch sequence
 
 1. The native app runs the worker with `--status`, which reads existing state
