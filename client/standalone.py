@@ -463,7 +463,7 @@ def import_winrt_registry(game, log):
     try:
         with os.fdopen(descriptor, 'wb') as output:
             output.write((SCRIPTS / 'winrt.reg').read_bytes())
-        windows_path = 'R:\\' + str(registry.relative_to(ROOT)).replace('/', '\\')
+        windows_path = 'R:\\' + str(registry.absolute().relative_to(ROOT.absolute())).replace('/', '\\')
         wine_run(['reg', 'import', windows_path], game, log=log, timeout=60)
     finally:
         registry.unlink(missing_ok=True)

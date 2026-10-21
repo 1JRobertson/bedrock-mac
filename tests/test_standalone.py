@@ -75,6 +75,32 @@ class IsolationTests(unittest.TestCase):
             self.assertFalse(seen[0].exists())
             self.assertEqual(list(prefix.iterdir()), [])
 
+    def test_registry_import_accepts_a_relative_data_home(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            scripts = root / 'source'
+            scripts.mkdir()
+            (scripts / 'winrt.reg').write_bytes(b'reviewed registry source')
+            previous = Path.cwd()
+            try:
+                os.chdir(root)
+                data = Path('relative-data')
+                prefix = data / 'bottles/Bedrock-Standalone'
+                prefix.mkdir(parents=True)
+                imported = []
+                def wine(command, game, **kwargs):
+                    self.assertTrue(command[2].startswith('R:\\bottles\\Bedrock-Standalone\\.bedrock-winrt-'))
+                    registry = data / command[2][3:].replace('\\', '/')
+                    self.assertEqual(registry.read_bytes(), b'reviewed registry source')
+                    imported.append(registry)
+                with patch.object(standalone, 'ROOT', data), patch.object(standalone, 'PREFIX', prefix), \
+                        patch.object(standalone, 'SCRIPTS', scripts), patch.object(standalone, 'wine_run', side_effect=wine):
+                    standalone.import_winrt_registry(data / 'game', None)
+                self.assertEqual(len(imported), 1)
+                self.assertEqual(list(prefix.iterdir()), [])
+            finally:
+                os.chdir(previous)
+
     def test_helper_receipt_is_private_atomic_and_does_not_follow_existing_link(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
