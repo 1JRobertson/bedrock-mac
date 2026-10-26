@@ -106,6 +106,10 @@ and applies `patches/standalone-wine-dxmt-abi.patch`,
 `patches/standalone-wine-xuser-token-refresh.patch` there. These additional patches
 include `patches/standalone-wine-xuser-z-device-auth.patch` for PS5 friend joining and
 are not applied to the shared baseline checkout by the source bootstrap.
+`patches/standalone-wine-winhttp-write-callbacks.patch` queues asynchronous writes
+issued from status callbacks for the bundled PlayFab lobby SDK. Its
+[diagnosis and validation](history/PARTY-WINHTTP-2026-10-25.md) distinguish the
+temporary live workaround from the compiled candidate.
 `tools/build-standalone-graphics.sh` retrieves pinned upstream DXMT binaries and notices;
 see [the dependency provenance](../THIRD_PARTY.md#standalone-runtime-dependency-provenance).
 

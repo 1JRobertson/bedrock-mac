@@ -11,6 +11,7 @@ Use [current architecture](../../CONTEXT.md), [testing](../TESTING.md) and
 | [Native/source testing](TESTING.md) | October source snapshots, frame-slab rollout, skin dialog and restart diagnosis |
 | [Local RC2/RC3/RC4 artifact](RELEASE-2026-10-07.md) | October 7 artifact identity and qualification, with evidence updates through October 21 |
 | [Source audit](AUDIT-2026-10-21.md) | October 21 file-preservation/setup/packaging fixes and local test results |
+| [Party creation and WinHTTP](PARTY-WINHTTP-2026-10-25.md) | October 25 PlayFab callback-write diagnosis, live workaround and isolated compiled regression |
 | [Previous architecture snapshot](CONTEXT-2026-10-21.md) | Pre-reorganization context and local experiment state |
 | [CrossOver implementation](CROSSOVER.md) | Earlier CrossOver/D3DMetal path and its separate data |
 
