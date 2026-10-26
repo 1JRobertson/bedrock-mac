@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title description">
+  <title id="title">Bedrock for Mac — source preview</title>
+  <desc id="description">Minecraft Bedrock on Apple Silicon. Original green cube artwork adapted from the project's launcher icon.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#13221e"/>
+      <stop offset="1" stop-color="#0b1010"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop stop-color="#2ec952" stop-opacity=".13"/>
+      <stop offset="1" stop-color="#2ec952" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#background)"/>
+  <circle cx="1000" cy="310" r="350" fill="url(#glow)"/>
+  <path d="M784 0v640M1000 0v640M1216 0v640M720 104h560M720 320h560M720 536h560" fill="none" stroke="#8bd79c" stroke-opacity=".055"/>
+  <rect x="64" y="64" width="184" height="38" rx="19" fill="#183c28" stroke="#355d40"/>
+  <text x="156" y="89" fill="#a0efb1" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" text-anchor="middle">SOURCE PREVIEW</text>
+  <g fill="#f1f6f2" font-family="Arial, Helvetica, sans-serif" font-size="86" font-weight="700" letter-spacing="-3">
+    <text x="60" y="236">Bedrock</text>
+    <text x="60" y="326">for Mac</text>
+  </g>
+  <g fill="#b8cbc0" font-family="Arial, Helvetica, sans-serif" font-size="28">
+    <text x="64" y="398">Minecraft Bedrock</text>
+    <text x="64" y="437">on Apple Silicon</text>
+  </g>
+  <!-- Original cube geometry and face colours from launcher/Icon.swift;
+       SVG's downward Y axis is inverted to match AppKit's upward Y axis. -->
+  <g transform="translate(681 606) scale(.59 -.59)">
+    <rect x="80" y="80" width="864" height="864" rx="195" fill="#1f1f1f"/>
+    <polygon points="512,785 770,636 512,487 254,636" fill="#4fe36e"/>
+    <polygon points="248,603 496,460 496,180 248,323" fill="#2ec952"/>
+    <polygon points="528,460 776,603 776,323 528,180" fill="#1fb345"/>
+  </g>
+  <path d="M64 523h536" stroke="#345043"/>
+  <text x="64" y="566" fill="#91a99a" font-family="Arial, Helvetica, sans-serif" font-size="20">1JRobertson / bedrock-mac</text>
+</svg>

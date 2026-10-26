@@ -25,6 +25,22 @@ settings and friends. Prefer changes that improve that path.
 A source merge does not publish an app release. Native acceptance and binary
 release work remain in [release readiness](docs/RELEASE.md).
 
+## Small starting points
+
+Check existing issues and PRs for overlapping work. These are bounded scopes to
+investigate, not promises that a particular defect exists:
+
+- **Correct one setup instruction** in [DEVELOPMENT.md](docs/DEVELOPMENT.md) or
+  [CLI.md](docs/CLI.md). Compare it with the current entry point's `--help` and
+  source. Acceptance: show the mismatch and corrected command/link; do not run
+  install, download or launch steps just to verify wording.
+- **Reproduce one reported retry or file-preservation bug** in
+  [`tests/test_start.py`](tests/test_start.py). Use temporary files and mocked
+  build commands, following its existing fixtures. Acceptance: the regression
+  fails before a minimal fix, passes afterward, and verifies preserved files
+  and absence of unintended work. Run that test file, then the relevant suite
+  from [TESTING.md](docs/TESTING.md); no account or installed game is needed.
+
 ## Protect game data and credentials
 
 - Keep game payloads, worlds, downloaded binaries, credentials and private logs

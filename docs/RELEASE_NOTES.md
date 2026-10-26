@@ -1,4 +1,8 @@
-# Release notes — draft preview
+# Local app release notes — draft
+
+For the separate, source-only version and publication plan, see
+[0.3.0 source preview 1](SOURCE_PREVIEW.md). The notes below describe the older
+local app artifact, not a downloadable public release.
 
 **Unreleased local test artifact: 0.3.0 RC4, build 6.** Requires macOS 15.0+,
 Apple Silicon and Rosetta. Ad-hoc signed; not notarized. Public download is pending.

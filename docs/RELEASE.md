@@ -1,9 +1,12 @@
 # Release readiness
 
-Updated October 21, 2026. **The public project is a source preview.** There is
+Updated October 26, 2026. **The public project is a source preview.** There is
 no public notarized app/installer. Source PRs do not publish or qualify binaries.
 The intended player experience is open the app, complete required setup/sign-in,
 and reach vanilla Minecraft.
+
+The [source preview plan](SOURCE_PREVIEW.md) and [roadmap](ROADMAP.md) cover
+source publication and the next acceptance steps.
 
 ## Current gates
 
@@ -18,10 +21,11 @@ and reach vanilla Minecraft.
 | Clean-machine/M1 | Maintainer reports it working on an M1 Air, 16 GB; exact OS/revision/scenarios unrecorded | Fresh-machine setup and artifact-specific acceptance receipt |
 | Distribution | Source-built dependency receipts and collected notices exist | Final binary corresponding-source/build mapping; Developer ID/notarization and downloaded-app checks |
 
-The maintainer reports exhausted GitHub Actions minutes. A baseline CI pass
-cannot qualify a later commit; each PR must state its actual local checks and
-any unavailable hosted jobs. Native test gaps remain visible even when a source
-change is ready for review.
+[PR #10](https://github.com/1JRobertson/bedrock-mac/pull/10) passed its hosted
+Python, native-launcher, account-helper and file-picker checks before merging.
+Each later PR must record checks on its own final commit and disclose unavailable
+jobs; an earlier pass cannot qualify changed source. Native test gaps remain
+visible even when a source change is ready for review.
 
 ## Recorded local artifact
 
