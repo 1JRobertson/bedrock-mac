@@ -171,6 +171,26 @@ This compiles against the actual patched headers and runs 31 claim checks and
 `runtime/standalone-wine-prefix` and writes `build/standalone-wine/xuser-*-test.log`.
 It does not access Microsoft. See [tests/XUSER.md](../tests/XUSER.md).
 
+For the WinHTTP/PlayFab callback-write compatibility patch, run the native
+loopback regression under the resource guard, using a new output directory:
+
+```sh
+python3 tools/qa_resource_guard.py --log build/winhttp-write-test.log -- \
+  python3 tests/run-winhttp-write-tests.py \
+  --winhttp build/standalone-wine/dlls/winhttp/x86_64-windows/winhttp.dll \
+  --output build/winhttp-write-test
+```
+
+This compiles a synthetic client against the configured standalone Wine build,
+clones the runtime into the new output using APFS copy-on-write, substitutes only
+that clone's WinHTTP DLL, and uses a new private prefix. It never starts the game
+or helper. Each case must send exact 307-byte and 61-byte POSTs over one loopback
+connection. Synchronous writes, async writes outside callbacks, and the bundled
+SDK's offset-after-call callback pattern run separately. Only the last case
+should fail against unpatched Wine. Windows permits inline completion, so this
+is a compatibility regression, not an API conformance assertion. See the
+[dated evidence](history/PARTY-WINHTTP-2026-10-25.md) for actual results and limits.
+
 The graphics probe requires the owned game/runtime prerequisites and prepares
 the standalone game prefix; it is not a pure source test:
 

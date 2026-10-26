@@ -223,6 +223,7 @@ ALLOWED_FILES = (
     "patches/standalone-wine-storage-linkage.patch",
     "patches/standalone-wine-idl-list.patch",
     "patches/standalone-wine-user-privileges.patch",
+    "patches/standalone-wine-winhttp-write-callbacks.patch",
     "patches/standalone-wine-xuser-realms.patch",
     "patches/standalone-wine-xuser-token-refresh.patch",
     "patches/standalone-wine-xuser-z-device-auth.patch",
@@ -281,6 +282,9 @@ ALLOWED_FILES = (
     "tests/run-xuser-refresh-live.sh",
     "tests/run-xuser-rta-live.sh",
     "tests/run-xuser-tests.sh",
+    "tests/winhttp-write-callbacks.c",
+    "tests/run-winhttp-write-tests.py",
+    "docs/history/PARTY-WINHTTP-2026-10-25.md",
     "tests/XUSER.md",
 )
 PRIVATE_ROOTS = frozenset({

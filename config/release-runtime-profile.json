@@ -17,7 +17,8 @@
     "48-byte process heap reuse",
     "DXMT shared buffers, packed constants and input-layout reuse",
     "Unix display/output autorelease pools and ColorSync releases",
-    "Source-built WinRT PNG and world file picker compatibility"
+    "Source-built WinRT PNG and world file picker compatibility",
+    "WinHTTP callback-write ordering for the bundled PlayFab lobby SDK"
   ],
   "excluded": [
     "exact-game refmove",
@@ -57,13 +58,15 @@
     "native/file-pickers/README.md": "ad6d9beee3ec4547ef76bf27e4cf19eb1c129c8cfc7fb3cfb1486fbcd73977b3",
     "native/file-pickers/check-windows.cmd": "42851184bf4022cc26286992895309bb40d20eb57cff214c1567c6bb50f6fd78",
     "tests/file-picker-contract.c": "dbc1e8e5d191b5f3786da6a8c68ccb4a21d7558fc951b583bbb1afe4f9ee028e",
-    "tools/build-native-dependencies.py": "0dbb9793d24338d96af3202c42ac3ae2270f350f57e82b79a4d35b50c0e15999"
+    "tools/build-native-dependencies.py": "0dbb9793d24338d96af3202c42ac3ae2270f350f57e82b79a4d35b50c0e15999",
+    "patches/standalone-wine-winhttp-write-callbacks.patch": "aefa1aa5d3a83c93047b5c0e912d75fa38287d7739dc4f7bb47e129baed918e9"
   },
   "wine_standalone_patches": [
     "standalone-wine-dxmt-abi.patch",
     "standalone-wine-idl-list.patch",
     "standalone-wine-storage-linkage.patch",
     "standalone-wine-user-privileges.patch",
+    "standalone-wine-winhttp-write-callbacks.patch",
     "standalone-wine-xuser-realms.patch",
     "standalone-wine-xuser-token-refresh.patch",
     "standalone-wine-xuser-z-device-auth.patch"

@@ -1,0 +1,25 @@
+From: Bedrock for Mac contributors
+Subject: winhttp: queue asynchronous writes issued from status callbacks
+
+The bundled PlayFab SDK advances its send offset after WinHttpWriteData returns.
+Inline WRITE_COMPLETE recursion from SENDREQUEST_COMPLETE therefore resends the
+same body and corrupts the next request on the keep-alive connection. Queue such
+writes on the existing request queue so the active callback unwinds first.
+
+This is a compatibility workaround: Windows permits synchronous completion even
+with WINHTTP_FLAG_ASYNC. Keep synchronous writes and async writes outside status
+callbacks on their existing path.
+
+--- a/dlls/winhttp/request.c
++++ b/dlls/winhttp/request.c
+@@ -3653,7 +3653,9 @@ BOOL WINAPI WinHttpWriteData( HINTERNET hrequest, const void *buffer, DWORD to_write,
+         return FALSE;
+     }
+ 
+-    if (!(async = request->connect->hdr.flags & WINHTTP_FLAG_ASYNC) || request->hdr.recursion_count <= RECURSION_LIMIT)
++    /* Let the active request callback unwind before completing another write.
++     * Some async callers advance their send offset after this function returns. */
++    if (!(async = request->connect->hdr.flags & WINHTTP_FLAG_ASYNC) || !request->hdr.recursion_count)
+     {
+         ret = write_data( request, buffer, to_write, written, async );
+     }
