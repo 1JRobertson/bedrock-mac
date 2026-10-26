@@ -10,6 +10,16 @@ friends menus.
 notarized app or downloadable installer. Local app candidates have separate
 [release checks](docs/RELEASE.md).
 
+| Status | Evidence and limits |
+| --- | --- |
+| **Working in development** | Local-world save/reopen and Xbox/PlayStation friend play recorded on an M4 Pro Mac mini, 24 GB RAM, macOS 15.3.1. These are [historical sessions](docs/history/GAMEPLAY.md#earlier-gameplay-results), not current-bundle qualification. |
+| **Experimental** | Opt-in [Mullion ray tracing](experiments/mullion/RESULTS.md) rendered a proof world on the M4 Pro. Limited feature support; no general DirectX 12 conformance or long-session guarantee. |
+| **Not verified** | Clean-Mac source setup, current packaged-candidate save/reopen and multiplayer, live update/recovery, and party creation/invites/joining with the compiled party fix. See [compatibility](docs/COMPATIBILITY.md) and [release gates](docs/RELEASE.md). |
+
+Apple Silicon and macOS 15+ are the source target. An M1 Air, 16 GB, is
+[reported working](docs/COMPATIBILITY.md), without a recorded OS/revision or
+clean-install qualification. Start with [source setup](#start-from-source).
+
 ## Start from source
 
 On an **Apple Silicon Mac with macOS 15 or later**:
@@ -65,12 +75,8 @@ new bundles need their own audit and gameplay qualification.
 The maintainer estimates **10+ total hours playing with Xbox and PlayStation
 friends** across multiple sessions. Development testing also verified local-world
 saving and reopening. The [gameplay evidence](docs/history/GAMEPLAY.md#repeated-cross-platform-play)
-includes two monitored friend sessions on an **M4 Pro Mac mini with 24 GB RAM**.
-The maintainer also reports it working on an **M1 MacBook Air with 16 GB RAM**;
-its exact OS, source/app revision, and test scenarios have not been recorded.
-
-Fresh installation on an M1, multiplayer with the new packaged candidate, app
-replacement, and extended candidate sessions remain separate release checks.
+includes two monitored friend sessions; the cumulative estimate is a maintainer
+report, not a continuous soak test or acceptance of the current app candidate.
 
 Performance work has reduced measured CPU cost in bounded development tests.
 It does **not** establish a cumulative FPS improvement, lower power use, or a
@@ -95,6 +101,7 @@ guides, supported source, build tools, experiments and dated evidence.
 | Back up worlds, update, restore, or uninstall | [Files and backups](docs/USER_GUIDE.md#your-files-backups-and-updates) |
 | Check hardware and game-feature evidence | [Compatibility](docs/COMPATIBILITY.md) |
 | Review candidate status and known limitations | [Release readiness](docs/RELEASE.md) · [Draft release notes](docs/RELEASE_NOTES.md) |
+| Follow source-preview scope and planned work | [Source preview](docs/SOURCE_PREVIEW.md) · [Roadmap](docs/ROADMAP.md) |
 | Build locally | [Development guide](docs/DEVELOPMENT.md) |
 | Understand the runtime and historical gameplay | [Context](CONTEXT.md) · [Stability notes](docs/STABILITY.md) |
 | Contribute or report a bug | [Contributing](CONTRIBUTING.md) · [Testing](docs/TESTING.md) |

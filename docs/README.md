@@ -13,6 +13,7 @@ setup, sign-in and recovery; play uses vanilla Minecraft's own menus.
 | Use low-level setup/account commands | [CLI reference](CLI.md) |
 | Choose checks and record native acceptance | [Testing](TESTING.md) |
 | Prepare a reviewed source export | [Publishing](PUBLISHING.md) |
+| Review the source preview and next acceptance steps | [Source preview](SOURCE_PREVIEW.md) · [Roadmap](ROADMAP.md) |
 | Review known gaps and artifact readiness | [Release readiness](RELEASE.md) · [Draft release notes](RELEASE_NOTES.md) |
 | Check hardware/features | [Compatibility](COMPATIBILITY.md) |
 | Understand runtime recovery and monitoring | [Stability](STABILITY.md) |
