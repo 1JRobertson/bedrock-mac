@@ -1,7 +1,9 @@
 # 0.3.0 source preview 1
 
-**Prepared, not published.** Proposed tag: `v0.3.0-source.1`, a GitHub
-prerelease containing source only. There is no binary installer or notarized app.
+**Source-only prerelease.** Tag: `v0.3.0-source.1`. See the
+[release page](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.1)
+for publication status and the source archive. There is no binary installer or
+notarized app.
 This version is separate from the historical local **0.3.0 RC4, build 6** artifact.
 
 ## Release notes
@@ -35,9 +37,9 @@ execution is not included. See [compatibility](COMPATIBILITY.md) and
 [binary release gates](RELEASE.md). Original code is GPLv3; [upstream licenses
 and notices](../THIRD_PARTY.md) remain applicable.
 
-## Publication plan
+## Publication procedure
 
-1. Merge the presentation PR only after review and final checks. The reviewed
+1. Select the reviewed presentation merge commit after its final checks. The
    runtime baseline is `8d2c82ea26fce3c699998648dd895f257e20d0a8` (merged PR #10);
    tag the eventual presentation merge commit, not that earlier baseline.
 2. Record the full target commit and checks on that exact revision. Regenerate
@@ -53,6 +55,5 @@ and notices](../THIRD_PARTY.md) remain applicable.
    plus the commit/checksum/checks receipt. Attach only the reviewed source archive;
    no DMG, game, runtime binaries, worlds, credentials or private logs.
 
-This PR prepares the notes and tag plan. It does not publish a release or
-authorize its own merge. Publication waits for a matching merged revision;
-no release date is promised.
+Publish only the matching reviewed merged revision. Source publication does
+not qualify a binary or close the gameplay and clean-machine gates above.
