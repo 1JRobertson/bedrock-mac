@@ -1,0 +1,472 @@
+diff --git a/crates/xodus-cli/src/package.rs b/crates/xodus-cli/src/package.rs
+index b2cbecf..abc402e 100644
+--- a/crates/xodus-cli/src/package.rs
++++ b/crates/xodus-cli/src/package.rs
+@@ -89,7 +89,7 @@ pub async fn get_packages(
+     };
+ 
+     let xsts_token =
+-        xodus::api::xbox::run(client, dev_token, legacy, "http://update.xboxlive.com").await;
++        xodus::api::xbox::run(client, dev_token, legacy, "http://update.xboxlive.com").await?;
+ 
+     let response = client
+         .get(format!(
+diff --git a/crates/xodus/src/api/xbox/auth.rs b/crates/xodus/src/api/xbox/auth.rs
+index bf2aa0e..75d4129 100644
+--- a/crates/xodus/src/api/xbox/auth.rs
++++ b/crates/xodus/src/api/xbox/auth.rs
+@@ -2,10 +2,115 @@ use crate::models::xbox::{
+     UserAuthProperties, UserAuthRequest, XstsPropertyBag, XstsRequest, XstsResponse,
+ };
+ 
++const ERROR_BODY_LIMIT: usize = 8192;
++const ERROR_BODY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
++
++/// Only fixed labels, counts and a numeric Xbox error survive this boundary.
++/// Never retain service text, request URLs, headers, tokens or reqwest errors.
++#[derive(Debug)]
++pub struct XboxAuthError {
++    stage: &'static str,
++    kind: &'static str,
++    status: Option<u16>,
++    media: &'static str,
++    body_state: &'static str,
++    bytes: usize,
++    json: Option<bool>,
++    xerr: Option<u64>,
++}
++
++impl XboxAuthError {
++    pub(super) fn token_exchange() -> Self {
++        Self::new("ms_token_exchange", "token_exchange")
++    }
++
++    fn new(stage: &'static str, kind: &'static str) -> Self {
++        Self { stage, kind, status: None, media: "unknown", body_state: "unread",
++            bytes: 0, json: None, xerr: None }
++    }
++}
++
++impl std::fmt::Display for XboxAuthError {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        write!(f, "stage={};kind={};status={:?};media={};body={};bytes={};json={:?};xerr={:?}",
++            self.stage, self.kind, self.status, self.media, self.body_state,
++            self.bytes, self.json, self.xerr)
++    }
++}
++impl std::error::Error for XboxAuthError {}
++
++async fn read_auth_response(
++    mut response: reqwest::Response,
++    stage: &'static str,
++) -> Result<XstsResponse, XboxAuthError> {
++    let status = response.status();
++    let mut error = XboxAuthError::new(stage, "invalid_response");
++    error.status = Some(status.as_u16());
++    error.media = match response.headers().get(reqwest::header::CONTENT_TYPE)
++        .and_then(|value| value.to_str().ok())
++        .map(|value| value.split(';').next().unwrap_or("").trim()) {
++        None => "missing",
++        Some(value) if value.eq_ignore_ascii_case("application/json") => "json",
++        Some(value) if value.eq_ignore_ascii_case("text/html") => "html",
++        Some(_) => "other",
++    };
++    if status.is_success() {
++        // Keep the established success schema. Decode failures never expose text.
++        error.body_state = "unmeasured";
++        return response.json().await.map_err(|_| error);
++    }
++    error.kind = "http_status";
++    let mut bytes = Vec::new();
++    // Status is already known. Diagnostic collection must not hold a failure
++    // open for the account client's full request timeout (or indefinitely).
++    let read = async {
++        loop {
++            match response.chunk().await {
++                Ok(None) => { error.body_state = "complete"; break; }
++                Ok(Some(chunk)) => {
++                    let remaining = ERROR_BODY_LIMIT - bytes.len();
++                    bytes.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
++                    if chunk.len() > remaining {
++                        error.body_state = "limited";
++                        break;
++                    }
++                }
++                Err(_) => { error.body_state = "read_error"; break; }
++            }
++        }
++    };
++    if tokio::time::timeout(ERROR_BODY_TIMEOUT, read).await.is_err() {
++        error.body_state = "timeout";
++    }
++    error.bytes = bytes.len();
++    if error.body_state == "complete" {
++        let parsed = serde_json::from_slice::<serde_json::Value>(&bytes);
++        error.json = Some(parsed.is_ok());
++        error.xerr = parsed.ok().and_then(|value| value.get("XErr").and_then(|x| x.as_u64()));
++    }
++    Err(error)
++}
++
++async fn send_auth(
++    client: &reqwest::Client,
++    endpoint: &str,
++    body: &impl serde::Serialize,
++    stage: &'static str,
++) -> Result<XstsResponse, XboxAuthError> {
++    let response = client.post(endpoint)
++        .header("Content-Type", "application/json")
++        .header("x-xbl-contract-version", "1")
++        .json(body).send().await.map_err(|error| {
++            XboxAuthError::new(stage, if error.is_timeout() { "timeout" }
++                else if error.is_connect() { "connect" } else { "request" })
++        })?;
++    read_auth_response(response, stage).await
++}
++
+ pub async fn authenticate_xbox_user(
+     client: &reqwest::Client,
+     rps_ticket: String,
+-) -> reqwest::Result<XstsResponse> {
++) -> Result<XstsResponse, XboxAuthError> {
+     let body = UserAuthRequest {
+         relying_party: "http://auth.xboxlive.com".to_string(),
+         token_type: "JWT".to_string(),
+@@ -16,23 +121,14 @@ pub async fn authenticate_xbox_user(
+         },
+     };
+ 
+-    let resp = client
+-        .post("https://user.auth.xboxlive.com/user/authenticate")
+-        .header("Content-Type", "application/json")
+-        .header("x-xbl-contract-version", "1")
+-        .json(&body)
+-        .send()
+-        .await?
+-        .error_for_status()?;
+-
+-    resp.json().await
++    send_auth(client, "https://user.auth.xboxlive.com/user/authenticate", &body, "user_auth").await
+ }
+ 
+ pub async fn request_xsts_token(
+     client: &reqwest::Client,
+     token: String,
+     relying_party: &str,
+-) -> reqwest::Result<XstsResponse> {
++) -> Result<XstsResponse, XboxAuthError> {
+     let body = XstsRequest {
+         relying_party: Some(relying_party.to_string()),
+         token_type: Some("JWT".to_string()),
+@@ -44,19 +140,246 @@ pub async fn request_xsts_token(
+         },
+     };
+ 
+-    let resp = client
+-        .post("https://xsts.auth.xboxlive.com/xsts/authorize")
+-        .header("Content-Type", "application/json")
+-        .header("x-xbl-contract-version", "1")
+-        .json(&body)
+-        .send()
+-        .await?
+-        .error_for_status()?;
+-
+-    resp.json().await
++    send_auth(client, "https://xsts.auth.xboxlive.com/xsts/authorize", &body, "xsts").await
+ }
+ 
+ pub fn get_xsts_auth_header(xsts: XstsResponse) -> String {
+     let uhs = xsts.user_hash().expect("XSTS response missing xui claim");
+     format!("XBL3.0 x={uhs};{}", xsts.token)
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use tokio::io::{AsyncReadExt, AsyncWriteExt};
++
++    const CANARY: &str = "PRIVATE_FIXTURE_TOKEN_DO_NOT_LOG";
++
++    fn client() -> reqwest::Client {
++        // Loopback is an isolated fixture, never an override of a live endpoint.
++        reqwest::Client::builder().no_proxy()
++            .redirect(reqwest::redirect::Policy::none()).referer(false)
++            .timeout(std::time::Duration::from_secs(3)).build().unwrap()
++    }
++
++    async fn endpoint(status: u16, media: &str, body: Vec<u8>, declared: Option<usize>) -> String {
++        let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
++        let address = listener.local_addr().unwrap();
++        let header = format!("HTTP/1.1 {status} Fixture\r\nContent-Type: {media}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
++            declared.unwrap_or(body.len()));
++        tokio::spawn(async move {
++            let (mut stream, _) = listener.accept().await.unwrap();
++            let mut request = Vec::new();
++            let mut block = [0; 1024];
++            loop {
++                let count = stream.read(&mut block).await.unwrap();
++                assert!(count > 0 && request.len() + count <= 16384);
++                request.extend_from_slice(&block[..count]);
++                if request.windows(4).any(|part| part == b"\r\n\r\n") { break; }
++            }
++            // A reader enforcing the cap may close before the fixture finishes.
++            let _ = stream.write_all(header.as_bytes()).await;
++            let _ = stream.write_all(&body).await;
++            let _ = stream.shutdown().await;
++        });
++        format!("http://{address}/fixture?secret={CANARY}")
++    }
++
++    async fn response(status: u16, media: &str, body: &[u8]) -> reqwest::Response {
++        client().get(endpoint(status, media, body.to_vec(), None).await)
++            .header("Authorization", CANARY).send().await.unwrap()
++    }
++
++    fn redacted(error: &XboxAuthError) {
++        let display = error.to_string();
++        let debug = format!("{error:?}");
++        for text in [&display, &debug] {
++            assert!(!text.contains(CANARY));
++            assert!(!text.contains("127.0.0.1"));
++            assert!(!text.contains("Authorization"));
++        }
++        assert!(std::error::Error::source(error).is_none());
++    }
++
++    #[tokio::test]
++    async fn old_status_check_discards_even_a_present_json_error() {
++        let body = br#"{"XErr":2148916227,"Message":"fixture"}"#;
++        let error = response(400, "application/json", body).await.error_for_status().unwrap_err();
++        assert_eq!(error.status().unwrap().as_u16(), 400);
++        // This is the pinned pre-fix boundary: there is no Response left to read.
++        assert!(!error.to_string().contains("2148916227"));
++    }
++
++    #[tokio::test]
++    async fn empty_400_is_a_returned_error_with_observed_zero_bytes() {
++        let error = read_auth_response(response(400, "application/json", b"").await, "user_auth").await.unwrap_err();
++        assert_eq!((error.stage, error.kind, error.status), ("user_auth", "http_status", Some(400)));
++        assert_eq!((error.bytes, error.body_state, error.json, error.xerr), (0, "complete", Some(false), None));
++        redacted(&error);
++    }
++
++    #[tokio::test]
++    async fn json_400_preserves_only_numeric_xerr_and_counts() {
++        let body = format!(r#"{{"XErr":2148916227,"Message":"{CANARY}","Token":"{CANARY}"}}"#);
++        let error = read_auth_response(response(400, &format!("application/json; secret={CANARY}"), body.as_bytes()).await, "user_auth").await.unwrap_err();
++        assert_eq!((error.bytes, error.body_state, error.json, error.xerr), (body.len(), "complete", Some(true), Some(2148916227)));
++        assert_eq!(error.media, "json");
++        redacted(&error);
++    }
++
++    #[tokio::test]
++    async fn html_and_invalid_json_do_not_become_error_text() {
++        for (media, body) in [("text/html", format!("<html>{CANARY}</html>")),
++            ("application/json", format!(r#"{{"Message":"{CANARY}""#))] {
++            let error = read_auth_response(response(400, media, body.as_bytes()).await, "user_auth").await.unwrap_err();
++            assert_eq!((error.json, error.xerr), (Some(false), None));
++            redacted(&error);
++        }
++    }
++
++    #[tokio::test]
++    async fn non_numeric_xerr_is_never_copied() {
++        let body = format!(r#"{{"XErr":"{CANARY}"}}"#);
++        let error = read_auth_response(response(401, "application/json", body.as_bytes()).await, "xsts").await.unwrap_err();
++        assert_eq!((error.stage, error.json, error.xerr), ("xsts", Some(true), None));
++        redacted(&error);
++    }
++
++    #[tokio::test]
++    async fn oversized_body_is_bounded_and_not_parsed_as_complete() {
++        let error = read_auth_response(response(400, "text/html", &vec![b'x'; ERROR_BODY_LIMIT + 1]).await, "user_auth").await.unwrap_err();
++        assert_eq!((error.bytes, error.body_state, error.json, error.xerr), (ERROR_BODY_LIMIT, "limited", None, None));
++        redacted(&error);
++    }
++
++    #[tokio::test]
++    async fn broken_body_is_distinguished_from_an_observed_empty_body() {
++        let url = endpoint(400, "application/json", Vec::new(), Some(100)).await;
++        let response = client().get(url).send().await.unwrap();
++        let error = read_auth_response(response, "user_auth").await.unwrap_err();
++        assert_eq!((error.body_state, error.json, error.xerr), ("read_error", None, None));
++        redacted(&error);
++    }
++
++    #[tokio::test]
++    async fn redirect_is_not_accepted_as_authentication() {
++        let error = read_auth_response(response(302, "text/html", CANARY.as_bytes()).await, "user_auth").await.unwrap_err();
++        assert_eq!((error.kind, error.status), ("http_status", Some(302)));
++        redacted(&error);
++    }
++
++    #[tokio::test]
++    async fn success_schema_and_invalid_success_response() {
++        let body = format!(r#"{{"NotAfter":"2099-01-01T00:00:00Z","Token":"{CANARY}","DisplayClaims":{{"xui":[{{"uhs":"fixture"}}]}}}}"#);
++        let token = read_auth_response(response(200, "application/json", body.as_bytes()).await, "user_auth").await.unwrap();
++        assert_eq!(token.token, CANARY);
++        assert_eq!(token.user_hash(), Some("fixture"));
++        let error = read_auth_response(response(200, "application/json", CANARY.as_bytes()).await, "user_auth").await.unwrap_err();
++        assert_eq!((error.kind, error.status), ("invalid_response", Some(200)));
++        assert_eq!((error.body_state, error.json), ("unmeasured", None));
++        redacted(&error);
++    }
++
++    #[tokio::test]
++    async fn exact_limit_body_is_complete_not_limited() {
++        let error = read_auth_response(response(400, "text/html", &vec![b'x'; ERROR_BODY_LIMIT]).await, "user_auth").await.unwrap_err();
++        assert_eq!((error.bytes, error.body_state, error.json), (ERROR_BODY_LIMIT, "complete", Some(false)));
++    }
++
++    #[tokio::test]
++    async fn partial_chunked_body_preserves_counts_without_parsing() {
++        let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
++        let address = listener.local_addr().unwrap();
++        let server = tokio::spawn(async move {
++            let (mut stream, _) = listener.accept().await.unwrap();
++            let mut request = [0; 2048];
++            assert!(stream.read(&mut request).await.unwrap() > 0);
++            stream.write_all(b"HTTP/1.1 400 Fixture\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n").await.unwrap();
++            stream.write_all(format!("{:x}\r\n{CANARY}\r\n", CANARY.len()).as_bytes()).await.unwrap();
++            // Intentionally omit the terminating chunk to cause a body-read error.
++            stream.shutdown().await.unwrap();
++        });
++        let response = client().get(format!("http://{address}/fixture")).send().await.unwrap();
++        let result = read_auth_response(response, "user_auth").await;
++        server.await.unwrap();
++        let error = result.unwrap_err();
++        assert_eq!((error.bytes, error.body_state, error.json, error.xerr), (CANARY.len(), "read_error", None, None));
++        redacted(&error);
++    }
++
++    #[tokio::test]
++    async fn stalled_error_body_has_an_independent_diagnostic_deadline() {
++        let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
++        let address = listener.local_addr().unwrap();
++        let server = tokio::spawn(async move {
++            let (mut stream, _) = listener.accept().await.unwrap();
++            let mut request = [0; 2048];
++            assert!(stream.read(&mut request).await.unwrap() > 0);
++            stream.write_all(b"HTTP/1.1 400 Fixture\r\nContent-Type: application/json\r\nContent-Length: 1000\r\nConnection: close\r\n\r\n").await.unwrap();
++            stream.write_all(CANARY.as_bytes()).await.unwrap();
++            std::future::pending::<()>().await;
++            drop(stream);
++        });
++        // This client has no request timeout: the diagnostic reader owns its cap.
++        let client = reqwest::Client::builder().no_proxy().build().unwrap();
++        let response = client.get(format!("http://{address}/fixture")).send().await.unwrap();
++        let result = tokio::time::timeout(std::time::Duration::from_secs(4), read_auth_response(response, "user_auth")).await;
++        server.abort();
++        let _ = server.await;
++        let error = result.expect("diagnostic reader exceeded its deadline").unwrap_err();
++        assert_eq!((error.status, error.bytes, error.body_state, error.json, error.xerr), (Some(400), CANARY.len(), "timeout", None, None));
++        redacted(&error);
++    }
++
++    #[tokio::test]
++    async fn post_preserves_contract_headers_ticket_and_safe_error() {
++        let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await.unwrap();
++        let address = listener.local_addr().unwrap();
++        let server = tokio::spawn(async move {
++            let (mut stream, _) = listener.accept().await.unwrap();
++            let mut request = Vec::new();
++            let mut block = [0; 1024];
++            let (header_end, content_length) = loop {
++                let count = stream.read(&mut block).await.unwrap();
++                assert!(count > 0 && request.len() + count <= 16384);
++                request.extend_from_slice(&block[..count]);
++                if let Some(end) = request.windows(4).position(|part| part == b"\r\n\r\n") {
++                    let headers = std::str::from_utf8(&request[..end]).unwrap().to_ascii_lowercase();
++                    assert!(headers.starts_with("post /fixture http/1.1\r\n"));
++                    assert!(headers.lines().any(|line| line == "content-type: application/json"));
++                    assert!(headers.lines().any(|line| line == "x-xbl-contract-version: 1"));
++                    let length: usize = headers.lines().find_map(|line| line.strip_prefix("content-length: ")).unwrap().parse().unwrap();
++                    break (end + 4, length);
++                }
++            };
++            while request.len() - header_end < content_length {
++                let count = stream.read(&mut block).await.unwrap();
++                assert!(count > 0 && request.len() + count <= 16384);
++                request.extend_from_slice(&block[..count]);
++            }
++            let body: serde_json::Value = serde_json::from_slice(&request[header_end..]).unwrap();
++            assert_eq!(body, serde_json::json!({
++                "RelyingParty": "http://auth.xboxlive.com", "TokenType": "JWT",
++                "Properties": {"AuthMethod": "RPS", "SiteName": "user.auth.xboxlive.com", "RpsTicket": format!("d={CANARY}")}
++            }));
++            stream.write_all(b"HTTP/1.1 400 Fixture\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await.unwrap();
++            stream.shutdown().await.unwrap();
++        });
++        let body = UserAuthRequest {
++            relying_party: "http://auth.xboxlive.com".into(), token_type: "JWT".into(),
++            properties: UserAuthProperties {auth_method: "RPS".into(), site_name: "user.auth.xboxlive.com".into(), rps_ticket: format!("d={CANARY}")}
++        };
++        let result = send_auth(&client(), &format!("http://{address}/fixture"), &body, "user_auth").await;
++        server.await.unwrap();
++        let error = result.unwrap_err();
++        assert_eq!((error.stage, error.status, error.bytes, error.body_state), ("user_auth", Some(400), 0, "complete"));
++        redacted(&error);
++    }
++
++    #[tokio::test]
++    async fn request_failure_returns_a_safe_error() {
++        let error = send_auth(&client(), &format!("invalid://fixture?secret={CANARY}"), &serde_json::json!({"Token": CANARY}), "user_auth").await.unwrap_err();
++        assert_eq!((error.kind, error.status, error.body_state), ("request", None, "unread"));
++        redacted(&error);
++    }
++}
+diff --git a/crates/xodus/src/api/xbox/mod.rs b/crates/xodus/src/api/xbox/mod.rs
+index 9adadb4..af7800a 100644
+--- a/crates/xodus/src/api/xbox/mod.rs
++++ b/crates/xodus/src/api/xbox/mod.rs
+@@ -12,7 +12,7 @@ pub async fn run(
+     dev_token: LegacyToken,
+     legacy: LegacyToken,
+     relying_party: &str,
+-) -> XstsResponse {
++) -> Result<XstsResponse, auth::XboxAuthError> {
+     let user_token = crate::api::live::exchange_user_token(
+         client,
+         legacy,
+@@ -27,33 +27,28 @@ pub async fn run(
+         )],
+     )
+     .await
+-    .expect("Failed to get ms user token");
++    .map_err(|_| auth::XboxAuthError::token_exchange())?;
+ 
+     let user_token: Token = match user_token {
+-        ExchangeUserTokenOutcome::Fault(_) => {
+-            eprintln!("Failed to get exchange MS token");
+-            panic!("TODO");
+-        }
++        ExchangeUserTokenOutcome::Fault(_) => return Err(auth::XboxAuthError::token_exchange()),
+         ExchangeUserTokenOutcome::Issued(
+-            soap::BodyContent::RequestSecurityTokenResponseCollection(mut collection),
++            soap::BodyContent::RequestSecurityTokenResponseCollection(collection),
+         ) => {
+-            let token = collection.security_tokens.remove(0);
++            let token = collection.security_tokens.into_iter().next()
++                .ok_or_else(auth::XboxAuthError::token_exchange)?;
+             token.into()
+         }
+         ExchangeUserTokenOutcome::Issued(soap::BodyContent::RequestSecurityTokenResponse(
+             token,
+         )) => (*token).into(),
+-        _ => unreachable!("Only responses are handled"),
++        _ => return Err(auth::XboxAuthError::token_exchange()),
+     };
+     let Token::Compact(user_token) = user_token else {
+-        eprintln!("Unsupported token");
+-        panic!("TODO");
++        return Err(auth::XboxAuthError::token_exchange());
+     };
+     let resp = authenticate_xbox_user(client, user_token)
+-        .await
+-        .expect("Failed to authenticate Xbox user");
++        .await?;
+ 
+     request_xsts_token(client, resp.token, relying_party)
+         .await
+-        .expect("Failed to authenticate Xbox user")
+ }
