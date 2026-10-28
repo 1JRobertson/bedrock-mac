@@ -90,6 +90,7 @@ ALLOWED_FILES = (
     "docs/USER_GUIDE.md",
     "docs/DEVELOPMENT.md",
     "docs/TESTING.md",
+    "docs/CLEAN_INSTALL.md",
     "docs/history/XBOX-AUTH-ISSUE-12.md",
     "docs/README.md",
     "client/README.md",

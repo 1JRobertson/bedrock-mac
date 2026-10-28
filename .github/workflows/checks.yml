@@ -1,8 +1,7 @@
 name: Source checks
+# Local validation is the default. Hosted jobs are opt-in when minutes permit.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 concurrency:
   group: source-checks-${{ github.ref }}
   cancel-in-progress: true

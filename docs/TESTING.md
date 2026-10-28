@@ -17,6 +17,24 @@ Test counts below are dated snapshots, not the current suite's required count.
 | Packaging | Python packaging tests, signature/resource/DMG verification, Applications launch with existing data |
 | Documentation/export list | Relative links and examples, source-export tests/check, regenerated source inventory |
 
+## Local validation record
+
+Local checks are the default merge evidence; hosted Actions results are
+supplementary. The maintainer reviews the local record before merging, so
+unavailable minutes do not block a locally validated source change. Record:
+
+- Tested commit, whether the working tree was clean, OS and relevant tool versions.
+- Exact commands and their passed/failed/skipped results, including reasons for
+  checks that could not run.
+- Native/gameplay scenarios actually observed and the platforms left untested.
+
+For checks run before committing, record the base commit and retain the tested
+diff, including new files. Confirm the final commit contains the same tested
+source bytes. Later source edits require the affected checks again. Keep the
+validation record in the PR.
+Use the subsystem table above to choose proportionate checks and the workspace's
+shared resource guard for heavy jobs.
+
 ## Offline source checks
 
 These checks do not use the user's account, Keychain, or game data:
@@ -38,7 +56,7 @@ That check is offline; the initial `tools/bootstrap-sources.py` fetch is not. If
 exported source file changed, first regenerate `SOURCE-SHA256.txt` following
 [PUBLISHING.md](PUBLISHING.md#update-the-source-inventory).
 
-Record the current command, revision, result and skips in the PR. The
+Record the current command, revision, result and skips as above. The
 [October 21 source audit](history/AUDIT-2026-10-21.md) is a dated example, not a
 required fixed test count.
 
@@ -250,6 +268,9 @@ Gatekeeper's handling of a downloaded app on another Mac.
 
 ## Manual test record
 
+For source setup, use the [fresh-install recipe](CLEAN_INSTALL.md) and its result
+template. The broader matrix below also covers packaged-app acceptance.
+
 Use a separate macOS account or test Mac for clean-state tests; do not erase the
 owner's worlds or Keychain to simulate a new user. The person testing enters
 their own credentials and handles security prompts. Record one row per scenario
@@ -273,12 +294,21 @@ state, action, observed result, and any reviewed diagnostic excerpt.
 These are acceptance criteria, not claims that each row has passed. Put observed
 results in [RELEASE.md](RELEASE.md), including failures and untested cases.
 
-## Continuous integration
+## Optional hosted checks
 
-[`.github/workflows/checks.yml`](../.github/workflows/checks.yml) runs Python
+Local validation is the default merge evidence. Hosted jobs run only when a
+maintainer selects **Actions → Source checks → Run workflow** for the intended
+branch. Pushes and pull requests do not automatically schedule these jobs or
+require GitHub Actions minutes to merge.
+
+[`.github/workflows/checks.yml`](../.github/workflows/checks.yml) retains Python
 3.12/3.14 source tests, allowlist and inventory checks on Linux, plus the Python suite, native
 Swift build, and pinned Rust helper tests on macOS 15. Native process metrics
 and exclusive-rename tests run on macOS and are skipped on Linux. Actions and the Rust
-toolchain are pinned. CI does not package Wine, run Minecraft, access Keychain,
-or certify that the full app supports macOS 15. Confirm checks belong to the
-exact PR commit before merging.
+toolchain are pinned. Windows runs the file-picker ABI contracts against the
+Windows SDK. A local Mac pass does not establish Linux/Python-matrix or Windows
+coverage; report those checks as unrun when unavailable.
+
+Hosted CI does not package Wine, run Minecraft, access Keychain, or certify that
+the full app supports macOS 15. Use available hosted results for the exact PR
+commit as additional evidence alongside the local validation record.
