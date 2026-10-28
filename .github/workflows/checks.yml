@@ -44,6 +44,9 @@ jobs:
       - run: python3 tools/bootstrap-sources.py --project xodus
       - run: command -v protoc || brew install protobuf
       - run: rustup toolchain install 1.98.0 --profile minimal
+      # Run only these offline loopback fixtures; other upstream library tests
+      # can contact Microsoft or use Keychain and must not run implicitly.
+      - run: cargo +1.98.0 test --locked --jobs 2 --manifest-path sources/xodus/Cargo.toml -p xodus --lib api::xbox::auth::tests -- --test-threads=1
       # bootstrap-sources copies the helper, verifier and pinned public key.
       # Match the feature set used by client/standalone-setup.py for the shipped helper.
       - run: cargo +1.98.0 test --locked --no-default-features --manifest-path sources/xodus/Cargo.toml -p xodus-cli --example standalone_helper

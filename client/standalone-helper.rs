@@ -521,7 +521,14 @@ async fn download(client: &reqwest::Client, tokens: &TokenManager, directory: &P
     let content_id = package::get_content_id(client, PRODUCT.into(), Some(market.into())).await
         .map_err(|_| failure("catalog_lookup"))?;
     let details = package::get_packages(client, tokens, content_id.clone()).await
-        .map_err(|_| failure("account_package"))?;
+        .map_err(|error| {
+            // This type contains only allowlisted labels, counts and numeric XErr.
+            // Never print an arbitrary upstream error or its source chain here.
+            if let Some(auth) = error.downcast_ref::<xodus::api::xbox::auth::XboxAuthError>() {
+                eprintln!("BEDROCK_AUTH_DIAGNOSTIC:{auth}");
+            }
+            failure("account_package")
+        })?;
     let packages: Vec<_> = details.package_files.iter().filter(|p| p.file_name.ends_with(".msixvc")).collect();
     if packages.len() != 1 { return Err(failure("package_selection")); }
     let package = packages[0];
