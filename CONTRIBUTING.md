@@ -19,8 +19,10 @@ settings and friends. Prefer changes that improve that path.
 4. Update the affected guide. Add each new public file individually to the
    source export allowlist and regenerate the [inventory](docs/PUBLISHING.md#update-the-source-inventory).
 5. Inspect the staged diff and open a PR explaining the problem, result,
-   validation and remaining limits. Verify checks on the final commit. If hosted
-   CI is unavailable, state that and record the local checks explicitly.
+   validation and remaining limits. Relevant local checks are sufficient merge
+   evidence; hosted Actions checks are supplementary when available. Identify the tested
+   source and record commands, results and skips using the
+   [local validation record](docs/TESTING.md#local-validation-record).
 
 A source merge does not publish an app release. Native acceptance and binary
 release work remain in [release readiness](docs/RELEASE.md).

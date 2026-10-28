@@ -6,11 +6,11 @@ the known release gates are documented in [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Reporting a security issue
 
-Use the repository's GitHub **Security → Report a vulnerability** action if it
-is available. If private reporting is unavailable, open an issue asking for a
-private contact channel without publishing exploit details, account data, or
-secrets. No separate security email or response-time guarantee is configured.
-Ordinary setup failures belong in the bug template.
+Use [GitHub's private vulnerability reporting](https://github.com/1JRobertson/bedrock-mac/security/advisories/new)
+for security issues. Reports stay private while they are investigated; do not
+publish exploit details, account data or secrets in ordinary issues. No separate
+security email or response-time guarantee is configured. Ordinary setup failures
+belong in the bug template.
 
 A useful private report gives the affected commit, Mac/OS, component, steps using
 synthetic data, expected/actual behavior, and impact. Never send a password,

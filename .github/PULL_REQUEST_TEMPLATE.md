@@ -4,7 +4,12 @@
 
 ## Validation
 
-<!-- Record commands/results and checks not run. Distinguish fixtures, native checks and gameplay evidence. -->
+<!--
+Identify tested commit (or base + retained diff, including new files), clean/dirty
+tree and OS/tool versions. Record commands/results and skips; confirm the final
+commit matches the tested source. Relevant local checks are sufficient; hosted
+Actions results are supplementary. Separate fixtures, native checks and gameplay.
+-->
 
 ## Remaining limits
 
