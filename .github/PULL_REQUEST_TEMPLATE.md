@@ -2,6 +2,14 @@
 
 <!-- Describe the problem and resulting behavior. Link a relevant issue, if any. -->
 
+## AI assistance
+
+Models/version and use:
+
+<!-- AI-assisted contributions are encouraged; handwritten code is equally welcome.
+Name models used for code, tests, docs or this description and their roles.
+Write "None" if unused, or "Unknown" with the tool name if the model is unavailable. -->
+
 ## Validation
 
 <!--
