@@ -27,6 +27,13 @@ settings and friends. Prefer changes that improve that path.
 A source merge does not publish an app release. Native acceptance and binary
 release work remain in [release readiness](docs/RELEASE.md).
 
+## AI assistance
+
+For new PRs, please identify any AI models used to write code, tests,
+documentation or the PR description. Name each model and its version when known,
+and briefly state what it helped write. Use `None` if no AI was used, or `Unknown`
+with the tool name if the exact model is unavailable; do not guess.
+
 ## Small starting points
 
 Check existing issues and PRs for overlapping work. These are bounded scopes to

@@ -2,6 +2,13 @@
 
 <!-- Describe the problem and resulting behavior. Link a relevant issue, if any. -->
 
+## AI assistance
+
+Models/version and use:
+
+<!-- Name models used for code, tests, docs or this description and their roles.
+Write "None" if unused, or "Unknown" with the tool name if the model is unavailable. -->
+
 ## Validation
 
 <!--
