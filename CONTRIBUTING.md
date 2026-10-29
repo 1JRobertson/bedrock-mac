@@ -29,6 +29,9 @@ release work remain in [release readiness](docs/RELEASE.md).
 
 ## AI assistance
 
+We actively encourage AI-assisted contributions and equally welcome handwritten
+code.
+
 For new PRs, please identify any AI models used to write code, tests,
 documentation or the PR description. Name each model and its version when known,
 and briefly state what it helped write. Use `None` if no AI was used, or `Unknown`

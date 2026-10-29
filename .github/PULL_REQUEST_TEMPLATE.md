@@ -6,7 +6,8 @@
 
 Models/version and use:
 
-<!-- Name models used for code, tests, docs or this description and their roles.
+<!-- AI-assisted contributions are encouraged; handwritten code is equally welcome.
+Name models used for code, tests, docs or this description and their roles.
 Write "None" if unused, or "Unknown" with the tool name if the model is unavailable. -->
 
 ## Validation
