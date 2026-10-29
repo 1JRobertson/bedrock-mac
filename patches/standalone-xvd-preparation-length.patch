@@ -11,7 +11,7 @@
                  PAGE_SIZE
              } else {
                  to_write
-@@ -1044,3 +1044,71 @@
+@@ -1044,3 +1044,73 @@
              .await
      }
  }
@@ -24,6 +24,8 @@
 +    fn plain_volume() -> XvdFile {
 +        let mut bytes = XvdHeader::buffer();
 +        bytes[0x200..0x208].copy_from_slice(b"msft-xvd");
++        // Unix epoch as FILETIME; zero overflows the parser in debug builds.
++        bytes[0x210..0x218].copy_from_slice(&116_444_736_000_000_000_i64.to_le_bytes());
 +        bytes[0x218..0x220].copy_from_slice(&(PAGE_SIZE as u64 * 2).to_le_bytes());
 +        let header = XvdHeader::try_from_array(&bytes).unwrap();
 +        XvdFile { layout: header.layout(), header, encrypted_section_infos: vec![] }
