@@ -10,6 +10,10 @@ friends menus.
 notarized app or downloadable installer. Local app candidates have separate
 [release checks](docs/RELEASE.md).
 
+Download the current source release:
+[0.3.0 source preview 2](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.2).
+It includes the package authentication and game-update preparation fixes.
+
 | Status | Evidence and limits |
 | --- | --- |
 | **Working in development** | Local-world save/reopen and Xbox/PlayStation friend play recorded on an M4 Pro Mac mini, 24 GB RAM, macOS 15.3.1. These are [historical sessions](docs/history/GAMEPLAY.md#earlier-gameplay-results), not current-bundle qualification. |

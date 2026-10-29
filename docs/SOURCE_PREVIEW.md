@@ -1,59 +1,65 @@
-# 0.3.0 source preview 1
+# 0.3.0 source preview 2
 
-**Source-only prerelease.** Tag: `v0.3.0-source.1`. See the
-[release page](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.1)
-for publication status and the source archive. There is no binary installer or
-notarized app.
-This version is separate from the historical local **0.3.0 RC4, build 6** artifact.
+**Source-only prerelease.** Tag: `v0.3.0-source.2`. Download the reviewed source
+archive from the [release page](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.2).
+This updates the October 26 [source preview 1](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.1)
+with the merged maintenance fixes. It contains no app installer or runtime binaries.
+The historical local **0.3.0 RC4, build 6** app is a separate artifact.
 
-## Release notes
+## Changes since source preview 1
 
-This preview provides the native macOS launcher and source setup for an owned
-Minecraft for Windows game on Apple Silicon, using WineGDK, DXMT and Rosetta.
-The launcher handles setup, sign-in and recovery, then opens vanilla Minecraft.
+- [PR #13](https://github.com/1JRobertson/bedrock-mac/pull/13) returns bounded,
+  sanitized Xbox authentication diagnostics instead of panicking on HTTP errors.
+- [PR #15](https://github.com/1JRobertson/bedrock-mac/pull/15) uses the
+  client-bound Xbox Token Broker ticket for game acquisition, selects responses
+  by type and retains validated STS renewal in the same helper session. Final
+  executable preparation writes the logical file length while staging preserves
+  full cipher blocks. The review also fixed the new debug test fixture.
+- [PR #14](https://github.com/1JRobertson/bedrock-mac/pull/14) makes recorded
+  local checks the default merge evidence and adds a clean-install test recipe.
+  Hosted checks remain available through manual dispatch.
+- [PR #16](https://github.com/1JRobertson/bedrock-mac/pull/16) encourages
+  AI-assisted contributions and equally welcomes handwritten code. New PRs
+  identify models used and known versions, or state `None`/`Unknown` as applicable.
 
-- Source includes Microsoft ownership checks and verified game acquisition,
-  a single account helper through preparation/play, file-picker compatibility,
-  and manual **Update Minecraft…** with journaled recovery.
-- Includes [PR #10](https://github.com/1JRobertson/bedrock-mac/pull/10): queue
-  WinHTTP writes issued inside status callbacks to avoid duplicate PlayFab
-  request bodies. The isolated native regression reproduced the failure before
-  the fix and passed after it; [compiled-DLL game acceptance remains open](history/PARTY-WINHTTP-2026-10-25.md#validation-and-limits).
-- Adds concise status, contribution tasks, a PR template, roadmap and original
-  repository preview artwork. These presentation changes do not rebuild a runtime.
+The normal startup path remains Windows Bedrock through WineGDK, DXMT and
+Rosetta. Unfinished native renderer research is excluded from this release.
+The existing opt-in Mullion experiment retains its documented scope and limits.
+
+## Validation and limits
+
+The integrated maintenance source passed **384 Python tests**, all **281 source
+inventory hashes**, export boundary checks and **162 pinned Xodus source/input
+checks**. Targeted Rust validation passed **19 Xbox tests, 2 preparation tests
+and 38 helper tests**; **7 existing opt-in helper tests were ignored**. Exact
+source revisions and review receipts are recorded in the linked PRs.
+
+The release page records the final tagged commit, source archive SHA-256 and
+clean-export validation. Publication does not extend the recorded live results.
+An earlier diagnostic candidate completed an authorized 26.52-to-26.60 update;
+the final release's live acquisition, startup and multiplayer remain unverified.
 
 Build from [the source instructions](../README.md#start-from-source): Apple
 Silicon, macOS 15+, Rosetta, internet and a Microsoft account entitled to
-Minecraft for Windows are required. Source builds need the documented toolchain
-and compatible build path. Build duration and minimum build-space needs have not
-been measured; a clean-machine first run is not yet qualified.
-
-Historical M4 Pro gameplay and a less detailed M1 Air report do not qualify this
-source snapshot or a newly packaged app. Current-candidate save/restore,
-multiplayer/rejoin, live update/recovery and extended stability remain open.
-No supported offline launch or automatic updater is included. Mullion ray
-tracing is opt-in research, not general Direct3D 12 support; native ARM game
-execution is not included. See [compatibility](COMPATIBILITY.md) and
-[binary release gates](RELEASE.md). Original code is GPLv3; [upstream licenses
-and notices](../THIRD_PARTY.md) remain applicable.
+Minecraft for Windows are required. A clean-machine first run and a distributable
+app remain unqualified. See [compatibility](COMPATIBILITY.md) and
+[binary release gates](RELEASE.md). Original code is GPLv3;
+[upstream licenses and notices](../THIRD_PARTY.md) remain applicable.
 
 ## Publication procedure
 
-1. Select the reviewed presentation merge commit after its final checks. The
-   runtime baseline is `8d2c82ea26fce3c699998648dd895f257e20d0a8` (merged PR #10);
-   tag the eventual presentation merge commit, not that earlier baseline.
-2. Record the full target commit and checks on that exact revision. Regenerate
-   and verify `SOURCE-SHA256.txt`; run the [source export checks](PUBLISHING.md#validate-and-export)
-   and tests from a clean export. Review the archive contents.
-3. Export that commit with `tools/export-source.py` into a new directory named
-   `bedrock-mac-0.3.0-source.1`. Archive it as
-   `bedrock-mac-0.3.0-source.1.tar.gz`, including its source inventory. Record the
-   archive SHA-256 in the release body, along with the full commit and actual
-   checks/skips. Never substitute a development-directory archive.
-4. Create the annotated tag `v0.3.0-source.1` at that commit and a GitHub
-   **prerelease**, titled **0.3.0 source preview 1**. Use the release notes above,
-   plus the commit/checksum/checks receipt. Attach only the reviewed source archive;
-   no DMG, game, runtime binaries, worlds, credentials or private logs.
+1. Select the reviewed merge commit containing these release notes and the
+   maintenance fixes. Record its full SHA and final checks.
+2. Verify `SOURCE-SHA256.txt`, export from that exact clean commit with
+   `tools/export-source.py`, and run the source tests from the clean export.
+3. Archive the exported directory as `bedrock-mac-0.3.0-source.2.tar.gz`.
+   Inspect its exact file inventory and verify its SHA-256. Include the source
+   inventory; exclude game files, runtime binaries, worlds and private logs.
+4. Create annotated tag `v0.3.0-source.2` at the reviewed commit and a GitHub
+   prerelease titled **0.3.0 source preview 2**. Attach the reviewed source archive
+   and record its checksum, commit, checks and remaining limits in the release body.
+5. Download the published archive and verify its bytes and inventory against the
+   reviewed artifact. Preserve preview 1 and its tag as historical releases.
 
-Publish only the matching reviewed merged revision. Source publication does
-not qualify a binary or close the gameplay and clean-machine gates above.
+Publishing this source release does not install or update the local game,
+change its saves, or qualify a binary app release.
