@@ -71,6 +71,9 @@ Credentials stay in Keychain service `Minecraft Bedrock Standalone`, item
 and tokens while retaining device identity, game files and worlds. Changed
 ad-hoc helper signatures may require new Keychain authorization.
 
+Game acquisition uses a client-bound Xbox Token Broker ticket and retains a
+validated STS renewal in the same helper session, selecting responses by type.
+
 The user-owned mode-0600 `/tmp/xodus.sock` admits one helper. PID/executable records,
 locks and private parent-written session receipts govern reuse and cleanup.
 New helpers stop if their parent disappears. Lock-file presence alone does not

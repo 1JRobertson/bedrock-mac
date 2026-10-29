@@ -982,7 +982,8 @@ class OnboardingTests(unittest.TestCase):
                 self.assertEqual(worker.load('fixture_runtime', 'standalone.py').VERSION, 'new')
 
     def test_status_does_not_install_or_launch(self):
-        with patch.object(worker, 'installed', return_value=False), \
+        with tempfile.TemporaryDirectory() as temporary, patch.object(worker, 'ROOT', Path(temporary)), \
+                patch.object(worker, 'installed', return_value=False), \
                 patch.object(worker, 'install') as install, patch.object(worker, 'run') as run, \
                 patch('sys.argv', ['setup.py', '--status']), contextlib.redirect_stdout(io.StringIO()) as output:
             worker.main()

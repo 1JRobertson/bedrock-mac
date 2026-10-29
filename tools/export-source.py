@@ -241,6 +241,8 @@ ALLOWED_FILES = (
     "patches/standalone-account-transport.patch",
     "patches/standalone-helper-dependencies.patch",
     "patches/xbox-auth-errors.patch",
+    "patches/standalone-package-ticket.patch",
+    "patches/standalone-xvd-preparation-length.patch",
     "docs/PUBLISHING.md",
     "docs/research/dxmt-shared-buffers-results.json",
     "tests/dxmt-shared-buffers.cpp",
