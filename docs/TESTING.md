@@ -142,19 +142,27 @@ owned-package and cached-header/metadata fixtures require the documented
 complete package acquisition. Real account sign-in is a separate, explicit
 live test with the user handling credentials and security prompts.
 
-Xbox authentication error handling has a separate loopback-only filter:
+Xbox authentication and package-ticket handling have a separate offline filter:
 
 ```sh
 cargo +1.98.0 test --offline --locked --jobs 2 \
   --manifest-path sources/xodus/Cargo.toml -p xodus --lib \
-  api::xbox::auth::tests -- --test-threads=1
+  api::xbox:: -- --test-threads=1
 ```
 
 This needs the locked Cargo dependencies cached. It exercises HTTP errors,
-bounded body reads and sanitized metadata without Microsoft, Keychain or a game.
+bounded body reads, sanitized metadata and synthetic ticket/renewal responses
+without Microsoft, Keychain or a game.
 Do not run all upstream library tests: some contact Microsoft or access Keychain.
 See the [issue #12 investigation](history/XBOX-AUTH-ISSUE-12.md) for the evidence
 and distinction between failure reporting and the unresolved HTTP 400 cause.
+
+The synthetic plaintext/encrypted file-length regressions run separately:
+
+```sh
+cargo +1.98.0 test --offline --locked --jobs 2 \
+  --manifest-path sources/xodus/Cargo.toml -p msixvc --lib xvd::preparation_tests
+```
 
 ## File picker compatibility
 

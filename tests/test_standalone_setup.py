@@ -31,6 +31,9 @@ native_dependencies = module("native_dependencies_under_test", "tools/build-nati
 
 
 class DependencyPrefixTests(unittest.TestCase):
+    def test_fresh_setup_and_bootstrap_apply_the_same_xodus_patches(self):
+        self.assertEqual(setup.PATCHES, bootstrap.PROJECTS['xodus']['patches'])
+
     def test_build_environment_excludes_unrecorded_compiler_and_config_overrides(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict(setup.os.environ, {
             "LIBTASN1_CFLAGS": "-I/unreviewed", "NETTLE_LIBS": "/unreviewed/static.a",

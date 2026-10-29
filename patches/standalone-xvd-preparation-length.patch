@@ -1,0 +1,85 @@
+--- a/crates/msixvc/src/xvd.rs
++++ b/crates/msixvc/src/xvd.rs
+@@ -992,8 +992,8 @@
+                     data_cipher.as_ref().unwrap(),
+                 );
+                 to_write
+-            } else if sfile.keep_encrypted {
+-                // Decryption needs full 4k blocks
++            } else if sfile.keep_encrypted && !decrypt_all {
++                // Preserve full cipher blocks only in the on-disk staging copy.
+                 PAGE_SIZE
+             } else {
+                 to_write
+@@ -1044,3 +1044,71 @@
+             .await
+     }
+ }
++
++
++#[cfg(test)]
++mod preparation_tests {
++    use super::*;
++
++    fn plain_volume() -> XvdFile {
++        let mut bytes = XvdHeader::buffer();
++        bytes[0x200..0x208].copy_from_slice(b"msft-xvd");
++        bytes[0x218..0x220].copy_from_slice(&(PAGE_SIZE as u64 * 2).to_le_bytes());
++        let header = XvdHeader::try_from_array(&bytes).unwrap();
++        XvdFile { layout: header.layout(), header, encrypted_section_infos: vec![] }
++    }
++
++    #[tokio::test]
++    async fn final_preparation_of_plain_file_removes_cipher_block_padding() {
++        for length in [0usize, 1, PAGE_SIZE - 1, PAGE_SIZE, PAGE_SIZE + 17] {
++            let file = SegmentFile { offset: 0, length: length as u64,
++                data_hashs: vec![], keep_encrypted: true };
++            let padded = length.div_ceil(PAGE_SIZE) * PAGE_SIZE;
++            let bytes = (0..padded).map(|index| (index % 251) as u8).collect::<Vec<_>>();
++            let volume = plain_volume();
++            let mut source = std::io::Cursor::new(bytes.clone());
++            let mut stored = Vec::new();
++            volume.extract_file(&mut source, &mut stored, &file, [0; 32], |_, _| {}).await.unwrap();
++            assert_eq!(stored.len(), padded, "staging must keep full cipher blocks");
++            let mut output = Vec::new();
++            volume.mount_mem_fd(&mut stored.as_slice(), &mut output, &file, [0; 32], |_, _| {}).await.unwrap();
++            assert_eq!(output, bytes[..length], "final preparation must use the logical file length");
++        }
++    }
++
++    #[tokio::test]
++    async fn encrypted_file_staging_preserves_blocks_and_preparation_decrypts_exact_length() {
++        for length in [1usize, PAGE_SIZE - 1, PAGE_SIZE, PAGE_SIZE + 17] {
++            let padded = length.div_ceil(PAGE_SIZE) * PAGE_SIZE;
++            let plain = (0..padded).map(|index| (index % 251) as u8).collect::<Vec<_>>();
++            let mut cipher = plain.clone();
++            let tweak_key = [0x11; 16];
++            let data_key = [0x22; 16];
++            let tweak_cipher = Aes128Enc::new((&tweak_key).into());
++            let data_cipher = Aes128Enc::new((&data_key).into());
++            let generator = TweakGenerator::new(XvcRegionId::Unknown, Uuid::nil());
++            for (index, page) in cipher.as_chunks_mut::<PAGE_SIZE>().0.iter_mut().enumerate() {
++                crate::crypt::encrypt_page_xts(page, generator.with_data_unit(index as u32), &tweak_cipher, &data_cipher);
++            }
++            let mut volume = plain_volume();
++            volume.encrypted_section_infos.push(EncryptedSectionInfo {
++                section_offset: 0, section_length: padded as u64, header_id: XvcRegionId::Unknown,
++                vduid: Uuid::nil(), data_units: None, first_segment_index: 0, data_hashs: vec![],
++            });
++            let file = SegmentFile { offset: 0, length: length as u64,
++                data_hashs: vec![], keep_encrypted: true };
++            let mut full_key = [0; 32];
++            full_key[..16].copy_from_slice(&tweak_key);
++            full_key[16..].copy_from_slice(&data_key);
++            let mut stored = Vec::new();
++            volume.extract_file(&mut std::io::Cursor::new(cipher.clone()), &mut stored,
++                &file, full_key, |_, _| {}).await.unwrap();
++            assert_eq!(stored, cipher);
++            let mut output = Vec::new();
++            volume.mount_mem_fd(&mut stored.as_slice(), &mut output, &file,
++                full_key, |_, _| {}).await.unwrap();
++            assert_eq!(output, plain[..length]);
++        }
++    }
++
++}
