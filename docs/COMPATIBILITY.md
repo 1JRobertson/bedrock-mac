@@ -19,7 +19,7 @@ qualification remains pending. See [release readiness](RELEASE.md).
 | RC3 functioning / exit | User-confirmed same-Mac functioning with copied owned payload; normal return supported by UI/process cleanup | Bounded pass; save/reopen, soak and clean-M1 remain unverified |
 | Local worlds | Earlier development save/reopen observed | Current candidate save/reopen and clean-M1 test pending |
 | Xbox / PlayStation friend worlds | Maintainer estimates 10+ cumulative hours across repeated friend sessions (October 20 report); two monitored sessions in [gameplay evidence](history/GAMEPLAY.md#repeated-cross-platform-play) | New packaged-candidate join/disconnect/rejoin still needs recording |
-| Minecraft Social parties | October 25 Create party failure traced to duplicate PlayFab HTTP writes; temporary callback-order correction succeeded in game; compiled source fix passed isolated native tests ([evidence](history/PARTY-WINHTTP-2026-10-25.md)) | Compiled fix still needs game-session creation, invites and joining acceptance; installed runtime unchanged |
+| Minecraft Social parties | October 25 Create party failure traced to duplicate PlayFab HTTP writes; temporary callback-order correction succeeded in game; compiled source fix passed isolated native tests ([evidence](history/PARTY-WINHTTP-2026-10-25.md)) | October 31: installed compiled fix passed all three native write tests; host reported the friend-world retry worked on 26.60. Party creation/invites and broader joining acceptance remain unverified |
 | Featured servers | Earlier lobby entry observed | Candidate untested |
 | Realms | Earlier joined-Realm list observed | Active Realm entry untested |
 | Marketplace / controllers | No complete qualification record | Untested; no blanket support claim |
