@@ -12,7 +12,7 @@ source publication and the next acceptance steps.
 
 | Area | Recorded evidence | Still required |
 | --- | --- | --- |
-| Source checks | Source preview 3 passed 386 Python tests from its final clean export, all 281 source hashes and export/profile checks; each later PR records its own checks | Tests appropriate to each new change; disclose unavailable hosted CI |
+| Source checks | The source release and each PR record their final tested revision, Python/Rust results, source hashes and export checks | Tests appropriate to each new change; disclose unavailable hosted CI |
 | Runtime construction | Pinned-source v4 replay and exact-bridge graphics probes passed historically | Qualify the runtime selected for each new app |
 | Ownership/download | Exact RC4 helper completed verified owner-account acquisition outside the app | New artifact's native first-run, retry and download cancellation |
 | App/DMG | Local RC4 resource, notice-copy, signature and complete minimum-OS audit passed | Rebuild/audit any changed app; verify its exact artifact |
@@ -27,7 +27,7 @@ Each later PR must record checks on its own final commit and disclose unavailabl
 jobs; an earlier pass cannot qualify changed source. Native test gaps remain
 visible even when a source change is ready for review.
 
-The current [source download](SOURCE_PREVIEW.md) is **0.3.0 source preview 3**,
+The current [source download](SOURCE_PREVIEW.md) is **0.3.0 source preview 4**,
 published November 2. The latest hosted run, on October 28, passed both Python
 jobs, account-helper and file-pickers; native-launcher was cancelled. It was not
 a complete passing run. Hosted checks are manual; local checks remain the
@@ -77,6 +77,9 @@ protection and dependency alerts are enabled. GitHub's dependency graph includes
 Cargo, Python and GitHub Actions inputs. Pinned and patched runtime sources still
 need review when updated. CodeQL default setup is not configured and no code
 analysis has been published; source tests do not provide that coverage.
+The [dependency review](history/DEPENDENCY-AUDIT-2026-11-02.md) records the active
+TLS/toolchain updates and why older backend/platform lock entries are scoped out
+for the supported Mac helper.
 
 ## Acceptance record
 

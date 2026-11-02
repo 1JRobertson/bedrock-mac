@@ -19,6 +19,10 @@ signed download URL. Review logs before sharing excerpts.
 
 ## Current boundaries and known gaps
 
+- The [November 2 dependency review](docs/history/DEPENDENCY-AUDIT-2026-11-02.md)
+  records security updates and the supported helper's target/TLS-backend scope.
+  Older transitive lock entries remain documented. Reassess them when changing
+  platforms, client constructors or dependency features.
 - Microsoft user/device credentials are kept in macOS Keychain. The account
   helper caches one saved item per process and uses direct Keychain writes.
   No plaintext credential fallback is intended.
