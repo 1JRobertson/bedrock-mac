@@ -92,6 +92,7 @@ ALLOWED_FILES = (
     "docs/TESTING.md",
     "docs/CLEAN_INSTALL.md",
     "docs/history/XBOX-AUTH-ISSUE-12.md",
+    "docs/history/DEPENDENCY-AUDIT-2026-11-02.md",
     "docs/README.md",
     "client/README.md",
     "tools/README.md",

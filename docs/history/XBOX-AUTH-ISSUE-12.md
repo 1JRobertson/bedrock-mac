@@ -3,6 +3,21 @@
 Initial source investigation and review: October 28, 2026. No installed
 components, accounts or game data were accessed or changed.
 
+## Follow-up after publication — November 2
+
+The [reporter's October 29 clarification](https://github.com/1JRobertson/bedrock-mac/issues/12#issuecomment-6503314068)
+confirmed that `bytes=0` was used both for a failed body read and for a successful
+empty read. The old JSON/XErr values therefore do not establish what the server
+returned. The confirmed symptom remains user-auth HTTP 400.
+
+PR #13's panic/reporting fix is merged and included in source previews 2 and 3.
+Later package-authentication fixes do not establish that this earlier user-auth
+rejection is resolved. The [November 2 maintainer reply](https://github.com/1JRobertson/bedrock-mac/issues/12#issuecomment-6582735050)
+asks for the adapter revision, which the Xodus pin alone cannot identify, and
+the single sanitized `BEDROCK_AUTH_DIAGNOSTIC:` line if an updated helper was
+already tried. It does not request a fresh sign-in or full logs. The issue stays
+open while that evidence is pending; the original investigation follows below.
+
 ## Evidence and boundaries
 
 - [Issue #12](https://github.com/1JRobertson/bedrock-mac/issues/12) was still open

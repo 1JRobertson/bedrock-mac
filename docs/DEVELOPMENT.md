@@ -22,6 +22,24 @@ The manual recipe below builds a **separate, self-contained app**, with a data
 root under Application Support. It does not import source-run worlds or game
 files. Source setup and packaging use separate commands and validation records.
 
+### Refresh a generated source checkout after a dependency update
+
+An update to the reviewed `patches/Cargo.lock` can make an older generated Xodus
+checkout fail source verification. Keep the check enabled. Save and quit Minecraft
+normally, then move only `sources/xodus` into a new backup directory under
+`sources/`. Preserve that backup, including any local changes. With the original
+`sources/xodus` path now absent, run:
+
+```sh
+python3 tools/bootstrap-sources.py --project xodus
+./Start.command
+```
+
+Leave `game/`, `bottles/`, settings and saves where they are. Bootstrap creates
+only the new source checkout and refuses to overwrite an existing destination.
+The normal startup flow then rebuilds changed helper inputs. Keep the old source
+backup until the updated setup works.
+
 ## Prerequisites
 
 The documented build host is Apple Silicon. Swift/DXMT target macOS 15, but the
