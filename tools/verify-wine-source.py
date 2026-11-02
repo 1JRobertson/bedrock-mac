@@ -53,8 +53,14 @@ def verify(source, root=ROOT):
         # Include ignored/untracked headers and new modules: the compiler can use them.
         if git('diff', '--name-only', '--no-ext-diff', '--ignore-submodules=none').strip():
             raise RuntimeError('Wine build source differs from the reviewed patched tree')
-        if git('ls-files', '--others', '-z'):
-            raise RuntimeError('Unexpected untracked or ignored Wine source inputs')
+        unexpected = git('ls-files', '--others', '-z').split(b'\0')
+        unexpected = [path for path in unexpected if path]
+        if unexpected:
+            # Filenames are untrusted: bound the list and escape control characters.
+            preview = json.dumps([os.fsdecode(path)[:160] for path in unexpected[:5]])
+            remainder = '; showing first 5' if len(unexpected) > 5 else ''
+            raise RuntimeError('Unexpected untracked or ignored Wine source inputs '
+                               f'({len(unexpected)} total{remainder}): {preview}')
         expected_tree = git('write-tree').decode().strip()
     return {'schema': 1, 'source_revision': project['commit'], 'patched_tree_sha1': expected_tree,
             'bootstrap_sha256': sha(bootstrap_data),

@@ -139,6 +139,25 @@ components. Quit Minecraft normally and let its account helper finish first.
 The Wine and helper builders have active-process guards; still check which app
 copy and runtime you are testing.
 
+### Wine source verification failures
+
+If setup stops with **Unexpected untracked or ignored Wine source inputs**, the
+error lists up to five unexpected relative paths and the total count. Recheck the
+actual build copy without compiling or installing:
+
+```sh
+python3 tools/verify-wine-source.py --source build/standalone-wine/source
+```
+
+Files added by reviewed patches, including the GDK Store/save files, normally
+appear as untracked in the checkout's ordinary Git index. The verifier replays
+the patches into a temporary index and accepts those exact additions. It still
+rejects extra files, including ignored headers, and edits to reviewed files.
+The check preserves the source files and real index. Keep existing files while
+investigating the reported paths; manually staging the GDK files does not repair
+a source mismatch. Report only reviewed path names, source release and Git
+version, rather than full setup logs. See [issue #18](https://github.com/1JRobertson/bedrock-mac/issues/18).
+
 For a candidate assembled from reviewed isolated inputs, the packager accepts
 explicit runtime/helper and packaging-tool paths. Choose fresh output and work
 directories; the packager refuses existing ones:
