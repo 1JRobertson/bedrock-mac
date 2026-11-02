@@ -136,3 +136,31 @@ The temporary probe's live success does not qualify the compiled DLL in
 Minecraft. Restart, party recreate/leave, invite reception, party joining and
 friend-world joining still require deliberate game acceptance of that artifact.
 No rebuilt runtime, helper or app was installed for this source change.
+
+## October 31: installed fix and friend-world acceptance
+
+On Minecraft package `1.26.6005.0` (Bedrock 26.60), a friend could see the
+host's Creative-world activity but had no Join option. The saved world enabled
+multiplayer and Xbox broadcasting. The installed legacy Wine runtime did not
+include the callback-order fix already present on `main` in commit `07085c9`.
+
+After the host saved and quit, the maintainer applied that existing patch to
+the normal generated Wine source, built only WinHTTP, and reran the three
+isolated native write cases. Synchronous, async outside a callback, and async
+inside a callback all passed with two exact POSTs and exit code zero. The
+tested and installed DLL had SHA-256
+`1a2f66f9d9fe93341cd6f956173939a2cd3ee142aa4a964a3d040a21c5b10dec`.
+The previous DLL and runtime manifest were retained before installation.
+
+The host relaunched with the fixed DLL, opened the world, and asked the friend
+to retry. The host reported **“that works!”** This is human-reported acceptance
+of that friend-world retry after the installed fix; the exact joining phase
+was not instrumented. It does not establish party creation/invites, every
+platform, Bobby add-on compatibility, or long-session stability on 26.60.
+The earlier trace did not expose the failed HTTP request, so it does not prove
+the same duplicated-write sequence occurred in this particular session.
+
+No new networking algorithm was introduced in this follow-up. The main source
+and published source preview already include the callback-order patch; the
+missing step was applying its built DLL to this older local runtime. No new
+app release was published, and renderer research source was not changed.
