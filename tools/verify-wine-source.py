@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import tempfile
 
@@ -14,6 +15,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def finder_metadata(path):
+    return path.name == '.DS_Store' and stat.S_ISREG(path.lstat().st_mode)
 
 
 def verify(source, root=ROOT):
@@ -54,7 +59,9 @@ def verify(source, root=ROOT):
         if git('diff', '--name-only', '--no-ext-diff', '--ignore-submodules=none').strip():
             raise RuntimeError('Wine build source differs from the reviewed patched tree')
         unexpected = git('ls-files', '--others', '-z').split(b'\0')
-        unexpected = [path for path in unexpected if path]
+        # Finder metadata is not a compiler input. Do not exempt links or other names.
+        unexpected = [path for path in unexpected
+                      if path and not finder_metadata(source / os.fsdecode(path))]
         if unexpected:
             # Filenames are untrusted: bound the list and escape control characters.
             preview = json.dumps([os.fsdecode(path)[:160] for path in unexpected[:5]])

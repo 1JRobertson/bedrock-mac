@@ -49,7 +49,7 @@
     "patches/standalone-wine-xuser-z-device-auth.patch": "26668fdc4b56f5eacc4a92ecbf9904884923cc09d343b5ee31f314c1ebbcf79f",
     "config/native-dependencies.lock.json": "decd9132c5c8038d8ef6f26af89066f0e4c73b09d0308f0b1c2d3f98c2c711bd",
     "tools/build-standalone-wine.sh": "0985e74a607ec94d98e5359e9443e1bff10841afe8576964c60ba6e2eea3c370",
-    "tools/verify-wine-source.py": "d76b73e6ef7c7d396a2bace11afa5325053a0cdc68fb3462826f1157fd0e7149",
+    "tools/verify-wine-source.py": "9c2eeacda57d58671634f7089ebbc778391e8508b55b0e1ba6b202be569b300a",
     "client/standalone-pickers.py": "8378f075456eddc78e8cedcce35e6bc79b3213086b1533005c523a9ee551aba3",
     "native/file-pickers/build.sh": "c1f596e7b606f7e665c55dc8657cf63a271952f0aa036f86d7172c588a52ae13",
     "native/file-pickers/pickers.c": "1a5b7acf11a54e68da7304c2f9ed53ce76231723bbb2c63a2289da4b0cc24611",
