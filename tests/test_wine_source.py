@@ -52,6 +52,35 @@ class WineSourceTests(unittest.TestCase):
         self.assertEqual(self.git('diff', '--cached'), '')
         self.assertEqual((self.source / 'source.c').read_text(), 'standalone\n')
 
+    def test_accepts_nested_baseline_additions_modified_by_later_patch(self):
+        # Like issue #18: bootstrap adds GDK files without staging them, then a
+        # later patch edits an added file. Their real-index status is expected.
+        additions = ('System/HttpStatusTrace.h', 'System/XGameSave.c', 'System/XGameSave.h',
+                     'System/XStore.c', 'System/XStore.h', 'Xodus/Unix/store.h')
+        with (self.patches / 'base.patch').open('a') as output:
+            for name in additions:
+                path = 'dlls/xgameruntime/GDKComponent/' + name
+                output.write(f'diff --git a/{path} b/{path}\nnew file mode 100644\n'
+                             f'--- /dev/null\n+++ b/{path}\n@@ -0,0 +1 @@\n+reviewed addition\n')
+                target = self.source / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text('reviewed addition\n')
+        store = 'dlls/xgameruntime/GDKComponent/System/XStore.c'
+        with (self.patches / 'standalone-wine-fixture.patch').open('a') as output:
+            output.write(f'--- a/{store}\n+++ b/{store}\n@@ -1 +1 @@\n'
+                         '-reviewed addition\n+reviewed follow-up\n')
+        (self.source / store).write_text('reviewed follow-up\n')
+        before = (self.source / '.git/index').read_bytes()
+        untracked = self.git('ls-files', '--others')
+        for name in additions:
+            self.assertIn('dlls/xgameruntime/GDKComponent/' + name, untracked)
+        self.assertEqual(self.verify()['source_revision'], self.revision)
+        self.assertEqual((self.source / '.git/index').read_bytes(), before)
+        self.assertEqual(self.git('ls-files', '--others'), untracked)
+        (self.source / store).write_text('unreviewed edit\n')
+        with self.assertRaisesRegex(RuntimeError, 'reviewed patched tree'):
+            self.verify()
+
     def test_rejects_different_actual_build_head(self):
         self.git('commit', '--allow-empty', '-qm', 'unreviewed revision')
         with self.assertRaisesRegex(RuntimeError, 'pinned revision'):
@@ -71,9 +100,29 @@ class WineSourceTests(unittest.TestCase):
         for name in ('injected.h', 'ignored.h'):
             with self.subTest(name=name):
                 target = self.source / name; target.write_text('injected\n')
-                with self.assertRaisesRegex(RuntimeError, 'untracked or ignored'):
+                before = (self.source / '.git/index').read_bytes()
+                with self.assertRaisesRegex(RuntimeError, 'untracked or ignored') as failure:
                     self.verify()
+                self.assertIn(name, str(failure.exception))
+                self.assertIn('1 total', str(failure.exception))
+                self.assertEqual(target.read_text(), 'injected\n')
+                self.assertEqual((self.source / '.git/index').read_bytes(), before)
                 target.unlink()
+
+    def test_unexpected_input_diagnostic_is_bounded_and_escapes_filenames(self):
+        (self.source / '00-line\nfeed.h').write_text('extra\n')
+        (self.source / ('01-' + 'x' * 190 + '.h')).write_text('extra\n')
+        for number in range(8):
+            (self.source / f'02-extra-{number}.h').write_text('extra\n')
+        with self.assertRaisesRegex(RuntimeError, 'untracked or ignored') as failure:
+            self.verify()
+        message = str(failure.exception)
+        self.assertIn('10 total; showing first 5', message)
+        self.assertIn('00-line\\nfeed.h', message)
+        self.assertNotIn('\n', message)
+        self.assertNotIn('x' * 161, message)
+        self.assertNotIn('02-extra-7.h', message)
+        self.assertLess(len(message), 1200)
 
     def test_rejects_symlink_patch_and_checkout(self):
         target = self.patches / 'base.patch'; saved = target.read_bytes(); target.unlink()

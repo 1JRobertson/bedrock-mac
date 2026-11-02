@@ -11,8 +11,8 @@ notarized app or downloadable installer. Local app candidates have separate
 [release checks](docs/RELEASE.md).
 
 Download the current source release:
-[0.3.0 source preview 2](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.2).
-It includes the package authentication and game-update preparation fixes.
+[0.3.0 source preview 3](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.3).
+It includes clearer Wine setup errors and the earlier authentication and update fixes.
 
 | Status | Evidence and limits |
 | --- | --- |
