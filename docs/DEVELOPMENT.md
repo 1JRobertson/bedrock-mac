@@ -171,6 +171,8 @@ Files added by reviewed patches, including the GDK Store/save files, normally
 appear as untracked in the checkout's ordinary Git index. The verifier replays
 the patches into a temporary index and accepts those exact additions. It still
 rejects extra files, including ignored headers, and edits to reviewed files.
+Regular `.DS_Store` files created by Finder are allowed and preserved. Symlinks
+with that name and other unexpected source files are still rejected.
 The check preserves the source files and real index. Keep existing files while
 investigating the reported paths; manually staging the GDK files does not repair
 a source mismatch. Report only reviewed path names, source release and Git

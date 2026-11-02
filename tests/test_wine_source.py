@@ -97,7 +97,8 @@ class WineSourceTests(unittest.TestCase):
             self.verify()
 
     def test_rejects_untracked_and_ignored_compiler_inputs(self):
-        for name in ('injected.h', 'ignored.h'):
+        (self.source / '.DS_Store').write_bytes(b'Finder metadata')
+        for name in ('injected.h', 'ignored.h', '.DS_Store.h'):
             with self.subTest(name=name):
                 target = self.source / name; target.write_text('injected\n')
                 before = (self.source / '.git/index').read_bytes()
@@ -108,6 +109,36 @@ class WineSourceTests(unittest.TestCase):
                 self.assertEqual(target.read_text(), 'injected\n')
                 self.assertEqual((self.source / '.git/index').read_bytes(), before)
                 target.unlink()
+
+    def test_allows_finder_metadata_without_changing_identity_or_files(self):
+        identity = self.verify()
+        before = (self.source / '.git/index').read_bytes()
+        paths = (self.source / '.DS_Store', self.source / 'nested/.DS_Store')
+        for path in paths:
+            path.parent.mkdir(exist_ok=True)
+            path.write_bytes(b'\x00\x00\x00\x01Bud1 Finder metadata')
+        self.assertEqual(self.verify(), identity)
+        for path in paths:
+            self.assertEqual(path.read_bytes(), b'\x00\x00\x00\x01Bud1 Finder metadata')
+        # The verifier also examines ignored files; metadata stays harmless there.
+        (self.source / '.git/info/exclude').write_text('.DS_Store\n')
+        paths[0].write_bytes(b'updated Finder metadata')
+        self.assertEqual(self.verify(), identity)
+        self.assertEqual(paths[0].read_bytes(), b'updated Finder metadata')
+        self.assertEqual((self.source / '.git/index').read_bytes(), before)
+
+    def test_rejects_symlink_named_like_finder_metadata(self):
+        outside = self.root / 'outside-header.h'; outside.write_text('preserve\n')
+        (self.source / '.DS_Store').symlink_to(outside)
+        with self.assertRaisesRegex(RuntimeError, 'untracked or ignored'):
+            self.verify()
+        self.assertEqual(outside.read_text(), 'preserve\n')
+
+    def test_rejects_source_hidden_in_finder_named_directory(self):
+        directory = self.source / '.DS_Store'; directory.mkdir()
+        (directory / 'injected.h').write_text('extra compiler input\n')
+        with self.assertRaisesRegex(RuntimeError, 'untracked or ignored'):
+            self.verify()
 
     def test_unexpected_input_diagnostic_is_bounded_and_escapes_filenames(self):
         (self.source / '00-line\nfeed.h').write_text('extra\n')

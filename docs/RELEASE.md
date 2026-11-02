@@ -27,7 +27,7 @@ Each later PR must record checks on its own final commit and disclose unavailabl
 jobs; an earlier pass cannot qualify changed source. Native test gaps remain
 visible even when a source change is ready for review.
 
-The current [source download](SOURCE_PREVIEW.md) is **0.3.0 source preview 4**,
+The current [source download](SOURCE_PREVIEW.md) is **0.3.0 source preview 5**,
 published November 2. The latest hosted run, on October 28, passed both Python
 jobs, account-helper and file-pickers; native-launcher was cancelled. It was not
 a complete passing run. Hosted checks are manual; local checks remain the
@@ -67,8 +67,8 @@ soak acceptance remain open; an unbound working note does not close them.
   Await the adapter revision and any existing sanitized diagnostic from the
   updated helper. See [the investigation](history/XBOX-AUTH-ISSUE-12.md).
 - [Wine source verification (#18)](https://github.com/1JRobertson/bedrock-mac/issues/18):
-  preview 3 names rejected files. The six reported GDK additions pass a fresh
-  pinned reconstruction; await the actual rejected paths from the reporter.
+  the reporter confirmed that Finder's `.DS_Store` was the rejected file.
+  Preview 5 allows regular Finder metadata while preserving source checks.
 
 ## Repository security coverage
 

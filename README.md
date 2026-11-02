@@ -11,8 +11,8 @@ notarized app or downloadable installer. Local app candidates have separate
 [release checks](docs/RELEASE.md).
 
 Download the current source release:
-[0.3.0 source preview 4](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.4).
-It includes security dependency updates, clearer setup errors, and the earlier authentication and update fixes.
+[0.3.0 source preview 5](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.5).
+It fixes Finder metadata blocking Wine setup and includes the earlier security, authentication and update fixes.
 
 | Status | Evidence and limits |
 | --- | --- |
