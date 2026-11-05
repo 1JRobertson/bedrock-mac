@@ -1,0 +1,211 @@
+{
+  "upstream": "https://github.com/3Shain/dxmt",
+  "revision": "589adb780354b461645b29999cefaf533594ee99",
+  "changed": [
+    {
+      "path": "src/airconv/meson.build",
+      "upstream_sha256": "444a223182d2604b95577386efeaff4aa776ee150c7629468a425305cb33436e",
+      "candidate_sha256": "c49e38afe15616a274560832d3115cd662abc7b48eb5e073212b78f88276ee99"
+    },
+    {
+      "path": "src/d3d11/d3d11_buffer.cpp",
+      "upstream_sha256": "3dc15a51bf8a511864b92cbcf62ff034a9086c4a9e44d88c63d0d038ace0607e",
+      "candidate_sha256": "c353aaae1d3d0cf022716264715dba209c001706cbe0a0f6b126a5b0319bd5a3"
+    },
+    {
+      "path": "src/d3d11/d3d11_context_def.cpp",
+      "upstream_sha256": "647e3017cc9c2cb23d7a2ff1cd7295271c0a789d9df8da8fd4db0803e7a94889",
+      "candidate_sha256": "f47365271ad83ce443d9218b108720be166a81c7dae7c018ad30962cc69d0999"
+    },
+    {
+      "path": "src/d3d11/d3d11_context_imm.cpp",
+      "upstream_sha256": "9ec60e166c3b9137748c108a617af249b09191d44347f695b6a7b220becead00",
+      "candidate_sha256": "75e8006f798bcc080c0319e18bad9137b1508b2a21f614fc73b4ce7dd74b0765"
+    },
+    {
+      "path": "src/d3d11/d3d11_context_impl.cpp",
+      "upstream_sha256": "6bab0e92254b7e7b2daca7e16e6259a7c034bb8c0d3feed624b2cbaad9203f27",
+      "candidate_sha256": "48bf4567148523b3d0c0068e9864e9eab1cde62596020b7d96cb9391a32ac97b"
+    },
+    {
+      "path": "src/d3d11/d3d11_resource_staging.cpp",
+      "upstream_sha256": "a8739bcdfd0267b5a1a8c1cc500db33d78d6dcb0d790da5e6c9f842e178cbb3f",
+      "candidate_sha256": "de3faf65ad339a15a060ad5c1461931b3d6b6021bdf2776738fecd186d08c3fd"
+    },
+    {
+      "path": "src/dxmt/dxmt_buffer.cpp",
+      "upstream_sha256": "e6c8634f38abf471a94def0a4586e880d4e5bed293ecf5db1261dc3cf7102214",
+      "candidate_sha256": "0dfbaabdc2964fa03f12a7b5818c6f6ba85d0d70f4e5b53236d84d31b415c464"
+    },
+    {
+      "path": "src/dxmt/dxmt_buffer.hpp",
+      "upstream_sha256": "80e42012485bc1ea65aafbd15b9dd8c28ab07f461cf3dd39943160ac1d9f1b79",
+      "candidate_sha256": "3f2fb2dbd4dca23975afba49ff92334fb1376ad04051cc5502fe790543f4f93b"
+    },
+    {
+      "path": "src/dxmt/dxmt_command.h",
+      "upstream_sha256": null,
+      "candidate_sha256": "55fbcd10b7a366dd2c2066c8c9ed68b2615000329a2ec8c42bb61bef4bc2f0a3"
+    },
+    {
+      "path": "src/dxmt/dxmt_command_queue.cpp",
+      "upstream_sha256": "5f1d0f1b3429188530380ab2da9a02a75ff247b18319ca86daed6b36ba58a2f6",
+      "candidate_sha256": "846216711ff3ced1488f0b8a8823ab02c1d6eff4930682967fb5a51ab5711415"
+    },
+    {
+      "path": "src/dxmt/dxmt_command_queue.hpp",
+      "upstream_sha256": "3a3cfee9df8e34eba412d9a00c8078e4868ee05f900c153d8e987a1276fcbdd4",
+      "candidate_sha256": "37765ca63949c158932517f7041ca8976f130d0b34616e38c26c63fba4223ed7"
+    },
+    {
+      "path": "src/dxmt/dxmt_context.cpp",
+      "upstream_sha256": "18873761aea0a358f54ab3501ef7ac9566b7eec63424e934a02ddb2bf8f1f6bc",
+      "candidate_sha256": "c82d16164bf7f3bb0fd0593c4683deef0c14d9f4df7977a8dee13c2db4a6ea33"
+    },
+    {
+      "path": "src/dxmt/dxmt_context.hpp",
+      "upstream_sha256": "44a351ff9db00113dacc4df94bfcb1f625997b73fc3a6fdcca5e193e6bd55f68",
+      "candidate_sha256": "25c862352d21bcb30f0d2405bc8ccc82714c096f94d4e883c9acca09e3496dc1"
+    },
+    {
+      "path": "src/dxmt/dxmt_dynamic.hpp",
+      "upstream_sha256": "e9b42fb8d3a7cbc3f39ffa5981100e5e06f08dc20ef8f02bbb515299d53f7892",
+      "candidate_sha256": "05c635a7686dad8247ca678f6168736ed741d7bed91b3d378c49197bdef47276"
+    },
+    {
+      "path": "src/dxmt/dxmt_native_completion.hpp",
+      "upstream_sha256": null,
+      "candidate_sha256": "35ff6618ddfbc4f5b94abf26ee09342cbce1015bc66b247692884a9c9d863ff1"
+    },
+    {
+      "path": "src/dxmt/dxmt_native_render.hpp",
+      "upstream_sha256": null,
+      "candidate_sha256": "27854f67f1ec1e1e2d6738013c7fedeacfca14c55826c5173ba33acc3c52f693"
+    },
+    {
+      "path": "src/dxmt/dxmt_occlusion_query.hpp",
+      "upstream_sha256": "e0632d98a4dec84cb0d30ee21647801a1fe8004987f1c37304aec61aab45375f",
+      "candidate_sha256": "36bc35f1681ec6f97e9da7d731d975c682ae2c9030277957d3168a8b5cc8eb61"
+    },
+    {
+      "path": "src/dxmt/dxmt_presenter.hpp",
+      "upstream_sha256": "f6416156ff530aebba0c925a869a115debd05bfd7dbb302b45d78430708e7c0f",
+      "candidate_sha256": "4ecae57f009a972f8fd784f0f5764ec07629e79880512add801ab6db8c8065e6"
+    },
+    {
+      "path": "src/dxmt/dxmt_resource_initializer.cpp",
+      "upstream_sha256": "cb1d9efc1336810c1729dcd9d064bfc05850c30c404bea6998a162a18a5cc685",
+      "candidate_sha256": "7610438c8055d532285fe5cdaa4d2641398b29530ea741b7f193330ca62f770d"
+    },
+    {
+      "path": "src/dxmt/dxmt_staging.cpp",
+      "upstream_sha256": "e6639a5171f197cacd99d2eb284056558296e044bf98ba3d0c3db00a390d7d05",
+      "candidate_sha256": "70db783367b253b3fd2436c1d648169101ad322de4fdeea2d6730cb5b4223d0e"
+    },
+    {
+      "path": "src/dxmt/dxmt_staging.hpp",
+      "upstream_sha256": "80e4697eddf5fef1bf2976cb010f5688d95961e1d8d94b60d023efc6394be343",
+      "candidate_sha256": "45c8abe1eeceaac617667dc8b5479ccb2966b67691a8e1df9639f3f693632f00"
+    },
+    {
+      "path": "src/dxmt/dxmt_texture.cpp",
+      "upstream_sha256": "cd702013bab121e67d3f420bed6fc283e927c15937c0536b4ee613c1fc31ef21",
+      "candidate_sha256": "a3b546355310567bc76e6e5014088a26049e7e4aaaa08ecea9045db3812e0dd1"
+    },
+    {
+      "path": "src/dxmt/dxmt_texture.hpp",
+      "upstream_sha256": "81cde48c57a6a69c09c0a36e1c8ca6d10639b4355a5a4dff3e61928e88f096c9",
+      "candidate_sha256": "4cafa4bde88f746b8a7fbc55e5010f33e056b8fa403b817a1633d3f57fa5a721"
+    },
+    {
+      "path": "src/dxmt/frame_stream_dxmt.hpp",
+      "upstream_sha256": null,
+      "candidate_sha256": "7794d08f4730b68c2f0621db7b39c23995163b6d306dbf4a0ee6b88b4060c111"
+    },
+    {
+      "path": "src/dxmt/frame_stream_lifetime.hpp",
+      "upstream_sha256": null,
+      "candidate_sha256": "11cd8b680f1f246d4576bd9dfb1e7015ddab9220ec85ab8581d212ce16e06e6d"
+    },
+    {
+      "path": "src/dxmt/frame_stream_version_index.hpp",
+      "upstream_sha256": null,
+      "candidate_sha256": "57233b9f5baa7b5a19d95e524bd4f2337fde40882c40fdb3ff9d6761264cade2"
+    },
+    {
+      "path": "src/dxmt/live_startup_wire.h",
+      "upstream_sha256": null,
+      "candidate_sha256": "260b098344759f9e143d1c5c36ee93de34975f503a278e68e9c68d4e60eb310e"
+    },
+    {
+      "path": "src/dxmt/live_startup_writer.hpp",
+      "upstream_sha256": null,
+      "candidate_sha256": "ebfda3a9ff5410ddfcd93c04c90cb78e4e6b478346b2f1ec9264e692469843c1"
+    },
+    {
+      "path": "src/dxmt/meson.build",
+      "upstream_sha256": "758e9848c4eac532628d1b275b328d833e465c6c176aa9a0659894643a145e81",
+      "candidate_sha256": "28f6c82be28ef15956e130a0e8ec97393f8fdd4c7877f48004c83c69a4e3d99b"
+    },
+    {
+      "path": "src/dxmt/native_boundary_capture.hpp",
+      "upstream_sha256": null,
+      "candidate_sha256": "181a8a8ab48355c9a7c0d6dc4f443e6cf7df4a9a7ca9aa8086e547a1eabbd16a"
+    },
+    {
+      "path": "src/dxmt/native_boundary_dxmt.hpp",
+      "upstream_sha256": null,
+      "candidate_sha256": "db4081053789d55611c52b39ad9a6eafc6bf055e6038ceda168afad2b19bdd35"
+    },
+    {
+      "path": "src/dxmt/native_boundary_mutations.hpp",
+      "upstream_sha256": null,
+      "candidate_sha256": "aab975151b174aa32cf8c2821355aadb1e2158de0bd9b4eba3f35d4038382f43"
+    },
+    {
+      "path": "src/dxmt/native_entry_dxmt.hpp",
+      "upstream_sha256": null,
+      "candidate_sha256": "955f5e2df1895dcded905704a2ece4b5007fc3fb8f6351734ec4cde7ab60ab19"
+    },
+    {
+      "path": "src/winemetal/Metal.hpp",
+      "upstream_sha256": "61e60f358d5dd95803f3738bbe2665ef5c8a0b504506ec9e792c105bc8e7e5f6",
+      "candidate_sha256": "337eba3f5e5ba8febfdd3624d9d397bcccbc7fcfbceaa86d9aed235e6908c832"
+    },
+    {
+      "path": "src/winemetal/frame_stream.h",
+      "upstream_sha256": null,
+      "candidate_sha256": "35338da9aab061c1aa73dad3099458b7c1085603f2e748496afcc01bbbeaa9e6"
+    },
+    {
+      "path": "src/winemetal/frame_stream_private.h",
+      "upstream_sha256": null,
+      "candidate_sha256": "ec6577e28d435059198bcbbc95c943a9658ba9308c41407b09d5ec42ab8cd7ef"
+    },
+    {
+      "path": "src/winemetal/meson.build",
+      "upstream_sha256": "99890c9e63678bcb35a0ebdc936c27438c1ac5c51ddf1043aa7f40afa857e425",
+      "candidate_sha256": "c10a003dda49bd565115bc5c224fb425f027074bf932278b78d0d241f1500529"
+    },
+    {
+      "path": "src/winemetal/unix/winemetal_unix.c",
+      "upstream_sha256": "f8f4b952ebd4b862afd86b3a228d8a44708e7d87638a9c6798d7afd917fe6b35",
+      "candidate_sha256": "eb0d7828f096f856f678af0306791b2efed81cdae635826bc15b476160678963"
+    },
+    {
+      "path": "src/winemetal/winemetal.h",
+      "upstream_sha256": "09ae69990ecc1e10c600d224cfb0989b45ee9a353552f7ba9418dcb96dad50d0",
+      "candidate_sha256": "372cdb1f1bf846911a0bb69903c595a6e7e21b7f86e1c5ffa07684bcc59f4c65"
+    },
+    {
+      "path": "src/winemetal/winemetal_thunks.c",
+      "upstream_sha256": "7fba7a5a57e8a4f96c41c15c69c24655ab625a36dc6cdc39d215daa0ef85f6c1",
+      "candidate_sha256": "737e7f1acf19647174e030e99457ed729a7af406f2c7f8c0c3059d9d246f8f2a"
+    },
+    {
+      "path": "src/winemetal/winemetal_thunks.h",
+      "upstream_sha256": "d0b5db5b041f057fef934b204c77b77b6094c027c2d9b88ef024357babfdd6e9",
+      "candidate_sha256": "33ff63f2f1b44cac31ed4a14c509855961b75d327a68465f5e4dd11d49e6603b"
+    }
+  ]
+}

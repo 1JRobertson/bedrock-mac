@@ -9,6 +9,7 @@ what a new packaged app contains or how it performs. Start with
 
 | Area | Notes | Original measurement record |
 | --- | --- | --- |
+| Direct-command native renderer | [Contributor handoff](../../experiments/direct-renderer/README.md) | [Measured regression](../../experiments/direct-renderer/results.json) |
 | DXMT setup and memory lifetime | [Graphics bridge](GRAPHICS.md) | Dated probes in the notes |
 | Shared buffers, constants, input layouts | [Buffer experiments](BUFFERS.md) | [Shared buffers](dxmt-shared-buffers-results.json), [packed constants](dxmt-packed-constants-results.json), [input layouts](dxmt-input-layout-results.json) |
 | Wine heap reuse and exact-build allocators | [Buffer experiments](BUFFERS.md#wine-small-allocation-reuse-2026-10-05), [allocator experiments](ALLOCATORS.md) | [Heap reuse](wine-heap-reuse-results.json), [refmove](bedrock-refmove-results.json), [render/frame-slab study](render-redesign-results.json) |
