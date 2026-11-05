@@ -14,6 +14,15 @@ import tempfile
 # Add individually reviewed source files here. Directories and globs are forbidden.
 # Both runtime paths and the source clones are deliberately absent.
 ALLOWED_FILES = (
+    'experiments/direct-renderer/benchmark.py',
+    'experiments/direct-renderer/bridge/airconv_thunks.h',
+    'experiments/direct-renderer/bridge/unix/winemetal_unix.c',
+    'experiments/direct-renderer/bridge/winemetal.h',
+    'experiments/direct-renderer/bridge/winemetal_thunks.h',
+    'experiments/direct-renderer/build_renderer.py',
+    'experiments/direct-renderer/faster-control.json',
+    'experiments/direct-renderer/faster-control.patch',
+    'experiments/direct-renderer/launch_game.py',
     'experiments/direct-renderer/README.md',
     'experiments/direct-renderer/build_native.py',
     'experiments/direct-renderer/dxmt-direct-renderer.patch',

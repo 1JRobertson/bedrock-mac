@@ -11,9 +11,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    output = args.output.absolute()
+    build(Path(__file__).resolve().parent / 'native-source', args.output.absolute())
+
+
+def build(source, output):
     output.mkdir(parents=True, exist_ok=False)
-    source = Path(__file__).resolve().parent / 'native-source'
     recipe = json.loads((source / 'native-build.json').read_text())
     platform = ['-arch', recipe['architecture'],
                 '-mmacosx-version-min=' + recipe['minimum_macos']]

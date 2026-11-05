@@ -34,7 +34,7 @@ capture and reconstruction counters both zero. Eight D3D/Wine → native Metal
 fixture images and readbacks passed before that run. The fixture covers initial
 textures/indices, deferred and staging writes, repeated NO_OVERWRITE, depth
 initialization, and packed upload slices. Its [source](fixtures/direct_d3d.cpp)
-is included; the coordinated Wine/worker fixture runner is not yet portable.
+is included along with an isolated Wine/worker runner.
 These are historical results from November 3, 2026, not fresh gameplay tests of
 this publication branch.
 
@@ -72,41 +72,72 @@ Promising work, without any guarantee of recovering the gap:
 3. Profile and benchmark the whole game path, using matched settings and turns.
    A faster serialization microbenchmark alone is not a gameplay win.
 
-## What can be reproduced now
+## Build and run
 
-On an Apple Silicon Mac with Xcode command-line tools and the required Metal
-SDK, from the repository root, build the native worker into a new directory:
+Use Apple Silicon, macOS 15 or later, Rosetta, Xcode command-line tools,
+Python 3.9+, Meson, Ninja, llvm-mingw with the `x86_64-w64-mingw32-*` tools
+on PATH, and Pillow in the Python environment used for the fixture.
+Use the project's standalone WineGDK build with the original DXMT 0.80
+graphics modules. See [development setup](../../docs/DEVELOPMENT.md).
 
-```sh
-python3 tools/qa_resource_guard.py --log "$PWD/build/direct-native-guard.log" -- \
-  python3 experiments/direct-renderer/build_native.py --output build/direct-native
-```
-
-This compiles and links only. It does not sign, install, launch, authenticate,
-download Minecraft or touch saves. The worker requires a compatible producer;
-running the executable alone is not a game launch procedure.
-
-Reconstruct the modified DXMT sources in a separate checkout:
+From the repository root, prepare the pinned DXMT checkout:
 
 ```sh
 git clone https://github.com/3Shain/dxmt.git build/direct-dxmt
 git -C build/direct-dxmt checkout 589adb780354b461645b29999cefaf533594ee99
 git -C build/direct-dxmt submodule update --init --recursive
-git -C build/direct-dxmt apply ../../experiments/direct-renderer/dxmt-direct-renderer.patch
 ```
 
-[dxmt-source.json](dxmt-source.json) records the exact base and all changed-file
-hashes. The patch applies to that public revision without unpublished earlier
-patches. The normal launcher remains on its existing graphics build.
+Set `RESEARCH_WINE` to the absolute path of the compatible Wine installation.
+Build the two variants into new output directories:
 
-**The end-to-end game build/launch is not yet reproducible from this handoff.**
-The old local harness reused generated bridge objects, pinned Wine components,
-shader-service setup, IPC endpoints, and a disposable licensed game session.
-This snapshot supplies the component code and DXMT delta, but does not claim a
-replacement for that orchestration. Porting the bridge build and fixture/session
-runner is a concrete first contribution. Do not guess environment flags and
-install the result over a working client. Real Microsoft ownership/sign-in is
-still required; there is no bundled game, account data or authentication bypass.
+```sh
+for mode in direct control; do
+  python3 tools/qa_resource_guard.py --log "$PWD/build/$mode-build.log" -- \
+    python3 experiments/direct-renderer/build_renderer.py "$mode" \
+    --dxmt build/direct-dxmt --wine "$RESEARCH_WINE" --output "build/$mode" || break
+done
+```
+
+The build checks the pinned DXMT inputs, then builds the x86-64 bridge, the
+modified Windows DLLs, and the ARM64 worker. [The control patch](faster-control.patch)
+preserves the source differences for the faster native renderer. It has its own
+[hashes](faster-control.json) and does not ship the historical binaries.
+[DXMT source metadata](dxmt-source.json) pins the direct variant.
+
+Run the same D3D fixture on both builds with one command:
+
+```sh
+python3 tools/qa_resource_guard.py --log "$PWD/build/renderer-benchmark.log" -- \
+  python3 experiments/direct-renderer/benchmark.py --wine "$RESEARCH_WINE" \
+  --direct build/direct --control build/control --output build/renderer-benchmark
+```
+
+The runner clones Wine and creates a fresh prefix for each mode, checks the
+loaded modules, and records image checks and gate-to-readback timings in
+`results.json`. These timings include fixture synchronization and readback;
+they are not gameplay FPS. The fixture needs no game or sign-in.
+
+For gameplay, provision a **separate disposable standalone data root** under
+this checkout's `build/`, with an owned, prepared game in `game/`, WineGDK and
+DXMT under `runtime/standalone/`, the verified threading component under
+`runtime/`, and the standalone helper under `sources/xodus/target/release/examples/`.
+Use a fresh root for each variant, without an existing Wine prefix. The research
+launcher stages its modules only there and calls the normal standalone license
+flow. Choose your Store market and handle any sign-in prompt locally.
+
+```sh
+python3 tools/qa_resource_guard.py --log "$PWD/build/renderer-game.log" -- \
+  python3 experiments/direct-renderer/launch_game.py \
+  --home build/disposable-direct --renderer build/direct --market CA
+```
+
+For comparison, use the same game build, world seed, view distance, frame
+settings and camera path with `--renderer build/control` in a second disposable
+root. Quit normally to collect native presentation samples under `renderer-run/`.
+This research launcher is supplied as a starting point. It has not been
+accepted in licensed gameplay, and the historical overlay, automated camera
+script and exact FPS measurement workflow are not reproduced here.
 
 Known limitations: rendering must be owned from startup; late activation cannot
 recover already GPU-rendered atlases from CPU initialization. Some commands and
@@ -116,10 +147,10 @@ startup; an unchanged retry passed. This is not a finished general renderer.
 
 ## Publication checks and licensing
 
-For this handoff, the native worker was freshly compiled and linked from these
-files. The DXMT patch was applied to the pinned public revision and all 41
-resulting hashes matched the measured candidate. Export and source inventory
-checks are recorded in the draft PR. No new gameplay or DXMT benchmark was run.
+Both source variants compiled and linked locally. The direct build passed all
+eight GPU image/readback checks through the new fixture runner. The control
+fixture run was stopped before a result, and the licensed launcher was not run.
+The published historical gameplay figures were not remeasured.
 
 Original project research source is GPLv3 under the repository [license](../../LICENSE).
 DXMT-derived changes retain its MIT license and existing upstream notices; see

@@ -28,5 +28,5 @@ startup or claim hours-long stability; Vibrant Visuals has a separate known cras
 
 [Direct-command Metal renderer](direct-renderer/README.md): source and measured
 results for a working gameplay prototype that regressed to about 13 FPS versus
-49 FPS for the previous native renderer. Includes a buildable ARM64 worker and
-a patch against public DXMT; end-to-end game orchestration remains unfinished.
+49 FPS for the previous native renderer. Includes both renderer builds, a D3D fixture benchmark, and an unverified
+launcher for a disposable game setup.
