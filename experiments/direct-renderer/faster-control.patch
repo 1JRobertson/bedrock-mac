@@ -1,0 +1,1356 @@
+--- a/source/chunk_stream_producer.m
++++ b/source/chunk_stream_producer.m
+@@ -380,7 +380,6 @@
+ /* source_lock is held. The exact-generation table remains authoritative; this
+  * secondary index bounds destruction notices to one physical root's keys. */
+ static void forget_seen_root(NSString *key,NSDictionary *root){
+-    extern void fullframe_live_history_retire(uint64_t,uint64_t,uint64_t);fullframe_live_history_retire([root[@"kind"]unsignedLongLongValue],[root[@"root"]unsignedLongLongValue],[root[@"generation"]unsignedLongLongValue]);
+     NSString *physical=physical_root_key([root[@"kind"] unsignedLongLongValue],[root[@"root"] unsignedLongLongValue]);
+     NSMutableSet *generations=seen_root_generations[physical];[generations removeObject:key];
+     if(!generations.count)[seen_root_generations removeObjectForKey:physical];[seen_roots removeObjectForKey:key];
+@@ -550,8 +549,7 @@
+     return retired;
+ }
+ static int ready(FFSCSourceChunk *c){
+-    const char *live=getenv("BEDROCK_LIVE_COMMANDS");
+-    if(!c->sealed||(!(live&&!strcmp(live,"1"))&&!c->source_completed)||c->published)return 0;
++    if(!c->sealed||!c->source_completed||c->published)return 0;
+     for(FFSCSourcePayload *p in c->payloads.allValues)if(!p->kind)return 0;return 1;
+ }
+ static int source_integer(id value,uint64_t expected){
+@@ -583,7 +581,7 @@
+            ![p->kind isEqual:@"operation"]||[used containsObject:@(p->payload)]||queries.length/sizeof(ffcc_query)==FFCC_MAX_QUERIES)return 0;
+         FFSCSourceBlob *blob=p->blobs[@"bindings.json"];id object=blob&&blob->data?[NSJSONSerialization JSONObjectWithData:blob->data options:0 error:nil]:nil;
+         if(![object isKindOfClass:[NSDictionary class]])return 0;NSDictionary *metadata=object;
+-        if((![metadata[@"format"] isEqual:@"bedrock-native-frame-operation"]&&![metadata[@"format"]isEqual:@"bedrock-live-commands"])||!source_integer(metadata[@"version"],1)||
++        if(![metadata[@"format"] isEqual:@"bedrock-native-frame-operation"]||!source_integer(metadata[@"version"],1)||
+            !source_integer(metadata[@"stream"],c->stream)||!source_integer(metadata[@"frame"],c->frame)||
+            !source_integer(metadata[@"chunk"],c->chunk)||!source_integer(metadata[@"encoder"],r->encoder)||
+            !source_integer(metadata[@"category"],p->category)||!source_integer(metadata[@"payload_id"],p->payload)||
+@@ -792,7 +790,6 @@
+     if(!readback_endpoint)return;ffrb_record r;const void *bytes=NULL;size_t length=0;enum ffrb_result result;
+     while((result=ffrb_peek(readback_endpoint,&r,&bytes,&length))==FFRB_OK){
+         pthread_mutex_lock(&source_lock);FFSCCompletionBinding *binding=completion_bindings[@(r.queue_completion)];FFSCReadbackTarget *target=nil;
+-        if(binding&&binding->tracked&&binding->published&&!binding->source_completed){pthread_mutex_unlock(&source_lock);break;}
+         if(binding&&binding->tracked&&binding->published&&binding->source_completed&&
+            binding->packet.serial==r.serial&&binding->packet.stream==r.stream&&binding->packet.frame==r.frame&&binding->packet.chunk==r.chunk&&
+            binding->packet.record_digest==r.record_digest&&binding->packet.queue_completion==r.queue_completion)
+@@ -1053,7 +1050,7 @@
+             }
+             uint64_t validated=MAX([seen_roots[key][@"validated_version"]unsignedLongLongValue],r->data[8]);
+             seen_roots[key]=@{@"kind":@(r->data[0]),@"root":@(r->data[1]),@"generation":@(r->data[3]),@"last_use_serial":@(current->serial),
+-                @"view":@(r->data[2]),@"offset":@(r->data[5]),@"length":@(r->data[6]),@"input_version":@(r->data[4]),@"output_version":@(r->data[8]),@"validated_version":@(validated),@"native_range":nativeRange,@"native_texture":@((r->data[0]==FFS_TEXTURE)&&((r->flags&FFS_WRITE)||([previous[@"native_texture"] boolValue]&&[previous[@"output_version"] unsignedLongLongValue]==r->data[4])))};
++                @"view":@(r->data[2]),@"offset":@(r->data[5]),@"length":@(r->data[6]),@"input_version":@(r->data[4]),@"output_version":@(r->data[8]),@"validated_version":@(validated),@"native_range":nativeRange};
+             if(r->data[0]==FFS_BUFFER&&(r->data[1]&UINT64_C(0x8000000000000000))){
+                 if(!current->synthetic_roots)current->synthetic_roots=[[NSMutableSet alloc]init];
+                 [current->synthetic_roots addObject:key];
+@@ -1491,7 +1488,6 @@
+     pthread_mutex_unlock(&source_lock);return covered;
+ }}
+ uint32_t fullframe_chunk_stream_retire(uint64_t kind,uint64_t root,uint64_t generation){@autoreleasepool{
+-    extern void fullframe_live_history_retire(uint64_t,uint64_t,uint64_t);fullframe_live_history_retire(kind,root,generation);
+     if(!fullframe_chunk_stream_enabled())return 1;pthread_mutex_lock(&source_lock);
+     if(!initialized||!seen_roots){pthread_mutex_unlock(&source_lock);return 1;}
+     if((kind!=FFS_BUFFER&&kind!=FFS_TEXTURE)||!root){pthread_mutex_unlock(&source_lock);return 0;}
+@@ -1652,18 +1648,3 @@
+     [binding->readbacks addObject:target];binding->readback_bytes+=length;ok=1;
+ done:if(!ok&&!stopped)stop_source("invalid native readback target, shape, alias or missing channel");pthread_mutex_unlock(&source_lock);return ok;
+ }}
+-
+-int fullframe_chunk_texture_has_prior_native_write(const ffs_producer_context *c,const ffs_producer_resource *r){@autoreleasepool{
+- if(!c||!r||r->kind!=FFS_TEXTURE||!(r->flags&FFS_READ)||(r->flags&FFS_WRITE)||!r->handle||
+-    !private_texture_eligible((id<MTLTexture>)r->handle))return 0;
+- pthread_mutex_lock(&source_lock);NSString *key=[NSString stringWithFormat:@"%u:%llu:%llu",FFS_TEXTURE,(unsigned long long)r->root,(unsigned long long)r->allocation_generation];
+- NSDictionary *known=seen_roots[key];int yes=completion_enabled&&!stopped&&current&&!current->sealed&&current->stream==c->stream&&current->frame==c->frame&&current->chunk==c->chunk&&[known[@"native_texture"] boolValue]&&[known[@"output_version"] unsignedLongLongValue]==r->input_content_version;
+- pthread_mutex_unlock(&source_lock);return yes;
+-}}
+-
+-int fullframe_live_has_native_buffer(const ffs_producer_context *c,const ffs_producer_resource *r){
+- if(!c||!r||r->kind!=FFS_BUFFER||!(r->flags&FFS_READ))return 0;
+- pthread_mutex_lock(&source_lock);NSString *key=[NSString stringWithFormat:@"%u:%llu:%llu",FFS_BUFFER,r->root,r->allocation_generation];NSDictionary*known=seen_roots[key];NSArray*range=known[@"native_range"];
+- int ok=completion_enabled&&!stopped&&current&&!current->sealed&&current->stream==c->stream&&current->frame==c->frame&&current->chunk==c->chunk&&range.count==2&&[known[@"output_version"]unsignedLongLongValue]==r->input_content_version;
+- pthread_mutex_unlock(&source_lock);return ok;
+-}
+--- a/source/draw_cut_bridge.m
++++ b/source/draw_cut_bridge.m
+@@ -1,5 +1,4 @@
+ #include "small_snapshot_batch.h"
+-#include "direct_pass_journal.h"
+ #include <stdatomic.h>
+ /* Paired DXMT resource cut. Default builds never read the private ABI. */
+ #import <Foundation/Foundation.h>
+@@ -408,24 +407,13 @@
+ BOOL fast=allowFast&&ok&&pass&&sidecar&&output_directory<0&&plan_data&&ffmd_encode_graph&&
+     fast_typed_graph(c,sidecar,&fastPlan,&fastWire);
+ int hasReference=0;for(size_t i=0;i<c->snapshot_count;i++)if(c->reference_input_version[i])hasReference=1;
+-if((hasReference||c->direct_pass)&&!fast)return 0; /* no dictionary or filesystem fallback */
++if(hasReference&&!fast)return 0; /* no dictionary or filesystem fallback */
+ NSMutableArray *snapshots=[NSMutableArray array],*vertices=[NSMutableArray array],*constants[2]={[NSMutableArray array],[NSMutableArray array]};
+ NSMutableArray *args[2]={[NSMutableArray array],[NSMutableArray array]},*textures=[NSMutableArray array],*samplers=[NSMutableArray array];
+ 
+-
+-if(ok&&c->direct_pass){
+- uint64_t total=sizeof(ffjp_batch)+c->snapshot_count*sizeof(ffjp_entry);
+- for(size_t i=0;i<c->snapshot_count;i++){NSData *event=c->direct_journal[@(i)];if(!event||event.length>64u*1024u*1024u-total)return 0;total+=event.length;}
+- NSMutableData *journal=[NSMutableData dataWithLength:(NSUInteger)total];if(!journal)return 0;
+- ffjp_batch h={.magic=FFJP_BATCH_MAGIC,.version=1,.count=(uint32_t)c->snapshot_count,.bytes=total};memcpy(journal.mutableBytes,&h,sizeof(h));
+- uint32_t offset=(uint32_t)(sizeof(h)+c->snapshot_count*sizeof(ffjp_entry));
+- for(size_t i=0;i<c->snapshot_count;i++){NSData *event=c->direct_journal[@(i)];ffjp_entry e={offset,(uint32_t)event.length};
+-  memcpy((uint8_t*)journal.mutableBytes+sizeof(h)+i*sizeof(e),&e,sizeof(e));memcpy((uint8_t*)journal.mutableBytes+offset,event.bytes,event.length);offset+=(uint32_t)event.length;}
+- if(sink(context,"direct-journal.bin",journal.bytes,journal.length)!=1)return 0;
+-}
+ BOOL batched[FF_DRAW_RESOURCE_LIMIT]={0};uint32_t batchCount=0;uint64_t batchData=0;
+ const char *batchMode=getenv("BEDROCK_NATIVE_SNAPSHOT_BATCH");
+-if(!c->direct_pass&&ok&&fast&&snapshot_sink&&output_directory<0&&batchMode&&!strcmp(batchMode,"1")){
++if(ok&&fast&&snapshot_sink&&output_directory<0&&batchMode&&!strcmp(batchMode,"1")){
+  for(size_t i=0;i<c->snapshot_count;i++){
+   uint64_t length=c->serialized_length[i];
+   if(c->reference_input_version[i]||c->shared_snapshot_extents[i].lease.generation||!length||length>65536)continue;
+@@ -450,7 +438,6 @@
+ }
+ 
+ for(size_t i=0;ok&&i<c->snapshot_count;i++){
+-    if(c->direct_pass){++written;continue;}
+     if(batched[i]){++written;continue;}
+     char name[32];snprintf(name,sizeof(name),"cut-buffer-%02zu.bin",i+1);id<MTLBuffer> b=c->snapshots[i];
+     uint64_t length=c->serialized_length[i];
+@@ -492,9 +479,7 @@
+     }
+ }
+ for(size_t i=0;ok&&i<c->texture_count;i++){
+-    ff_texture_snapshot t=c->textures[i];
+-    if(c->direct_pass&&c->direct_texture_versions[i]){char refname[40];snprintf(refname,sizeof(refname),"journal-texture-%02zu.bin",i+1);
+-      uint64_t version=c->direct_texture_versions[i];if(sink(context,refname,&version,sizeof(version))!=1){ok=0;break;}++texture_written;continue;}char name[32];snprintf(name,sizeof(name),"cut-texture-%02zu.bin",i+1);
++    ff_texture_snapshot t=c->textures[i];char name[32];snprintf(name,sizeof(name),"cut-texture-%02zu.bin",i+1);
+     if(!t.bytes){ok=0;break;}
+     uint64_t sink_started=draw_profile_now();int accepted=sink(context,name,t.bytes,t.length);
+     uint64_t sink_ended=draw_profile_now();if(sink_ended>=sink_started)texture_sink_ns+=sink_ended-sink_started;
+@@ -514,7 +499,7 @@
+     if(fast){
+         NSDictionary *envelope=@{@"format":@"bedrock-draw-resource-cut",@"version":@3,
+             @"cut_id":[NSString stringWithFormat:@"draw-cut-%llu",(unsigned long long)c->capture_id],@"complete_pass":@YES,
+-            @"direct_pass":(c->direct_pass?@YES:@NO),@"wire_blob":@"draw-resource-cut.bin",@"wire_sha256":replay_digest(fastWire),
++            @"wire_blob":@"draw-resource-cut.bin",@"wire_sha256":replay_digest(fastWire),
+             @"plan_blob":@"draw-plan.bin",@"plan_sha256":replay_digest(fastPlan)};
+         uint64_t started=draw_profile_now();NSData *data=[NSJSONSerialization dataWithJSONObject:envelope options:0 error:nil];
+         draw_profile_json(context,started,data);
+--- a/source/draw_replay_capture.m
++++ b/source/draw_replay_capture.m
+@@ -175,7 +175,6 @@
+ }
+ FFSTPassRecord *fullframe_frame_capture_record(id<MTLCommandBuffer> command,const struct WMTRenderPassInfo *info,
+     const struct wmtcmd_base *head,const struct ff_draw_cut *cut) {
+-    const char *live=getenv("BEDROCK_LIVE_COMMANDS");if(live&&!strcmp(live,"1")){fprintf(stderr,"[live-command-reject] reason=forbidden-pass-capture\n");abort();}
+     const char *failure=dir<0?"capture-disabled":!command?"command-missing":!cut?"cut-missing":
+         cut->discarded?"cut-discarded":!cut->complete_pass?"cut-incomplete":!fullframe_replay_pass_eligible(info)?"pass-ineligible":NULL;
+     if(failure){if(!strcmp(failure,"pass-ineligible"))failure=frame_pass_ineligible_reason(info);
+@@ -688,5 +687,3 @@
+     }
+     pthread_mutex_unlock(&guard);
+ }
+-
+-FFSTPassPipelineSnapshot *fullframe_live_pipeline(id<MTLRenderPipelineState> object){return ff_pc_resolve(object);}
+--- a/source/draw_resource_cut.h
++++ b/source/draw_resource_cut.h
+@@ -85,12 +85,6 @@
+     int complete_pass;
+     int discarded; /* inserted copy remains ordered, but must not be published */
+     uint32_t stop_reason, stop_command_type, resource_detail;
+-    unsigned char direct_eligible[FF_DRAW_RESOURCE_LIMIT],direct_copied[FF_DRAW_RESOURCE_LIMIT];
+-    void *direct_shadow[FF_DRAW_RESOURCE_LIMIT];
+-    int direct_cpu_ready;
+-    NSMutableDictionary *direct_journal; /* ordered owned updates and identity references */
+-    uint64_t direct_texture_versions[FF_TEXTURE_RESOURCE_LIMIT];
+-    int direct_pass;
+     int staging_gpu_completed; /* local-only tail; all existing offsets unchanged */
+ };
+ typedef void (*ff_draw_cut_completion)(struct ff_draw_cut *cut, int gpu_completed, void *context);
+--- a/source/draw_resource_cut.m
++++ b/source/draw_resource_cut.m
+@@ -1,6 +1,4 @@
+ #import "draw_resource_cut.h"
+-#include "direct_pass_journal.h"
+-extern void *fullframe_direct_journal_copy(uint64_t,uint64_t,uint64_t,uint64_t,size_t,size_t *);
+ #ifdef BEDROCK_BOUNDARY_UPLOADS
+ #include "native_boundary_upload.h"
+ #endif
+@@ -63,8 +61,6 @@
+  * lease index avoid scanning every active buffer. Source cuts and every
+  * no-copy packet owner retain their original explicit leases. */
+ #include <limits.h>
+-extern int fullframe_direct_upload_mode(void);
+-extern int fullframe_direct_upload_copy(uint64_t,uint64_t,uint64_t,uint64_t,void *,size_t);
+ #define STAGE_POOL_COUNT 4096
+ #define STAGE_POOL_BUCKETS 8192
+ static struct {id<MTLBuffer> buffer;id<MTLDevice> device;NSUInteger length,cost;unsigned refs;int good,bad;uint16_t idle_next,pointer_next;} stage_pool[STAGE_POOL_COUNT];
+@@ -124,9 +120,9 @@
+ 
+ void ff_draw_cut_destroy(struct ff_draw_cut *c){
+     if(!c)return;
+-    for(size_t i=0;i<c->snapshot_count;i++){free(c->direct_shadow[i]);fullframe_stage_pool_release(c->snapshots[i],(c->staging_gpu_completed||c->direct_cpu_ready)?2:0);[c->snapshots[i] release];}
++    for(size_t i=0;i<c->snapshot_count;i++){fullframe_stage_pool_release(c->snapshots[i],c->staging_gpu_completed?2:0);[c->snapshots[i] release];}
+     for(size_t i=0;i<c->texture_count;i++)[c->texture_buffers[i] release];
+-    [c->texture_reuse release];[c->direct_journal release];[c->ready_fence release];free(c->draws);free(c);
++    [c->texture_reuse release];[c->ready_fence release];free(c->draws);free(c);
+ }
+ static int compact_use(const struct ff_draw_cut *c,const ff_vertex_binding *b,uint64_t length,uint64_t *needed,int allow_reference){
+     if(!b->id)return !b->generation&&!b->offset&&!b->stride&&!b->length;
+@@ -222,7 +218,7 @@
+     free(lengths);return ok;
+ }
+ int ff_draw_cut_compact_for_wire(struct ff_draw_cut *cut,int gpu_completed){
+-    return gpu_completed&&ff_draw_cut_compact(cut)&&(cut->direct_pass||cut->serialized_bytes<=FF_VERTEX_BYTES_LIMIT);
++    return gpu_completed&&ff_draw_cut_compact(cut)&&cut->serialized_bytes<=FF_VERTEX_BYTES_LIMIT;
+ }
+ /* Metal declares gpuAddress and length readonly. Cache them for the lifetime
+  * of this retained command-stream buffer; logical DXMT identity remains per
+@@ -658,7 +654,6 @@
+     restore_plan(c,&c->draws[0]);
+     c->snapshot_bytes=p->buffer_bytes;
+     c->texture_reuse=[[NSMutableDictionary alloc]init];
+-    c->direct_pass=ffjp_enabled();if(c->direct_pass)c->direct_journal=[[NSMutableDictionary alloc]init];
+     if(filter&&!filter(c,filter_context)){failure_stage="filter";goto rejected;}
+     /* Validate the complete resource graph before allocating any GPU staging;
+      * unsupported draws must not churn allocations while the game continues. */
+@@ -671,24 +666,12 @@
+                source.heap||[source isAliasable])c->reference_input_version[i]=0;
+             c->reference_source_handle[i]=0; /* producer-local borrowed handle */
+         }
+-        if(c->direct_pass){
+-            void *owned=NULL;size_t total=0;
+-            if(c->reference_input_version[i]){
+-                ffjp_record r={.magic=FFJP_MAGIC,.root=c->source_incarnation[i],.generation=c->source_generation[i],
+-                    .epoch=c->reference_input_version[i],.offset=p->offsets[i],.length=p->lengths[i],.flags=FFJP_NATIVE};
+-                total=sizeof(r);owned=malloc(total);if(owned)memcpy(owned,&r,total);
+-            }else if(c->direct_eligible[i])owned=fullframe_direct_journal_copy(c->source_incarnation[i],c->source_generation[i],p->offsets[i],(uint64_t)(uintptr_t)p->sources[i],p->lengths[i],&total);
+-            if(!owned){failure_stage="direct-journal-missing-writer";failure_index=i;goto rejected;}
+-            NSData *event=[[NSData alloc]initWithBytesNoCopy:owned length:total freeWhenDone:YES];
+-            c->direct_journal[@(i)]=event;[event release];c->serialized_length[i]=p->lengths[i];continue;
+-        }
+         if(c->reference_input_version[i])continue;
+         if(allocator)c->snapshots[i]=allocator(p->device,p->lengths[i],&c->shared_snapshot_extents[i],allocator_context);
+         if(!c->snapshots[i]&&!extended)c->snapshots[i]=stage_buffer(p->device,p->lengths[i]);
+         if(!c->snapshots[i]){failure_stage="buffer-allocation";failure_index=i;goto rejected;}
+     }
+     for(size_t i=0;i<c->texture_count;i++){
+-        if(c->direct_pass&&c->direct_texture_versions[i])continue;
+         id owner=c->texture_reuse[@(i)];
+         if(owner&&[owner length]==c->textures[i].length&&[owner bytes]){c->textures[i].bytes=[owner bytes];continue;}
+         c->texture_buffers[i]=extended?(allocator?allocator(p->device,c->textures[i].length,NULL,allocator_context):nil):
+@@ -696,29 +679,11 @@
+         if(!c->texture_buffers[i]){failure_stage="texture-allocation";failure_index=i;goto rejected;}
+         c->textures[i].bytes=c->texture_buffers[i].contents;
+     }
+-    unsigned directMode=fullframe_direct_upload_mode();size_t directCount=0,gpuCount=0;
+-    for(size_t i=0;i<c->snapshot_count;i++)if(!c->direct_pass&&!c->reference_input_version[i]){
+-        id<MTLBuffer> source=p->sources[i];
+-        if(directMode&&c->direct_eligible[i]&&(source.storageMode==MTLStorageModeShared||source.storageMode==MTLStorageModeManaged)&&!source.heap&&![source isAliasable]&&
+-           fullframe_direct_upload_copy(c->source_incarnation[i],c->source_generation[i],p->offsets[i],(uint64_t)(uintptr_t)source,c->snapshots[i].contents,p->lengths[i])){
+-            c->direct_copied[i]=1;++directCount;
+-            if(directMode==1){c->direct_shadow[i]=malloc(p->lengths[i]);if(!c->direct_shadow[i]){failure_stage="direct-shadow-allocation";goto rejected;}
+-                memcpy(c->direct_shadow[i],c->snapshots[i].contents,p->lengths[i]);}
+-        }else ++gpuCount;
+-    }
+-    for(size_t i=0;i<c->texture_count;i++)if(c->texture_buffers[i])++gpuCount;
+-    /* Early CPU serialization is enabled only for the continuous native path;
+-     * no offline reference capture borrows the cut after prepare returns. */
+-    (void)gpuCount;c->direct_cpu_ready=0; /* direct journal publication remains ordered with chunk completion */
+-    if(c->direct_pass){c->compacted=1;c->serialized_bytes=0;for(size_t j=0;j<c->snapshot_count;j++)c->serialized_bytes+=c->serialized_length[j];}
+-    if(directCount){static _Atomic uint64_t passes,early,uploads;uint64_t sample=atomic_fetch_add(&passes,1)+1;
+-      atomic_fetch_add(&uploads,directCount);if(c->direct_cpu_ready)atomic_fetch_add(&early,1);
+-      if(sample<=2||!(sample%256))fprintf(stderr,"[direct-upload-pass] mode=%u passes=%llu early=%llu uploads=%llu\n",directMode,(unsigned long long)sample,(unsigned long long)atomic_load(&early),(unsigned long long)atomic_load(&uploads));}
+     c->ready_fence=[command.device newFence];if(!c->ready_fence){failure_stage="fence-allocation";goto rejected;}
+     id<MTLBlitCommandEncoder> blit=[command blitCommandEncoder];if(!blit){failure_stage="blit-encoder";goto rejected;}
+     for(size_t i=0;i<fence_count;i++)[blit waitForFence:fences[i]];
+     for(size_t i=0;i<c->snapshot_count;i++){
+-        if(c->direct_pass||c->reference_input_version[i]||(directMode==2&&c->direct_copied[i]))continue;
++        if(c->reference_input_version[i])continue;
+ #ifdef BEDROCK_BOUNDARY_UPLOADS
+         int owned=fullframe_boundary_upload_copy(c->source_incarnation[i],c->source_generation[i],
+             p->offsets[i],c->snapshots[i].contents,p->lengths[i]);
+@@ -733,12 +698,7 @@
+             sourceSize:MTLSizeMake(MAX(1,s->width>>plane.mip),MAX(1,s->height>>plane.mip),1) toBuffer:c->texture_buffers[i]
+             destinationOffset:plane.offset destinationBytesPerRow:plane.row_bytes destinationBytesPerImage:plane.length];}
+     [blit updateFence:c->ready_fence];[blit endEncoding];
+-    if(!c->direct_cpu_ready)[command addCompletedHandler:^(id<MTLCommandBuffer> finished){
+-      c->staging_gpu_completed=finished.status==MTLCommandBufferStatusCompleted;
+-      if(c->staging_gpu_completed)for(size_t i=0;i<c->snapshot_count;i++)if(c->direct_shadow[i]&&memcmp(c->direct_shadow[i],c->snapshots[i].contents,c->source_length[i])){
+-        fprintf(stderr,"[direct-upload-shadow] mismatch=1\n");c->staging_gpu_completed=0;break;}
+-      completion(c,c->staging_gpu_completed,context);
+-    }];
++    [command addCompletedHandler:^(id<MTLCommandBuffer> finished){c->staging_gpu_completed=finished.status==MTLCommandBufferStatusCompleted;completion(c,c->staging_gpu_completed,context);}];
+     free(p);*scheduled=c;return 1;
+ rejected:
+     if(diagnostics)cut_failure("stage=%s index=%zu capture=%llu draws=%zu complete=%d stop=%u command=%u command_index=%u detail=%u buffer_candidates=%zu texture_candidates=%zu buffers=%zu textures=%zu buffer_bytes=%zu texture_bytes=%zu\n",
+@@ -805,5 +765,3 @@
+     const ff_draw_layout *layout,const id<MTLFence> *fences,size_t fence_count,ff_draw_cut_completion completion,void *context,struct ff_draw_cut **scheduled){
+     return ff_draw_pass_cut_schedule(command,head,initial,single_layout,(void *)layout,fences,fence_count,1,completion,context,scheduled);
+ }
+-
+-int fullframe_live_sampler(uint64_t handle,ff_sampler_snapshot *s){return sampler_lookup(handle,s);}
+--- a/source/frame_stream_payload.m
++++ b/source/frame_stream_payload.m
+@@ -881,12 +881,9 @@
+     return used;
+ }
+ #include "vertex_role_index.h"
+-#include "direct_pass_journal.h"
+-extern int fullframe_chunk_texture_has_prior_native_write(const ffs_producer_context *,const ffs_producer_resource *);
+ static unsigned vertex_role_mode(void){static unsigned mode;static dispatch_once_t once;
+  dispatch_once(&once,^{const char *v=getenv("BEDROCK_NATIVE_VERTEX_ROLE_INDEX");mode=v&&!strcmp(v,"1")?1:v&&!strcmp(v,"2")?2:0;});return mode;}
+ static int payload_filter(const struct ff_draw_cut *cut,void *opaque){
+-    const char *live=getenv("BEDROCK_LIVE_COMMANDS");if(live&&!strcmp(live,"1")){fprintf(stderr,"[live-command-reject] reason=forbidden-capture-entry\n");abort();}
+     struct payload_context *p=opaque;const ffs_producer_context *c=p->producer;
+     p->filter_called=1;p->cut_id=cut->capture_id;p->cut_draws=cut->draw_count;p->cut_buffers=cut->snapshot_count;p->cut_textures=cut->texture_count;
+     p->cut_snapshot_bytes=cut->snapshot_bytes;p->cut_stop=cut->stop_reason;p->cut_command=cut->stop_command_type;p->cut_detail=cut->resource_detail;
+@@ -930,14 +927,10 @@
+             cut->source_offset[i]>=refs[j].offset&&cut->source_offset[i]-refs[j].offset<=refs[j].length&&
+             cut->source_length[i]<=refs[j].length-(cut->source_offset[i]-refs[j].offset)){match=&refs[j];break;}
+         if(!match){free(index);p->reject_reason="buffer-reference";p->reject_index=i;return 0;}
+-        /* Only a version-one read can use a sealed CPU preimage. Any ordered
+-         * GPU mutation, unknown identity, or later writer keeps GPU acquisition. */
+-        if(match->input_content_version==1&&match->output_content_version==1&&!(match->flags&FFS_WRITE))
+-            ((struct ff_draw_cut *)cut)->direct_eligible[i]=1;
+         int vertex_only=0;
+         if(refMode&&match->handle&&match->input_content_version){
+-            vertex_only=ffjp_enabled()?1:role_ready?ff_vertex_role_only(&role_index,cut->snapshot_count,i):reference_vertex_only(cut,i);
+-            if(!ffjp_enabled()&&role_mode==1&&vertex_only!=reference_vertex_only(cut,i)){
++            vertex_only=role_ready?ff_vertex_role_only(&role_index,cut->snapshot_count,i):reference_vertex_only(cut,i);
++            if(role_mode==1&&vertex_only!=reference_vertex_only(cut,i)){
+                 free(index);p->reject_reason="vertex-role-parity";p->reject_index=i;return 0;}
+         }
+         if(vertex_only){
+@@ -964,8 +957,6 @@
+         const ffs_producer_resource *match=index?ff_payload_ref_texture(index,refs,cut->source_texture_ids[i]):NULL;
+         if(!index)for(size_t j=0;j<c->resource_count;j++)if(refs[j].kind==FFS_TEXTURE&&((id<MTLTexture>)refs[j].handle).gpuResourceID._impl==cut->source_texture_ids[i]){match=&refs[j];break;}
+         if(!match){free(index);p->reject_reason="texture-reference";p->reject_index=i;return 0;}
+-        if(ffjp_enabled()&&fullframe_chunk_texture_has_prior_native_write(c,match))
+-            ((struct ff_draw_cut *)cut)->direct_texture_versions[i]=match->input_content_version;
+         if(callback_collect)callback_textures[i]=(uint16_t)(match-refs);
+         int texture_written=index?ff_payload_ref_texture_written(index,refs,match->root,match->allocation_generation):0;
+         if(!index)for(size_t j=0;j<c->resource_count;j++)if(refs[j].kind==FFS_TEXTURE&&refs[j].root==match->root&&
+@@ -1047,7 +1038,7 @@
+         int prepared=ff_draw_cut_compact_for_wire(cut,ok);
+         if(ok)payload_profile_token(p->directory,FFSC_PROFILE_COMPACT,payload_profile_elapsed(compact_started),0,1);
+         for(size_t i=0;prepared&&p->directory < -1&&fullframe_chunk_blob_identity&&i<cut->snapshot_count;i++){
+-            if(cut->direct_pass||cut->reference_input_version[i]||!p->buffer_memo_roots[i])continue;
++            if(cut->reference_input_version[i]||!p->buffer_memo_roots[i])continue;
+             char name[64];snprintf(name,sizeof(name),"cut-buffer-%02zu.bin",i+1);
+             uint64_t length=cut->compacted?cut->serialized_length[i]:cut->source_length[i];
+             prepared=fullframe_chunk_blob_identity(p->directory,name,FFS_BUFFER,p->buffer_memo_roots[i],0,cut->source_offset[i],length);
+@@ -1653,9 +1644,6 @@
+         (unsigned long long)(p?p->budget_requested:0),(unsigned long long)(p?p->budget_reserved:0),
+         (unsigned long long)(p?p->budget_shared:0),(unsigned long long)(p?p->budget_memo:0),(unsigned long long)(p?p->budget_arena:0));
+ }
+-#include "direct_pass_journal.h"
+-#include "library_hash_name.h"
+-#include "live_command_source.inc"
+ static uint64_t frame_stream_prepare_impl(id<MTLCommandBuffer> command,struct WMTRenderPassInfo *info,const ffs_producer_context *c){@autoreleasepool{
+     if(!command||!c||c->magic!=FFS_PREPARE_MAGIC||c->version!=FFS_PREPARE_VERSION||c->bytes!=sizeof(*c)||
+        c->resource_count>FFS_MAX_RESOURCES||(c->resource_count&&!c->resources.ptr)||c->command_count>FFS_MAX_COMMANDS||
+@@ -1664,7 +1652,6 @@
+             render_reject(c,0,"invalid-prepare-input",NULL);
+         return 0;
+     }
+-    if(live_enabled()&&!c->stream)return live_warm_prepare(info,c);
+     int continuous=chunk_mode();
+     pthread_mutex_lock(&guard);
+     if(continuous&&!io){io=dispatch_queue_create("bedrock.native-chunk.payloads.0",DISPATCH_QUEUE_SERIAL);
+@@ -1698,7 +1685,6 @@
+     }}
+     else{if(mkdirat(root_directory,name,0700)){if(c->category==FFS_RENDER)render_reject(c,payload,"directory-create",NULL);return 0;}
+         directory=openat(root_directory,name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);if(directory<0){if(c->category==FFS_RENDER)render_reject(c,payload,"directory-open",NULL);return 0;}}
+-    if(live_enabled()&&c->category!=FFS_PRESENT_ENCODER)return live_prepare(command,info,c,payload,directory);
+     if(c->category==FFS_BLIT||c->category==FFS_TIMESTAMP||c->category==FFS_SIGNAL_EVENT)return operation_payload(command,info,c,payload,directory);
+     if(c->category==FFS_CLEAR||c->category==FFS_RESOLVE)return utility_payload(command,info,c,payload,directory);
+     if(c->category==FFS_PRESENT_ENCODER){
+@@ -1785,14 +1771,6 @@
+         pthread_mutex_lock(&guard);refresh_shared_bytes_locked();pthread_mutex_unlock(&guard);
+     }
+     if(log_payload_success(directory))fprintf(stderr,"[full-frame-payload] scheduled payload=%llu draws=%zu buffers=%zu textures=%zu loads=%zu\n",(unsigned long long)payload,cut->draw_count,cut->snapshot_count,cut->texture_count,p->load_count);
+-    if(cut->direct_cpu_ready){
+-        /* Nothing in this cut reads source GPU output. Keep the borrowed
+-         * fence alive until its source command completes, but serialize owned
+-         * CPU bytes now. Source completion/query publication stays independent. */
+-        id<MTLFence> held=[cut->ready_fence retain];
+-        [command addCompletedHandler:^(id<MTLCommandBuffer> finished){(void)finished;[held release];}];
+-        boundary_pass_cut=NULL;payload_complete(cut,1,p);
+-    }
+     return payload;
+ }}
+ uint64_t fullframe_frame_stream_prepare(id<MTLCommandBuffer> command,struct WMTRenderPassInfo *info,const ffs_producer_context *c){
+--- a/source/native_boundary_upload.c
++++ b/source/native_boundary_upload.c
+@@ -1,7 +1,3 @@
+-#include <stddef.h>
+-#include "live_startup_wire.h"
+-extern uint32_t fullframe_live_initial_write(uint64_t,uint64_t,uint64_t,const void*,uint64_t,uint64_t);
+-extern void fullframe_live_buffer_write(uint64_t,uint64_t,uint64_t,const void*,size_t);
+ #include "native_boundary_upload.h"
+ #include <pthread.h>
+ #include <stdlib.h>
+@@ -50,15 +46,6 @@
+ static pthread_once_t once=PTHREAD_ONCE_INIT;static ffbu_store *store;static int enabled;
+ static void initialize(void){const char *v=getenv("BEDROCK_BOUNDARY_UPLOADS");enabled=v&&!strcmp(v,"1");if(enabled)store=ffbu_create(64u*1024u*1024u);}
+ uint32_t fullframe_boundary_upload(uint64_t root,uint64_t generation,uint64_t offset,const void *bytes,uint64_t length,uint64_t handle){
+-    if(bytes&&length>=sizeof(ffli_header)){uint64_t magic;memcpy(&magic,bytes,8);if(magic==FFLI_MAGIC)return fullframe_live_initial_write(root,generation,offset,bytes,length,handle);}
+-    extern int fullframe_direct_upload_mode(void);
+-    extern uint32_t fullframe_direct_upload_seal(uint64_t,uint64_t,uint64_t,const void *,size_t,uint64_t,uint32_t);
+-    if(fullframe_direct_upload_mode()&&bytes&&length>=24&&length<=32u*1024u*1024u+24){
+-      uint64_t magic=0,n=0;uint32_t epoch=0,reserved=0;memcpy(&magic,bytes,8);memcpy(&epoch,(const char*)bytes+8,4);
+-      memcpy(&reserved,(const char*)bytes+12,4);memcpy(&n,(const char*)bytes+16,8);
+-      if(magic==UINT64_C(0x3155504355444646)&&!reserved&&n==length-24)
+-        {uint32_t ok=fullframe_direct_upload_seal(root,generation,offset,(const char*)bytes+24,(size_t)n,handle,epoch);if(ok)fullframe_live_buffer_write(root,generation,offset,(const char*)bytes+24,(size_t)n);return ok;}
+-    }
+     pthread_once(&once,initialize);if(!enabled)return 0;
+     if(!store)return 0;
+     /* Lookups always fall back while authority is incomplete, so don't retain
+--- a/source/retained_observer.c
++++ b/source/retained_observer.c
+@@ -1,8 +1,6 @@
+ /* Allocation lifetime authority with optional coverage diagnostics. Native
+  * references still require independent written-range/version evidence. */
+ #include "retained_observer.h"
+-#include "direct_pass_journal.h"
+-#include "frame_stream.h"
+ #include "frame_stream_private.h"
+ #include <pthread.h>
+ #include <stdio.h>
+@@ -10,17 +8,16 @@
+ #include <string.h>
+ #define RO_CAPACITY 65536u
+ enum { TAINT_POINTER=1,TAINT_UPDATE=2,TAINT_ALIAS=4,TAINT_GENERATION=8,TAINT_POLICY=16,TAINT_DEAD=32 };
+-typedef struct {uint64_t root,generation,handle,length;uint32_t taint,policy,candidate,direct,epoch,upload_epoch;uint64_t upload_generation,upload_offset,published_generation;uint32_t published_epoch,published_count,published_cursor;uint64_t published_ranges[8][2];size_t upload_length;void *upload;} ROEntry;
++typedef struct {uint64_t root,generation,handle,length;uint32_t taint,policy,candidate;} ROEntry;
+ static ROEntry entries[RO_CAPACITY];static pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
+-static pthread_once_t once=PTHREAD_ONCE_INIT;static int enabled,diagnostics,live_commands;
+-static size_t direct_bytes;static uint64_t direct_seals,direct_hits,direct_misses,direct_copied,direct_births,direct_queries;static int direct_mode;
++static pthread_once_t once=PTHREAD_ONCE_INIT;static int enabled,diagnostics;
+ static uint64_t events,births,cpu,updates,aliases,generations,deaths,passes,ranges_seen,bytes,union_bytes;
+ static uint64_t clean_bytes,mapped_bytes,updated_bytes,alias_bytes,policy_bytes,unknown_bytes,overflow,invalid;
+ static uint64_t active,peak_active;
+ static uint64_t flag_only_bytes,placed_bytes,suballocated_bytes,generation_only_bytes;
+ static uint64_t stream_ranges,stream_bytes,stream_matched_bytes,stream_unexposed_bytes;
+ static void report_locked(void);
+-static void configure(void){const char *l=getenv("BEDROCK_LIVE_COMMANDS");live_commands=l&&!strcmp(l,"1");const char *v=getenv("BEDROCK_PRIVATE_RETAINED_OBSERVER"),*r=getenv("BEDROCK_NATIVE_RETAINED");diagnostics=v&&!strcmp(v,"1");enabled=diagnostics||(r&&!strcmp(r,"1"));const char *d=getenv("BEDROCK_DIRECT_UPLOAD");direct_mode=d&&!strcmp(d,"1")?1:d&&!strcmp(d,"2")?2:0;}
++static void configure(void){const char *v=getenv("BEDROCK_PRIVATE_RETAINED_OBSERVER"),*r=getenv("BEDROCK_NATIVE_RETAINED");diagnostics=v&&!strcmp(v,"1");enabled=diagnostics||(r&&!strcmp(r,"1"));}
+ static ROEntry *lookup(uint64_t root,int create){
+  size_t slot=(size_t)((root*UINT64_C(11400714819323198485))>>(64-16));
+  for(size_t n=0;n<RO_CAPACITY;n++){ROEntry *e=&entries[(slot+n)&(RO_CAPACITY-1)];if(e->root==root)return e;if(!e->root)return create?e:NULL;}
+@@ -30,9 +27,7 @@
+  * chain intact avoids both stale matches and an ever-growing tombstone set.
+  * Only concurrent live identities consume capacity. Source incarnation IDs
+  * remain producer-issued; this observer does not grant authority. */
+-static void direct_drop(ROEntry *e){if(e->upload){direct_bytes-=e->upload_length;free(e->upload);}e->upload=NULL;e->upload_length=0;e->upload_epoch=0;}
+ static void erase(ROEntry *entry){
+- direct_drop(entry);
+  size_t hole=(size_t)(entry-entries),scan=(hole+1)&(RO_CAPACITY-1);
+  for(size_t visited=0;visited<RO_CAPACITY-1&&entries[scan].root;visited++){
+   size_t home=(size_t)((entries[scan].root*UINT64_C(11400714819323198485))>>(64-16));
+@@ -45,11 +40,6 @@
+  pthread_once(&once,configure);if(!enabled)return 0;
+  if(v&&!diagnostics&&(v->operation==RO_STREAM_READ||v->operation==RO_REPORT))return 1;
+  pthread_mutex_lock(&lock);events++;
+- if(v&&v->operation==9){++direct_queries;ROEntry *e=v->root?lookup(v->root,0):NULL;
+-  uint32_t stamp=direct_mode&&e&&e->direct&&e->handle==v->handle&&!invalid&&!overflow&&
+-      !(e->taint&(TAINT_ALIAS|TAINT_DEAD))?e->epoch:0;
+-  pthread_mutex_unlock(&lock);return stamp;}
+-
+  if(v&&v->operation==8){report_locked();pthread_mutex_unlock(&lock);return 1;}
+  if(v&&v->operation==7){
+   stream_ranges++;stream_bytes+=v->length;ROEntry *e=v->root?lookup(v->root,0):NULL;
+@@ -64,17 +54,14 @@
+  if(v->operation==RO_BIRTH){
+   births++;
+   if(!e||e->root||!v->length){invalid++;pthread_mutex_unlock(&lock);return 0;}
+-  *e=(ROEntry){.root=v->root,.generation=v->generation,.handle=v->handle,.length=v->length,.candidate=(v->flags&(UINT64_C(1)<<7))!=0,.direct=direct_mode&&(v->flags&(UINT64_C(1)<<8))&&!(v->flags&((UINT64_C(1)<<1)|(UINT64_C(1)<<6)))&&v->auxiliary==1,.epoch=1};active++;if(active>peak_active)peak_active=active;
++  *e=(ROEntry){v->root,v->generation,v->handle,v->length,0,0,(v->flags&(UINT64_C(1)<<7))!=0};active++;if(active>peak_active)peak_active=active;
+   /* Explicitly reject placed backing, suballocation and non-single allocation.
+    * This is a prospective cohort label, not a claim of graphics authority. */
+   e->policy=((v->flags&(UINT64_C(1)<<5))?1u:0u)|((v->flags&(UINT64_C(1)<<6))?2u:0u)|((v->auxiliary!=1)?4u:0u);
+-  if(e->policy)e->taint|=TAINT_POLICY;if(e->direct)++direct_births;
++  if(e->policy)e->taint|=TAINT_POLICY;
+  }else if(!e||e->handle!=v->handle||(e->taint&TAINT_DEAD)){invalid++;}
+  else {
+   if(e->generation!=v->generation)e->taint|=TAINT_GENERATION;
+-  if(v->operation==RO_CPU_POINTER||v->operation==RO_UPDATE||v->operation==RO_ALIAS ){
+-    if(!live_commands||v->operation==RO_ALIAS)direct_drop(e);if(e->epoch<UINT32_MAX)++e->epoch;else e->direct=0;
+-  }
+   switch(v->operation){
+    case RO_CPU_POINTER:cpu++;e->taint|=TAINT_POINTER;break;
+    case RO_UPDATE:updates++;e->taint|=TAINT_UPDATE;break;
+@@ -145,45 +132,3 @@
+ }
+ 
+ int retained_observer_diagnostics(void){pthread_once(&once,configure);return diagnostics;}
+-
+-int fullframe_direct_upload_mode(void){pthread_once(&once,configure);return direct_mode;}
+-uint32_t fullframe_direct_upload_seal(uint64_t root,uint64_t generation,uint64_t offset,const void *bytes,size_t length,uint64_t handle,uint32_t epoch){
+- pthread_once(&once,configure);if(!direct_mode)return 0;pthread_mutex_lock(&lock);ROEntry *e=lookup(root,0);int ok=0;
+- if(e&&e->direct&&!invalid&&!overflow&&e->generation==generation&&e->handle==handle&&(live_commands?epoch<=e->epoch:e->epoch==epoch)&&epoch&&
+-    !(e->taint&(TAINT_ALIAS|TAINT_DEAD))&&bytes&&length&&length<=32u*1024u*1024u&&offset<=e->length&&length<=e->length-offset){
+-  direct_drop(e);if(length<=128u*1024u*1024u-direct_bytes){void *owned=malloc(length);if(owned){memcpy(owned,bytes,length);e->upload=owned;
+-    e->upload_length=length;e->upload_offset=offset;e->upload_generation=generation;e->upload_epoch=epoch;direct_bytes+=length;++direct_seals;ok=1;}}}
+- pthread_mutex_unlock(&lock);return ok;
+-}
+-int fullframe_direct_upload_copy(uint64_t root,uint64_t generation,uint64_t offset,uint64_t handle,void *destination,size_t length){
+- pthread_once(&once,configure);if(!direct_mode)return 0;pthread_mutex_lock(&lock);ROEntry *e=lookup(root,0);int ok=0;
+- if(e&&e->direct&&!invalid&&!overflow&&e->generation==generation&&e->handle==handle&&e->upload&&e->upload_generation==generation&&
+-    e->epoch==e->upload_epoch&&!(e->taint&(TAINT_ALIAS|TAINT_DEAD))&&destination&&length&&
+-    offset>=e->upload_offset&&offset-e->upload_offset<=e->upload_length&&length<=e->upload_length-(offset-e->upload_offset)){
+-  memcpy(destination,(const char *)e->upload+(offset-e->upload_offset),length);++direct_hits;direct_copied+=length;ok=1;
+- }else ++direct_misses;
+- uint64_t calls=direct_hits+direct_misses;if(calls<=2||!(calls%4096)||(ok&&direct_hits<=2))fprintf(stderr,"[direct-upload] mode=%d seals=%llu hits=%llu misses=%llu copied_bytes=%llu retained_bytes=%zu births=%llu queries=%llu\n",direct_mode,(unsigned long long)direct_seals,(unsigned long long)direct_hits,(unsigned long long)direct_misses,(unsigned long long)direct_copied,direct_bytes,(unsigned long long)direct_births,(unsigned long long)direct_queries);
+- pthread_mutex_unlock(&lock);return ok;
+-}
+-
+-/* Called on the serial encoding owner, before pass publication. The first
+- * reference to an epoch carries its owned update; later references carry only
+- * its identity. Any failed packet aborts the stream, so publication never rolls
+- * forward across a dropped update. Allocation destroy removes this state. */
+-void *fullframe_direct_journal_copy(uint64_t root,uint64_t generation,uint64_t offset,uint64_t handle,size_t length,size_t *total){
+- if(total)*total=0;if(!ffjp_enabled()||!total)return NULL;pthread_once(&once,configure);pthread_mutex_lock(&lock);
+- ROEntry *e=lookup(root,0);void *out=NULL;
+- if(e&&e->direct&&!invalid&&!overflow&&e->generation==generation&&e->handle==handle&&e->upload&&
+-    e->upload_generation==generation&&(live_commands||e->epoch==e->upload_epoch)&&!(e->taint&(TAINT_ALIAS|TAINT_DEAD))&&
+-    offset>=e->upload_offset&&offset-e->upload_offset<=e->upload_length&&length&&length<=e->upload_length-(offset-e->upload_offset)){
+-   if(e->published_generation!=generation||e->published_epoch!=e->upload_epoch){e->published_count=0;e->published_cursor=0;e->published_generation=generation;e->published_epoch=e->upload_epoch;}
+-   int fresh=1;for(uint32_t i=0;i<e->published_count;i++)if(e->published_ranges[i][0]==offset&&e->published_ranges[i][1]==length){fresh=0;break;}
+-   ffjp_record r={.magic=FFJP_MAGIC,.root=root,.generation=generation,.epoch=e->upload_epoch,.offset=offset,
+-      .length=length,.bytes=fresh?length:0,.flags=fresh?FFJP_UPDATE:0};
+-   *total=sizeof(r)+r.bytes;out=malloc(*total);if(out){memcpy(out,&r,sizeof(r));if(r.bytes)memcpy((char*)out+sizeof(r),(const char*)e->upload+(offset-e->upload_offset),r.bytes);
+-     if(fresh){uint32_t slot=e->published_cursor++%8;e->published_ranges[slot][0]=offset;e->published_ranges[slot][1]=length;if(e->published_count<8)e->published_count++;}}
+-   else *total=0;
+- }
+- if(!out&&live_commands)fprintf(stderr,"[live-command-writer] found=%d direct=%u taint=%u policy=%u epoch=%u sealed_epoch=%u generation=%llu sealed_generation=%llu requested_generation=%llu sealed_length=%zu invalid=%llu overflow=%llu\n",e!=NULL,e?e->direct:0,e?e->taint:0,e?e->policy:0,e?e->epoch:0,e?e->upload_epoch:0,(unsigned long long)(e?e->generation:0),(unsigned long long)(e?e->upload_generation:0),(unsigned long long)generation,e?e->upload_length:0,(unsigned long long)invalid,(unsigned long long)overflow);
+- pthread_mutex_unlock(&lock);return out;
+-}
+--- a/native-source/native_frame_execute.m
++++ b/native-source/native_frame_execute.m
+@@ -35,7 +35,6 @@
+ @interface FFSTFrameRenderPipeline : NSObject
+ @property(nonatomic,strong) id<MTLRenderPipelineState> state;
+ @property(nonatomic) ff_draw_layout layout;
+-@property(nonatomic,strong) NSArray *liveFetch;
+ @end
+ @implementation FFSTFrameRenderPipeline @end
+ @interface FFSTFrameRenderDraw : NSObject
+@@ -49,11 +48,8 @@
+ @property(nonatomic) BOOL material,geometry;
+ @end
+ @implementation FFSTFrameRenderDraw @end
+-#include "direct_pass_decode.inc"
+ @interface FFSTFrameRenderContext : NSObject
+ @property(nonatomic) FFSTPassResources decoded;
+-@property(nonatomic,strong) FFDPDecoded *direct;
+-@property(nonatomic,strong) FFDPTableArena *directTables;
+ @property(nonatomic) ff_vertex_resources *graph;
+ @property(nonatomic) ff_vertex_pass_resources *passTables;
+ @end
+@@ -244,16 +240,6 @@
+     draw.viewport=(MTLViewport){[v[0] doubleValue],[v[1] doubleValue],[v[2] doubleValue],[v[3] doubleValue],[v[4] doubleValue],[v[5] doubleValue]};
+     draw.scissor=(MTLScissorRect){scissor[0],scissor[1],scissor[2],scissor[3]};return draw;
+ }
+-
+-static FFSTFrameRenderDraw *pass_direct_draw(id<MTLDevice> device,const pr_row *r,NSArray *depths,FFSTFrameRenderPipeline *pipeline,const FFSTPassDrawInfo *info,NSUInteger width,NSUInteger height,FFSTNativeSessionCache *cache){
+- if(!pr_row_valid(r,depths.count)||r->stencil>255||r->draw[0]!=info->primitive||r->draw[1]!=info->start||r->draw[2]!=info->count||r->draw[3]!=info->instances||r->draw[4]!=info->base_instance||r->indexed!=info->indexed||r->index_type!=info->index_type||r->base_vertex!=info->base_vertex||r->index_count!=info->index_count||r->index_offset!=info->index_offset||r->scissor[0]>width||r->scissor[1]>height||!r->scissor[2]||!r->scissor[3]||r->scissor[2]>width-r->scissor[0]||r->scissor[3]>height-r->scissor[1]||r->viewport[2]<=0||r->viewport[3]<=0||r->viewport[4]<0||r->viewport[5]>1||r->viewport[4]>r->viewport[5])return nil;
+- id depthRecord=depths[r->depth];NSData *key=pass_depth_key(depthRecord);if(!key)return nil;id<MTLDepthStencilState> depth=[cache objectForKey:key];BOOL valid=NO;
+- if(!depth){depth=pass_depth(device,depthRecord,&valid);if(!valid||(cache&&![cache setObject:depth forKey:key cost:1]))return nil;}
+- FFSTFrameRenderDraw *draw=[FFSTFrameRenderDraw new];draw.pipeline=pipeline;draw.depth=depth;draw.info=*info;draw.stencil=r->stencil;
+- FFSTDrawState state={0};state.pipeline=(__bridge const void *)pipeline.state;state.depth=(__bridge const void *)depth;
+- memcpy(state.viewport,r->viewport,sizeof(state.viewport));for(unsigned i=0;i<4;i++)state.scissor[i]=r->scissor[i];memcpy(state.raster,r->raster,sizeof(state.raster));memcpy(state.blend,r->blend,sizeof(state.blend));memcpy(state.bias,r->bias,sizeof(state.bias));state.stencil=r->stencil;draw.state=state;
+- draw.viewport=(MTLViewport){r->viewport[0],r->viewport[1],r->viewport[2],r->viewport[3],r->viewport[4],r->viewport[5]};draw.scissor=(MTLScissorRect){r->scissor[0],r->scissor[1],r->scissor[2],r->scissor[3]};return draw;
+-}
+ static NSUInteger pass_pixel_size(MTLPixelFormat format) {
+     if(format==MTLPixelFormatRGB10A2Unorm||format==MTLPixelFormatRG11B10Float)return 4;return ff_texture_pixel_size((uint32_t)format);
+ }
+@@ -288,12 +274,6 @@
+ @property(nonatomic,strong) id<MTLTexture> texture;
+ @property(nonatomic,strong) id<MTLBuffer> buffer;
+ @property(nonatomic) uint64_t bufferOrigin,bufferLength;
+-@property(nonatomic,strong) NSMutableData *liveShadow;
+-@property(nonatomic,strong) NSMutableIndexSet *liveShadowDefined;
+-@property(nonatomic,strong) id<MTLBuffer> directBuffer;
+-@property(nonatomic,strong) NSMutableDictionary<NSData *,id<MTLBuffer>> *directSlices;
+-@property(nonatomic) uint64_t directCost;
+-@property(nonatomic) uint64_t directEpoch,directOffset,directLength;
+ @property(nonatomic,strong) NSMutableIndexSet *bufferDefined;
+ @property(nonatomic) uint64_t lastUseSerial;
+ @property(nonatomic) uint64_t accountedBytes;
+@@ -546,10 +526,6 @@
+ @property(nonatomic,strong) NSMutableIndexSet *evidence;
+ @property(nonatomic,strong) FFSTFrameResourceIndex *resourceIndex;
+ @property(nonatomic,strong) FFSTOwnedBlobs *ownedBlobs;
+-@property(nonatomic,strong) NSMutableDictionary<NSData *,NSDictionary *> *liveReferenceIndex;
+-@property(nonatomic,strong) NSMutableDictionary<NSData *,id<MTLSamplerState>> *liveSamplers;
+-@property(nonatomic,strong) id<MTLBuffer> liveTableArena;
+-@property(nonatomic) NSUInteger liveTableOffset,liveTableBytes;
+ @property(nonatomic,strong) id<MTLBuffer> uploadPool;
+ @property(nonatomic) NSUInteger uploadOffset;
+ @property(nonatomic,copy) FFSTPassLibraryResolver libraryResolver;
+@@ -609,7 +585,6 @@
+ }
+ - (BOOL)coverage:(NSDictionary *)sidecar begin:(const ffs_record *)begin resources:(NSArray<NSData *> *)resourceRecords commands:(NSArray<NSData *> *)commands render:(BOOL)render {
+     const char *format=render?"bedrock-native-frame-pass":begin->data[0]==FFS_PRESENT_ENCODER?"bedrock-native-frame-present":"bedrock-native-frame-operation";
+-    if([sidecar[@"format"]isEqual:@"bedrock-live-commands"])format="bedrock-live-commands";
+     if(!frame_header(sidecar,format,begin))return [self reject:@"frame payload/encoder identity mismatch"];
+     NSArray *resources=sidecar[@"resources"],*types=sidecar[@"command_types"];
+     if(![resources isKindOfClass:[NSArray class]]||resources.count!=resourceRecords.count||![types isKindOfClass:[NSArray class]]||types.count!=commands.count)return [self reject:@"frame payload coverage count mismatch"];
+@@ -890,12 +865,10 @@
+     }
+     return [results copy];
+ }
+-#include "live_command_native.inc"
+ - (BOOL)operation:(const ffs_record *)begin resources:(NSArray<NSData *> *)resourceRecords commands:(NSArray<NSData *> *)commands dependencies:(NSArray<NSData *> *)dependencies {
+     if(![self.request.payloads respondsToSelector:@selector(operationPayload:stream:frame:failure:)])return [self reject:@"native operation payload provider unavailable"];
+     NSString *failure=nil;FFSTNativeFrameOperationPayload *payload=[self.request.payloads operationPayload:begin->data[4] stream:begin->stream frame:begin->frame failure:&failure];
+     if(!payload)return [self reject:failure?:@"native operation payload missing"];
+-    if(live_native_enabled()){if(![payload.bindings[@"format"]isEqual:@"bedrock-live-commands"])return [self reject:@"live operation capture fallback forbidden"];return [self liveExecute:payload.bindings blobs:payload.blobs begin:begin resources:resourceRecords commands:commands];}
+     NSDictionary *sidecar=payload.bindings;uint64_t device,category;
+     if(!pass_u64(sidecar[@"category"],FFS_CATEGORY_COUNT-1,&category)||category!=begin->data[0])return [self reject:@"operation category differs from ledger"];
+     if(!pass_u64(sidecar[@"device_id"],UINT64_MAX,&device)||![self selectDevice:device]||
+@@ -1053,7 +1026,6 @@
+     if(self.cancelled&&self.cancelled())RFAIL("native frame cancelled before render");
+     NSString *failure=nil;FFSTNativeFramePassPayload *payload=[self.request.payloads renderPayload:begin->data[4] stream:begin->stream frame:begin->frame failure:&failure];
+     if(!payload)return [self reject:failure?:@"frame render payload unavailable"];
+-    if(live_native_enabled()){if(![payload.bindings[@"format"]isEqual:@"bedrock-live-commands"])return [self reject:@"live capture fallback forbidden"];return [self liveExecute:payload.bindings blobs:payload.blobs begin:begin resources:resourceRecords commands:commands];}
+     self.ownedBlobs=payload.ownedBlobs;
+     NSDictionary *manifest=payload.manifest,*sidecar=payload.bindings,*a=manifest[@"attachments"];
+     if(![self coverage:sidecar begin:begin resources:resourceRecords commands:commands render:YES])return NO;
+@@ -1086,8 +1058,6 @@
+     NSDictionary *graph=payload.ownedBlobs?[payload.ownedBlobs jsonDictionary:@"draw-resource-cut.json"]:
+         graphData?[NSJSONSerialization JSONObjectWithData:graphData options:0 error:nil]:nil;
+     BOOL typedGraph=[graph[@"version"] isEqual:@3];
+-    BOOL direct=[graph[@"direct_pass"] boolValue];
+-    if((direct&&!ffjp_enabled())||(ffjp_enabled()&&!utility&&!direct))RFAIL("direct pass requires complete replacement; legacy fallback forbidden");
+     if(!pass_record(graph)||![graph[@"format"] isEqual:@"bedrock-draw-resource-cut"]||
+        (![graph[@"version"] isEqual:@2]&&!typedGraph)||
+        ![graph[@"cut_id"] isEqual:manifest[@"resource_cut_id"]]||![graph[@"complete_pass"] boolValue])RFAIL("frame resource cut is incomplete");
+@@ -1100,23 +1070,15 @@
+                 RFAIL("utility payload contains unexpected typed draw assets");}
+         else for(NSString *key in @[@"snapshots",@"textures",@"samplers",@"draws"])
+             if(![graph[key] isKindOfClass:[NSArray class]]||[graph[key] count])RFAIL("utility payload contains unexpected draw assets");}
+-    else if(direct)context.direct=ffdp_decode(payload.blobs);
+     else context.decoded=payload.ownedBlobs?ffst_pass_resources_load_owned(payload.ownedBlobs):
+         payload.blobs?ffst_pass_resources_load_blobs(payload.blobs):ffst_pass_resources_load(payload.directory,graph);
+-    if((!utility&&!(direct?context.direct!=nil:context.decoded!=NULL))||(direct?context.direct->nd:ffst_pass_resources_draw_count(context.decoded))!=drawRecords.count||
++    if((!utility&&!context.decoded)||ffst_pass_resources_draw_count(context.decoded)!=drawRecords.count||
+        !pass_u64(manifest[@"captured_prefix_draws"],FFST_PASS_DRAW_LIMIT,&value)||value!=drawRecords.count)RFAIL("frame pass/cut draw mismatch");
+     frame_profile_mark(renderProfileNs,FFST_PROFILE_DECODE,&profileStarted);
+     [self.contexts addObject:context];size_t ns,nt,nsa;
+-    const ff_vertex_snapshot *snapshots=direct?context.direct->buffers:ffst_pass_resources_snapshots(context.decoded,&ns);
+-    const ff_texture_snapshot *textures=direct?context.direct->textures:ffst_pass_resources_textures(context.decoded,&nt);
+-    const ff_sampler_snapshot *samplers=direct?context.direct->samplers:ffst_pass_resources_samplers(context.decoded,&nsa);
+-    if(direct){ns=context.direct->nb;nt=context.direct->nt;nsa=context.direct->ns;}
+-    NSData *directReplay=direct?payload.blobs[@"replay.json"]:nil;pr_header directHeader={0};
+-    const uint8_t *directRows=NULL;NSArray *directDepths=manifest[PR_DEPTH_KEY];
+-    if(direct){if(directReplay.length<sizeof(directHeader))RFAIL("direct command rows missing");memcpy(&directHeader,directReplay.bytes,sizeof(directHeader));
+-      if(directHeader.magic!=PR_MAGIC||directHeader.version!=1||directHeader.total!=directReplay.length||directHeader.rows!=drawRecords.count||directHeader.row_bytes!=sizeof(pr_row)||directHeader.header_bytes>directReplay.length-sizeof(directHeader)||(uint64_t)directHeader.rows*sizeof(pr_row)!=directReplay.length-sizeof(directHeader)-directHeader.header_bytes)RFAIL("direct command extent mismatch");
+-      directRows=(const uint8_t*)directReplay.bytes+sizeof(directHeader)+directHeader.header_bytes;
+-    }
++    const ff_vertex_snapshot *snapshots=ffst_pass_resources_snapshots(context.decoded,&ns);
++    const ff_texture_snapshot *textures=ffst_pass_resources_textures(context.decoded,&nt);
++    const ff_sampler_snapshot *samplers=ffst_pass_resources_samplers(context.decoded,&nsa);
+     NSArray *snapshotRefs=sidecar[@"snapshots"],*textureRefs=sidecar[@"textures"],*attachmentRefs=sidecar[@"attachments"];
+     if(![snapshotRefs isKindOfClass:[NSArray class]]||snapshotRefs.count!=ns||![textureRefs isKindOfClass:[NSArray class]]||textureRefs.count!=nt||
+        ![attachmentRefs isKindOfClass:[NSArray class]]||!attachmentRefs.count||attachmentRefs.count>4)RFAIL("frame logical binding count mismatch");
+@@ -1145,42 +1107,12 @@
+         if(!pass_u64(reference[@"id"],ns,&value)||value!=i+1||[reference[@"kind"] unsignedIntValue]!=FFS_BUFFER||
+            ![self.resourceIndex containsReference:reference flags:FFS_READ]||![self root:reference])RFAIL("frame buffer snapshot identity mismatch");
+         uint64_t offset=0;NSDictionary *source=typedGraph?nil:graph[@"snapshots"][i];
+-        ffmd_graph_snapshot directSnapshot={0};if(direct&&!ffmd_view_row(&context.direct->wire,0,i,&directSnapshot,sizeof(directSnapshot)))RFAIL("direct buffer extent absent");
+-        if(direct)offset=directSnapshot.source_offset;
+-        if(!direct&&!(typedGraph?ffst_pass_resources_snapshot_source_offset(context.decoded,i,&offset):
++        if(!(typedGraph?ffst_pass_resources_snapshot_source_offset(context.decoded,i,&offset):
+              pass_u64(source[@"source_offset"],UINT64_MAX,&offset)))RFAIL("frame buffer source range missing");
+         uint64_t beginOffset=[reference[@"offset"] unsignedLongLongValue],logicalLength=[reference[@"length"] unsignedLongLongValue];
+         if(offset<beginOffset||offset-beginOffset>logicalLength||snapshots[i].length>logicalLength-(offset-beginOffset))RFAIL("frame buffer payload range/version mismatch");
+         FFSTFrameRoot *root=[self root:reference];
+         ff_native_buffer_ref nativeRef={0};
+-        if(direct){
+-            ffjp_entry event=context.direct->events[i];const uint8_t *eventBytes=(const uint8_t*)context.direct.journal.bytes+event.offset;ffjp_record r;memcpy(&r,eventBytes,sizeof(r));
+-            if(r.root!=root.root||r.generation!=root.generation)RFAIL("direct resource generation mismatch");
+-            id<MTLBuffer> buffer=nil;NSUInteger base=0;
+-            if(r.flags==FFJP_NATIVE){
+-              if(!root.written||r.epoch!=root.version||r.epoch!=[reference[@"input_content_version"] unsignedLongLongValue]||offset<root.bufferOrigin||offset-root.bufferOrigin>root.bufferLength||snapshots[i].length>root.bufferLength-(offset-root.bufferOrigin)||![root.bufferDefined containsIndexesInRange:NSMakeRange(offset-root.bufferOrigin,snapshots[i].length)])RFAIL("direct native write version or defined range mismatch");
+-              buffer=root.buffer;base=offset-root.bufferOrigin;
+-            }else{
+-              if(root.written||[reference[@"input_content_version"] unsignedLongLongValue]!=1)RFAIL("CPU journal cannot replace a native writer");
+-              uint64_t range[2]={r.offset,r.length};NSData *key=[NSData dataWithBytes:range length:sizeof(range)];
+-              if(r.flags==FFJP_UPDATE){
+-                if(r.epoch<root.directEpoch||r.length>self.maxBytes-self.allocatedBytes)RFAIL("direct update epoch or budget mismatch");
+-                if(r.epoch>root.directEpoch){root.directSlices=[NSMutableDictionary new];root.directEpoch=r.epoch;root.directCost=0;}
+-                buffer=root.directSlices[key];
+-                if(buffer){if(buffer.length!=r.length||memcmp(buffer.contents,eventBytes+sizeof(r),r.length))RFAIL("same direct epoch changed its owned bytes");}
+-                else {
+-                  if(root.directSlices.count>=256)RFAIL("direct immutable range count exceeded");
+-                  buffer=[self.device newBufferWithBytes:eventBytes+sizeof(r) length:r.length options:MTLResourceStorageModeShared];if(!buffer||buffer.allocatedSize>self.maxBytes-self.allocatedBytes)RFAIL("direct owned range allocation failed");
+-                  self.allocatedBytes+=buffer.allocatedSize;root.directCost+=buffer.allocatedSize;root.directSlices[key]=buffer;
+-                }
+-                [self.dirtyRoots addObject:root];
+-              }
+-              if(root.directEpoch!=r.epoch||!root.directSlices[key])RFAIL("direct range reference precedes its owned update");
+-              buffer=root.directSlices[key];base=offset-r.offset;
+-            }
+-            if(!buffer)RFAIL("direct resource not live");bufferOverrides[bufferOverrideCount++]=(ff_native_buffer_override){.snapshot_id=i+1,.buffer=buffer,.base_offset=base};
+-            retained+=event.bytes;continue;
+-        }
+         BOOL hasNativeRef=ffst_pass_resources_snapshot_native_ref(context.decoded,i,&nativeRef)!=0;
+         if(hasNativeRef){
+             uint64_t refRoot=0,refGeneration=0,refVersion=0;
+@@ -1213,8 +1145,6 @@
+            ![self.resourceIndex containsReference:reference flags:FFS_READ]||!frame_snapshot_view(reference,&textures[i])||
+            [writtenRoots containsObject:frame_root_key(reference)])RFAIL("frame sampled texture identity/view mismatch");
+         FFSTFrameRoot *root=[self root:reference];if(!root)return NO;
+-        if(direct&&!textures[i].bytes){NSData *marker=payload.blobs[[NSString stringWithFormat:@"journal-texture-%02zu.bin",i+1]];uint64_t version=0;if(marker.length==8)memcpy(&version,marker.bytes,8);
+-          if(!root.written||version!=root.version||version!=[reference[@"input_content_version"] unsignedLongLongValue])RFAIL("direct texture native version mismatch");}
+         if(root.written){
+             if(root.texture.mipmapLevelCount<textures[i].mip_count&&
+                ![self extendWrittenTexture:root snapshot:&textures[i] reference:reference])
+@@ -1231,7 +1161,7 @@
+                 overrides[overrideCount++]=(ff_native_texture_override){.snapshot_id=i+1,.texture=texture};}
+             else if(![self initialBytes:textures[i].bytes length:textures[i].length reference:reference offset:0])return NO;
+         }
+-        retained+=direct&&!textures[i].bytes?sizeof(uint64_t):textures[i].length;
++        retained+=textures[i].length;
+     }
+     if(self.allocatedBytes>self.maxBytes-self.payloadBytes||retained>self.maxBytes-self.payloadBytes-self.allocatedBytes)RFAIL("frame payload byte limit exceeded");self.payloadBytes+=retained;
+     if(self.payloadBytes+self.request.records.length>self.request.retainedBytes)RFAIL("frame retained-byte reservation understated");
+@@ -1242,27 +1172,20 @@
+     self.libraryBytes=libraryBytes;NSMutableArray<FFSTFrameRenderDraw *> *draws=[NSMutableArray array];NSMutableIndexSet *used=[NSMutableIndexSet indexSet];
+     uint64_t invocations=0,materials=0,geometry=0;
+     for(NSUInteger i=0;i<drawRecords.count;++i){NSDictionary *record=drawRecords[i];uint64_t pipelineID,resourceID;
+-        pr_row directRow={0};
+-        if(direct){memcpy(&directRow,directRows+i*sizeof(directRow),sizeof(directRow));pipelineID=directRow.pipeline;resourceID=directRow.resources;if(pipelineID>=pipelines.count||resourceID!=i)RFAIL("unordered direct commands");}
+-        else if(!pass_u64(record[@"pipeline"],pipelines.count-1,&pipelineID)||!pass_u64(record[@"resources"],drawRecords.count-1,&resourceID)||resourceID!=i)RFAIL("unordered frame draw payload");
+-        FFSTFrameRenderPipeline *pipeline=pipelines[(NSUInteger)pipelineID];ff_draw_layout layout=pipeline.layout;FFSTPassDrawInfo info;ff_draw_bindings bindings;FFDPDrawScratch scratch;
+-        if(direct?!ffdp_draw(context.direct,i,&layout,&info,&scratch,&bindings):(!ffst_pass_resources_draw_info(context.decoded,i,&info)||!ffst_pass_resources_draw_bindings(context.decoded,i,&layout,&bindings)))RFAIL("frame draw resource reflection mismatch");
+-        FFSTFrameRenderDraw *draw=direct?pass_direct_draw(self.device,&directRow,directDepths,pipeline,&info,width,height,self.depthCache):pass_draw(self.device,record,pipeline,&info,width,height,self.depthCache);if(!draw)RFAIL("frame dynamic draw state rejected");
++        if(!pass_u64(record[@"pipeline"],pipelines.count-1,&pipelineID)||!pass_u64(record[@"resources"],drawRecords.count-1,&resourceID)||resourceID!=i)RFAIL("unordered frame draw payload");
++        FFSTFrameRenderPipeline *pipeline=pipelines[(NSUInteger)pipelineID];ff_draw_layout layout=pipeline.layout;FFSTPassDrawInfo info;ff_draw_bindings bindings;
++        if(!ffst_pass_resources_draw_info(context.decoded,i,&info)||!ffst_pass_resources_draw_bindings(context.decoded,i,&layout,&bindings))RFAIL("frame draw resource reflection mismatch");
++        FFSTFrameRenderDraw *draw=pass_draw(self.device,record,pipeline,&info,width,height,self.depthCache);if(!draw)RFAIL("frame dynamic draw state rejected");
+         BOOL material=NO;for(unsigned stage=0;stage<2;++stage)for(size_t f=0;f<bindings.argument_count[stage];++f)
+             if(bindings.arguments[stage][f].kind==FF_FIELD_TEXTURE&&bindings.arguments[stage][f].value)material=YES;
+         BOOL isGeometry=material&&info.count>6&&layout.ia_slot_mask&&layout.constant_count[0],declared;
+-        if((direct?(declared=directRow.material_geometry,directRow.material_geometry>1):!pass_bool(record[@"material_geometry"],&declared))||declared!=isGeometry||info.count*info.instances>10000000-invocations)RFAIL("frame draw work metadata mismatch");
++        if(!pass_bool(record[@"material_geometry"],&declared)||declared!=isGeometry||info.count*info.instances>10000000-invocations)RFAIL("frame draw work metadata mismatch");
+         materials+=material;geometry+=isGeometry;invocations+=info.count*info.instances;[draws addObject:draw];[used addIndex:(NSUInteger)pipelineID];
+     }
+     if(used.count!=pipelines.count||!pass_u64(manifest[@"vertex_invocations"],10000000,&value)||value!=invocations||
+        !pass_u64(manifest[@"material_draw_count"],FFST_PASS_DRAW_LIMIT,&value)||value!=materials||
+        !pass_u64(manifest[@"material_geometry_draw_count"],FFST_PASS_DRAW_LIMIT,&value)||value!=geometry)RFAIL("frame aggregate draw metadata mismatch");
+     frame_profile_mark(renderProfileNs,FFST_PROFILE_PIPELINES,&profileStarted);
+-    if(direct){
+-      context.directTables=ffdp_tables(self.device,context.direct,draws,bufferOverrides,bufferOverrideCount,overrides,overrideCount,self.depthCache);
+-      if(!context.directTables)RFAIL("direct command binding failed");
+-      if(context.directTables.arena.length>self.maxBytes-self.payloadBytes-self.allocatedBytes)RFAIL("direct table budget exceeded");self.allocatedBytes+=context.directTables.arena.length;
+-    }else{
+     context.graph=ff_vertex_resources_create_graph_native_assets(self.device,snapshots,ns,textures,nt,samplers,nsa,bufferOverrides,bufferOverrideCount,overrides,overrideCount);
+     if(!context.graph)RFAIL("native frame asset graph creation failed");
+     _Static_assert(FF_NATIVE_PASS_DRAW_LIMIT==FFST_PASS_DRAW_LIMIT,"native pass table draw bound");
+@@ -1274,7 +1197,6 @@
+     if(!context.passTables)RFAIL("native frame table relocation or arena budget failed");
+     context.graph=NULL; /* ownership transferred only after full construction */
+     self.allocatedBytes+=ff_vertex_pass_resources_allocated_bytes(context.passTables);
+-    }
+     frame_profile_mark(renderProfileNs,FFST_PROFILE_TABLES,&profileStarted);
+     id<MTLTexture> color=format?[self attachment:roles[@"color"] format:format width:width height:height samples:samples load:loads[0] aspect:1]:nil;
+     id<MTLTexture> depth=depthFormat?[self attachment:roles[@"depth"] format:depthFormat width:width height:height samples:samples load:loads[1] aspect:2]:nil;
+@@ -1290,8 +1212,7 @@
+     if(stencil){pass.stencilAttachment.texture=stencil;pass.stencilAttachment.loadAction=loads[2];pass.stencilAttachment.storeAction=stores[2];pass.stencilAttachment.clearStencil=[a[@"stencil_clear"] unsignedIntValue];}
+     if(self.cancelled&&self.cancelled())RFAIL("native frame cancelled before encoding");
+     id<MTLRenderCommandEncoder> encoder=[self.command renderCommandEncoderWithDescriptor:pass];if(!encoder)RFAIL("native frame render encoder failed");
+-    if(direct){id<MTLResource> __unsafe_unretained resident[FF_DRAW_RESOURCE_LIMIT+FF_TEXTURE_RESOURCE_LIMIT];NSUInteger count=0;for(id resource in context.directTables.held)if([resource conformsToProtocol:@protocol(MTLResource)]){if(count>=FF_DRAW_RESOURCE_LIMIT+FF_TEXTURE_RESOURCE_LIMIT)RFAIL("direct residency bound exceeded");resident[count++]=resource;}if(count)[encoder useResources:resident count:count usage:MTLResourceUsageRead stages:MTLRenderStageVertex|MTLRenderStageFragment];}
+-    else ff_vertex_pass_resources_declare(context.passTables,encoder);
++    ff_vertex_pass_resources_declare(context.passTables,encoder);
+     FFSTDrawStateShadow stateShadow={0};
+     for(NSUInteger i=0;i<draws.count;++i){FFSTFrameRenderDraw *draw=draws[i];FFSTDrawState state=draw.state;uint32_t changed=ffst_draw_state_update(&stateShadow,&state);
+         if(changed&FFST_STATE_PIPELINE)[encoder setRenderPipelineState:draw.pipeline.state];
+@@ -1305,8 +1226,8 @@
+         if(changed&FFST_STATE_BIAS)[encoder setDepthBias:state.bias[0] slopeScale:state.bias[1] clamp:state.bias[2]];
+         if(changed&FFST_STATE_BLEND)[encoder setBlendColorRed:state.blend[0] green:state.blend[1] blue:state.blend[2] alpha:state.blend[3]];
+         if(changed&FFST_STATE_STENCIL)[encoder setStencilReferenceValue:state.stencil];
+-        if(direct)ffdp_bind(context.directTables,i,encoder);else ff_vertex_pass_resources_bind(context.passTables,i,encoder);
+-        if(draw.info.indexed){NSUInteger offset=direct?context.directTables->indexOffsets[i]:0;id<MTLBuffer> index=direct?context.directTables.indices[i]:ff_vertex_pass_resources_index(context.passTables,i,&offset);
++        ff_vertex_pass_resources_bind(context.passTables,i,encoder);
++        if(draw.info.indexed){NSUInteger offset;id<MTLBuffer> index=ff_vertex_pass_resources_index(context.passTables,i,&offset);
+             if(!index){[encoder endEncoding];RFAIL("native frame index buffer unavailable");}
+             [encoder drawIndexedPrimitives:draw.info.primitive indexCount:draw.info.index_count indexType:draw.info.index_type indexBuffer:index indexBufferOffset:offset
+                 instanceCount:draw.info.instances baseVertex:draw.info.base_vertex baseInstance:draw.info.base_instance];}
+@@ -1330,8 +1251,6 @@
+             stores[i]==MTLStoreActionStore||stores[i]==MTLStoreActionStoreAndMultisampleResolve);}
+     if(roles[@"color_resolve"])frame_define_mips(self.roots[frame_root_key(roles[@"color_resolve"])],1,NSMakeRange(0,1),YES);
+     self.passCount++;self.drawCount+=draws.count;
+-    if(direct){static _Atomic uint64_t passes,drawsTotal;uint64_t n=atomic_fetch_add(&passes,1)+1;atomic_fetch_add(&drawsTotal,draws.count);
+-      if(n<=2||!(n%256))fprintf(stderr,"[direct-pass] passes=%llu draws=%llu legacy_graphs=0\n",(unsigned long long)n,(unsigned long long)atomic_load(&drawsTotal));}
+     frame_profile_mark(renderProfileNs,FFST_PROFILE_COMMANDS,&profileStarted);return YES;
+ #undef RFAIL
+ }
+@@ -1587,9 +1506,9 @@
+      * spuriously exceed the limit due to iteration order. */
+     uint64_t bytes=_rootBytes;
+     for(FFSTFrameRoot *root in dirtyRoots){if(root.accountedBytes>bytes)return NO;bytes-=root.accountedBytes;}
+-    for(FFSTFrameRoot *root in dirtyRoots){uint64_t texture=root.texture.allocatedSize,buffer=root.buffer.allocatedSize+root.directCost;
++    for(FFSTFrameRoot *root in dirtyRoots){uint64_t texture=root.texture.allocatedSize,buffer=root.buffer.allocatedSize;
+         if(texture>_maxBytes-bytes)return NO;bytes+=texture;if(buffer>_maxBytes-bytes)return NO;bytes+=buffer;}
+-    for(FFSTFrameRoot *root in dirtyRoots)root.accountedBytes=root.texture.allocatedSize+root.buffer.allocatedSize+root.directCost;
++    for(FFSTFrameRoot *root in dirtyRoots)root.accountedBytes=root.texture.allocatedSize+root.buffer.allocatedSize;
+     _rootBytes=bytes;return YES;
+ }
+ - (FFSTNativeChunkExecution *)executeChunk:(FFSTNativeChunkRequest *)request consumed:(void (^)(void))consumed
+--- a/native-source/native_frame_payload.m
++++ b/native-source/native_frame_payload.m
+@@ -6,7 +6,6 @@
+ #import "native_content_identity.h"
+ #import "native_metadata_sidecar.h"
+ #import "packed_replay.h"
+-#include "direct_pass_journal.h"
+ #include <stdatomic.h>
+ #include <dispatch/dispatch.h>
+ #include <CommonCrypto/CommonDigest.h>
+@@ -37,9 +36,6 @@
+ }
+ static NSUInteger payload_blob_limit(NSString *name) {
+     if(![name isKindOfClass:[NSString class]]||!name.length||name.length>82)return 0;
+-    if([name hasPrefix:@"live-upload-"]&&[name hasSuffix:@".bin"])return 32u*1024u*1024u;
+-    if([name isEqualToString:@"direct-journal.bin"])return 64u*1024u*1024u;
+-    if(payload_indexed_blob(name,@"journal-texture-",FF_TEXTURE_RESOURCE_LIMIT))return 8;
+     if(ff_native_buffer_ref_index(name))return ff_native_buffer_ref_enabled()?sizeof(ff_native_buffer_ref):0;
+     if([name isEqualToString:@"replay.json"]||[name isEqualToString:@"replay-template.json"])return 4u*1024u*1024u;
+     if([name isEqualToString:@"bindings.json"]||[name isEqualToString:@"draw-resource-cut.json"])return 8u*1024u*1024u;
+@@ -201,14 +197,6 @@
+     pp_report(1);return fast;
+ }
+ 
+-
+-static NSDictionary *ffdp_replay_header(NSData *wire){
+- if(wire.length<sizeof(pr_header)||wire.length>PR_LIMIT){fprintf(stderr,"[direct-header-reject] line=%u\n",__LINE__);return nil;}pr_header h;memcpy(&h,wire.bytes,sizeof(h));
+- if(h.magic!=PR_MAGIC||h.version!=1||h.total!=wire.length||h.rows>PR_ROWS||h.row_bytes!=sizeof(pr_row)||h.header_bytes>wire.length-sizeof(h)||(uint64_t)h.rows*sizeof(pr_row)!=wire.length-sizeof(h)-h.header_bytes){fprintf(stderr,"[direct-header-reject] line=%u\n",__LINE__);return nil;}
+- NSData *json=[NSData dataWithBytes:(const uint8_t*)wire.bytes+sizeof(h) length:h.header_bytes],*rows=[NSData dataWithBytes:(const uint8_t*)wire.bytes+sizeof(h)+h.header_bytes length:(NSUInteger)h.rows*sizeof(pr_row)];
+- NSDictionary *head=[NSJSONSerialization JSONObjectWithData:json options:0 error:nil];if(![head isKindOfClass:[NSDictionary class]]||head[@"draws"]||!pr_budget(json,rows,head[PR_DEPTH_KEY])||!pr_schema(head,rows)){fprintf(stderr,"[direct-header-reject] line=%u\n",__LINE__);return nil;}
+- NSMutableDictionary *result=[head mutableCopy];NSMutableArray *count=[NSMutableArray arrayWithCapacity:h.rows];for(uint32_t i=0;i<h.rows;i++)[count addObject:[NSNull null]];result[@"draws"]=count;return result;
+-}
+ #include "native_replay_cache.inc"
+ 
+ @interface FFSTOwnedBlobs ()
+@@ -222,8 +210,8 @@
+ - (instancetype)initDecoderBlobs:(NSDictionary *)blobs digests:(NSDictionary *)digests pageIDs:(NSDictionary *)pageIDs
+     parsedTemplate:(NSDictionary *)parsedTemplate replayCache:(FFSTReplayDecodeCache *)replayCache failure:(NSString **)failure {
+     if(![blobs isKindOfClass:[NSDictionary class]]||![digests isKindOfClass:[NSDictionary class]]||
+-       ![pageIDs isKindOfClass:[NSDictionary class]]||blobs.count>8192||digests.count+pageIDs.count!=blobs.count){fprintf(stderr,"[direct-owned-reject] line=%u\n",__LINE__);return nil;}
+-    self=[super init];if(!self){fprintf(stderr,"[direct-owned-reject] line=%u\n",__LINE__);return nil;}
++       ![pageIDs isKindOfClass:[NSDictionary class]]||blobs.count>8192||digests.count+pageIDs.count!=blobs.count)return nil;
++    self=[super init];if(!self)return nil;
+     NSMutableDictionary *owned=[NSMutableDictionary new],*json=[NSMutableDictionary new],*pointers=[NSMutableDictionary new];NSUInteger total=0;
+     for(id key in blobs){NSUInteger maximum=payload_blob_limit(key);NSData *data=blobs[key],*digest=digests[key],*pageID=pageIDs[key];
+         if(!maximum||![data isKindOfClass:[NSData class]]||[data isKindOfClass:[NSMutableData class]]||!data.length||
+@@ -231,20 +219,20 @@
+            (pageID?digest||![pageID isKindOfClass:[NSData class]]||pageID.length!=32||data.length<FFST_CONTENT_PAGE_MIN_BYTES||
+                !(payload_indexed_blob(key,@"cut-buffer-",FF_DRAW_RESOURCE_LIMIT)||payload_indexed_blob(key,@"operation-buffer-",FFS_MAX_RESOURCES)):
+                ![digest isKindOfClass:[NSData class]]||digest.length!=32))
+-            {fprintf(stderr,"[direct-owned-reject] line=%u\n",__LINE__);return nil;}
++            return nil;
+         total+=data.length;NSString *name=[key copy];NSData *sha=digest?[[NSData alloc] initWithBytes:digest.bytes length:32]:nil;
+         NSData *contentID=pageID?[[NSData alloc] initWithBytes:pageID.bytes length:32]:nil;
+         if([name hasPrefix:@"pass-lib-"]){char hex[65];for(unsigned i=0;i<32;++i)snprintf(hex+2*i,3,"%02x",((const uint8_t *)sha.bytes)[i]);
+-            if(![name isEqual:[NSString stringWithFormat:@"pass-lib-%s.metallib",hex]]){fprintf(stderr,"[direct-owned-reject] line=%u\n",__LINE__);return nil;}}
++            if(![name isEqual:[NSString stringWithFormat:@"pass-lib-%s.metallib",hex]])return nil;}
+         if([name hasSuffix:@".json"]){id parsed=[name isEqualToString:@"replay-template.json"]?parsedTemplate:nil;
+             BOOL packed=[name isEqualToString:@"replay.json"]&&data.length>=8&&!memcmp(data.bytes,"PDRPLY01",8);
+-            if(!parsed)parsed=packed?(ffjp_enabled()?ffdp_replay_header(data):(replayCache?[replayCache decode:data]:packed_replay_decode(data))):[NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
++            if(!parsed)parsed=packed?(replayCache?[replayCache decode:data]:packed_replay_decode(data)):[NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+             BOOL memoized=parsedTemplate&&[name isEqualToString:@"replay-template.json"];
+             if(![parsed isKindOfClass:[NSDictionary class]]||(!memoized&&
+-               !pp_validate(parsed,data,maximum,packed))){fprintf(stderr,"[direct-owned-reject] line=%u\n",__LINE__);return nil;}json[name]=parsed;}
++               !pp_validate(parsed,data,maximum,packed)))return nil;json[name]=parsed;}
+         NSValue *pointer=[NSValue valueWithPointer:data.bytes];NSArray *prior=pointers[pointer];
+         if(prior&&([prior[0] length]!=data.length||(sha&&prior[1]!=[NSNull null]&&![prior[1] isEqual:sha])||
+-           (contentID&&prior[2]!=[NSNull null]&&![prior[2] isEqual:contentID]))){fprintf(stderr,"[direct-owned-reject] line=%u\n",__LINE__);return nil;}
++           (contentID&&prior[2]!=[NSNull null]&&![prior[2] isEqual:contentID])))return nil;
+         pointers[pointer]=@[data,sha?:prior[1]?:[NSNull null],contentID?:prior[2]?:[NSNull null]];owned[name]=data;
+     }
+     _blobs=[owned copy];_json=[json copy];_pointers=[pointers copy];(void)failure;return self;
+@@ -360,9 +348,8 @@
+ }
+ static NSDictionary *payload_expand_typed_sidecar(FFSTOwnedBlobs *owned,NSDictionary *graph,
+     NSDictionary *envelope,NSDictionary *manifest,NSString **failure) {
+-    NSMutableSet *graphKeys=[NSMutableSet setWithArray:@[@"format",@"version",@"cut_id",@"complete_pass",@"wire_blob",
++    NSSet *graphKeys=[NSSet setWithArray:@[@"format",@"version",@"cut_id",@"complete_pass",@"wire_blob",
+         @"wire_sha256",@"plan_blob",@"plan_sha256"]];
+-    if(graph[@"direct_pass"]){if(CFGetTypeID((__bridge CFTypeRef)graph[@"direct_pass"])!=CFBooleanGetTypeID())return nil;[graphKeys addObject:@"direct_pass"];}
+     NSSet *sidecarKeys=[NSSet setWithArray:@[@"format",@"version",@"stream",@"frame",@"chunk",
+         @"encoder",@"category",@"payload_id",@"pass_manifest",@"resource_manifest",
+         @"wire_blob",@"wire_sha256",@"plan_sha256"]];
+@@ -416,7 +403,6 @@
+ + (instancetype)payloadWithOwnedBlobs:(FFSTOwnedBlobs *)owned failure:(NSString **)failure {
+     if(failure)*failure=nil;
+     NSDictionary *manifest=[owned jsonDictionary:@"replay.json"],*bindings=[owned jsonDictionary:@"bindings.json"];
+-    if([bindings[@"format"]isEqual:@"bedrock-live-commands"]&&[bindings[@"version"]isEqual:@1]){FFSTNativeFramePassPayload *result=[[self alloc]init];result->_blobs=owned.blobs;result->_manifest=bindings;result->_bindings=bindings;result.ownedBlobs=owned;return result;}
+     if([manifest[@"version"] isEqual:@3]){
+         manifest=payload_expand_replay_v3(owned,manifest,failure);if(!manifest)return nil;}
+     NSDictionary *graph=[owned jsonDictionary:@"draw-resource-cut.json"];
+@@ -514,7 +500,7 @@
+ + (instancetype)payloadWithOwnedBlobs:(FFSTOwnedBlobs *)owned failure:(NSString **)failure {
+     if(failure)*failure=nil;
+     NSDictionary *bindings=[owned jsonDictionary:@"bindings.json"];
+-    if((![bindings[@"format"] isEqual:@"bedrock-native-frame-operation"]&&![bindings[@"format"]isEqual:@"bedrock-live-commands"])||![bindings[@"version"] isEqual:@1]||
++    if(![bindings[@"format"] isEqual:@"bedrock-native-frame-operation"]||![bindings[@"version"] isEqual:@1]||
+        ![bindings[@"resources"] isKindOfClass:[NSArray class]]||![bindings[@"command_types"] isKindOfClass:[NSArray class]]){
+         payload_fail(failure,@"Owned operation metadata is malformed");return nil;}
+     FFSTNativeFrameOperationPayload *result=[[self alloc]init];result->_blobs=owned.blobs;result->_bindings=bindings;result.ownedBlobs=owned;return result;
+--- a/native-source/private_progress_filter.h
++++ b/native-source/private_progress_filter.h
+@@ -31,3 +31,4 @@
+         @"interval_sum_seconds",@"lifetime_interval_max_seconds",@"intervals_over_25ms",@"intervals_over_50ms"]);
+     return out;
+ }
++
+--- a/dxmt/src/d3d11/d3d11_buffer.cpp
++++ b/dxmt/src/d3d11/d3d11_buffer.cpp
+@@ -92,17 +92,10 @@
+        pDesc->CPUAccessFlags==D3D11_CPU_ACCESS_WRITE&&!pDesc->MiscFlags&&
+        pDesc->BindFlags&&(pDesc->BindFlags&~(D3D11_BIND_VERTEX_BUFFER|D3D11_BIND_INDEX_BUFFER))==0)
+       flags.set(BufferAllocationFlag::BedrockRetainedDynamic);
+-    const char *direct=std::getenv("BEDROCK_DIRECT_UPLOAD");
+-    if(direct&&(std::strcmp(direct,"1")==0||std::strcmp(direct,"2")==0)&&
+-       ((pDesc->Usage==D3D11_USAGE_DYNAMIC&&pDesc->CPUAccessFlags==D3D11_CPU_ACCESS_WRITE)||((pDesc->Usage==D3D11_USAGE_DEFAULT||pDesc->Usage==D3D11_USAGE_IMMUTABLE)&&!pDesc->CPUAccessFlags))&&
+-       (pDesc->BindFlags&~(D3D11_BIND_CONSTANT_BUFFER|D3D11_BIND_VERTEX_BUFFER|D3D11_BIND_INDEX_BUFFER))==0&&pDesc->BindFlags&&!pDesc->MiscFlags&&pDesc->ByteWidth<=32u*1024u*1024u) {
+-      flags.set(BufferAllocationFlag::BedrockDirectUpload);
+-    }
+     auto allocation = buffer_->allocate(flags);
+     auto &initializer = device->GetDXMTDevice().queue().initializer;
+     if (pInitialData) {
+       allocation->updateContents(0, pInitialData->pSysMem, pDesc->ByteWidth);
+-      const char *live=std::getenv("BEDROCK_LIVE_COMMANDS");if(live&&std::strcmp(live,"1")==0)allocation->bedrockSealInitial(pDesc->ByteWidth);
+     } else if (flags.test(BufferAllocationFlag::GpuPrivate)) {
+       initializer.initWithZero(allocation.ptr(), 0, buffer_->length());
+     }
+--- a/dxmt/src/d3d11/d3d11_context_def.cpp
++++ b/dxmt/src/d3d11/d3d11_context_def.cpp
+@@ -4,8 +4,6 @@
+ #include "dxmt_buffer.hpp"
+ #include "dxmt_command_queue.hpp"
+ #include "dxmt_dynamic.hpp"
+-#include "native_boundary_capture.hpp"
+-#include "native_boundary_mutations.hpp"
+ 
+ namespace dxmt {
+ 
+@@ -20,7 +18,6 @@
+   CommandQueue &cmd_queue;
+   Com<MTLD3D11CommandList> current_cmdlist;
+   std::unordered_map<DynamicBuffer *, DynamicBufferAllocation> current_dynamic_buffer_allocations;
+-  std::unordered_map<DynamicBuffer *,uint32_t> live_mapped_types;
+   std::unordered_map<DynamicLinearTexture *, std::pair<TextureAllocation *, uint32_t>> current_dynamic_texture_allocations;
+   std::unordered_map<void *, std::pair<Com<MTLD3D11OcclusionQuery>, uint32_t>> building_visibility_queries;
+ };
+@@ -193,7 +190,6 @@
+         break;
+       }
+       }
+-      if(boundary_mutations::direct_upload_configured())ctx_state.live_mapped_types[dynamic.ptr()]=MapType;
+       return S_OK;
+     }
+     if (auto dynamic = GetDynamicLinearTexture(pResource, &row_pitch, &depth_pitch)) {
+@@ -277,14 +273,10 @@
+         auto found=ctx_state.current_dynamic_buffer_allocations.find(dynamic.ptr());
+         if(found!=ctx_state.current_dynamic_buffer_allocations.end()){
+           Rc<BufferAllocation> allocation(found->second.allocation);auto sub=found->second.suballocation;
+-          uint32_t mapType=0;auto mapped=ctx_state.live_mapped_types.find(dynamic.ptr());if(mapped!=ctx_state.live_mapped_types.end()){mapType=mapped->second;ctx_state.live_mapped_types.erase(mapped);}
+-          if((allocation->flags().test(BufferAllocationFlag::BedrockRetainedDynamic)||(mapType==D3D11_MAP_WRITE_NO_OVERWRITE&&allocation->flags().test(BufferAllocationFlag::BedrockDirectUpload)))&&!allocation->hasSuballocatoin(1)) {
+-            InvalidateCurrentPass(true);EmitST([allocation,sub](ArgumentEncodingContext &){allocation->useSuballocation(sub);});
+-          }
+-          if(mapType&&boundary_mutations::direct_upload_configured()&&allocation->flags().test(BufferAllocationFlag::BedrockDirectUpload)&&!allocation->hasSuballocatoin(1)) {
+-            auto sealed=boundary_mutations::direct_seal(allocation->mappedMemory(sub),length);uint32_t epoch=allocation->bedrockObserve(9);
+-            if(sealed&&epoch){std::memcpy(sealed->bytes.data()+8,&epoch,4);EmitST([allocation,sealed](ArgumentEncodingContext &){WMTBoundaryUpload(allocation->bedrock_incarnation,allocation->bedrock_generation,0,sealed->bytes.data(),sealed->bytes.size(),uint64_t(allocation->buffer()));});}
+-          }
++          if(allocation->flags().test(BufferAllocationFlag::BedrockRetainedDynamic)&&!allocation->hasSuballocatoin(1)) {
++            InvalidateCurrentPass(true);
++            EmitST([allocation,sub](ArgumentEncodingContext &) {allocation->useSuballocation(sub);});
++            }
+         }
+       }
+     }
+--- a/dxmt/src/d3d11/d3d11_context_imm.cpp
++++ b/dxmt/src/d3d11/d3d11_context_imm.cpp
+@@ -174,15 +174,6 @@
+         break;
+       }
+       case D3D11_MAP_WRITE_NO_OVERWRITE: {
+-        // A full owned CPU version requires completed earlier GPU writes.
+-        // This conservative barrier is explicit until map-range ownership is
+-        // available. WRITE_DISCARD remains asynchronous and uses renamed bytes.
+-        if(boundary_mutations::direct_upload_configured()&&dynamic->immediateName()->flags().test(BufferAllocationFlag::BedrockDirectUpload)) {
+-          static std::atomic<uint64_t> waited{0},owned{0};
+-          bool gpu=dynamic->bedrock_gpu_write_seen.load(std::memory_order_acquire);
+-          if(gpu){WaitUntilGPUIdle();++waited;}else ++owned;
+-          uint64_t n=waited.load()+owned.load();if(n<=2||!(n%4096))std::fprintf(stderr,"[direct-map] waits=%llu owned=%llu\n",(unsigned long long)waited.load(),(unsigned long long)owned.load());
+-        }
+         pMappedResource->pData = dynamic->immediateMappedMemory();
+         pMappedResource->RowPitch = buffer_length;
+         pMappedResource->DepthPitch = buffer_length;
+@@ -193,7 +184,6 @@
+       // generation is read on its encoding owner after queued renames, never
+       // unsynchronized on this application thread. No application bytes read.
+       boundary_mutations::mapped(pResource, MapType);
+-      boundary_mutations::direct_mapped(pResource,MapType);
+       if (boundary_capture::configured()) {
+         auto allocation = dynamic->immediateName();
+         auto suballocation = dynamic->immediateSuballocation();
+@@ -284,7 +274,6 @@
+           pMappedResource->pData = staging->mappedImmediateMemory();
+           pMappedResource->RowPitch = staging->bytesPerRow;
+           pMappedResource->DepthPitch = staging->bytesPerImage;
+-          if(MapType&D3D11_MAP_WRITE)boundary_mutations::direct_mapped(pResource,D3D11_MAP_WRITE_DISCARD);
+           return S_OK;
+         }
+         if (MapFlags & D3D11_MAP_FLAG_DO_NOT_WAIT) {
+@@ -318,7 +307,6 @@
+ 
+     if (unlikely(!pResource))
+       return;
+-    const uint32_t directPublication=boundary_mutations::direct_discard(pResource);
+     // Unmap is the CPU-write publication boundary. Advance on the encoding
+     // owner, in command order, so a native-written old epoch cannot override
+     // the new snapshot. Old epochs retain their normal GPU retirement order.
+@@ -326,27 +314,10 @@
+       UINT length=0,bind=0;
+       if(auto dynamic=GetDynamicBuffer(pResource,&length,&bind)){
+         auto allocation=dynamic->immediateName();auto sub=dynamic->immediateSuballocation();
+-        if((allocation->flags().test(BufferAllocationFlag::BedrockRetainedDynamic)||(directPublication==D3D11_MAP_WRITE_NO_OVERWRITE&&allocation->flags().test(BufferAllocationFlag::BedrockDirectUpload)))&&!allocation->hasSuballocatoin(1)) {
++        if(allocation->flags().test(BufferAllocationFlag::BedrockRetainedDynamic)&&!allocation->hasSuballocatoin(1)) {
+           InvalidateCurrentPass(true);
+           EmitST([allocation,sub](ArgumentEncodingContext &) {allocation->useSuballocation(sub);});
+           }
+-      }
+-    }
+-    if(directPublication) {
+-      UINT length=0,bind=0;
+-      if(auto dynamic=GetDynamicBuffer(pResource,&length,&bind)) {
+-        auto allocation=dynamic->immediateName();
+-        if(allocation->flags().test(BufferAllocationFlag::BedrockDirectUpload)&&!allocation->hasSuballocatoin(1)) {
+-          auto sealed=boundary_mutations::direct_seal(dynamic->immediateMappedMemory(),length);
+-          uint32_t epoch=allocation->bedrockObserve(9);
+-          if(sealed&&epoch) {
+-            std::memcpy(sealed->bytes.data()+8,&epoch,4);
+-            EmitST([allocation,sealed](ArgumentEncodingContext &) {
+-              WMTBoundaryUpload(allocation->bedrock_incarnation,allocation->bedrock_generation,0,
+-                  sealed->bytes.data(),sealed->bytes.size(),uint64_t(allocation->buffer()));
+-            });
+-          }
+-        }
+       }
+     }
+     if (boundary_mutations::configured()) {
+@@ -373,13 +344,6 @@
+     UINT row_pitch = 0;
+     UINT depth_pitch = 0;
+     if (auto staging = GetStagingResource(pResource, Subresource)) {
+-      if(directPublication){auto allocation=staging->immediateAllocation();
+-        if(allocation->flags().test(BufferAllocationFlag::BedrockDirectUpload)){
+-          auto sealed=boundary_mutations::direct_seal(staging->mappedImmediateMemory(),staging->length);uint32_t epoch=allocation->bedrockObserve(9);
+-          if(sealed&&epoch){std::memcpy(sealed->bytes.data()+8,&epoch,4);InvalidateCurrentPass(true);
+-            EmitST([allocation,sealed](ArgumentEncodingContext &){allocation->useSuballocation(0);WMTBoundaryUpload(allocation->bedrock_incarnation,allocation->bedrock_generation,0,sealed->bytes.data(),sealed->bytes.size(),uint64_t(allocation->buffer()));});}
+-        }
+-      }
+       staging->unmap();
+     };
+     if (auto dynamic = GetDynamicTexture(pResource, Subresource, &row_pitch, &depth_pitch)) {
+--- a/dxmt/src/d3d11/d3d11_context_impl.cpp
++++ b/dxmt/src/d3d11/d3d11_context_impl.cpp
+@@ -1108,7 +1108,6 @@
+       override {
+     std::lock_guard<mutex_t> lock(mutex);
+ 
+-    if(pDstBuffer){UINT length=0,bind=0;if(auto dynamic=GetDynamicBuffer(pDstBuffer,&length,&bind))dynamic->bedrock_gpu_write_seen.store(true,std::memory_order_release);}
+     if (auto dst_bind = GetResourceCommon(pDstBuffer)) {
+       if (auto uav = static_cast<D3D11UnorderedAccessView *>(pSrcView)) {
+         SwitchToBlitEncoder(CommandBufferState::BlitEncoderActive);
+@@ -3762,7 +3761,6 @@
+       ID3D11Buffer *pDstResource, uint32_t DstSubresource, uint32_t DstX, uint32_t DstY, uint32_t DstZ,
+       ID3D11Buffer *pSrcResource, uint32_t SrcSubresource, const D3D11_BOX *pSrcBox
+   ) {
+-    {UINT length=0,bind=0;if(auto dynamic=GetDynamicBuffer(pDstResource,&length,&bind))dynamic->bedrock_gpu_write_seen.store(true,std::memory_order_release);}
+     D3D11_BUFFER_DESC dst_desc;
+     D3D11_BUFFER_DESC src_desc;
+     pDstResource->GetDesc(&dst_desc);
+--- a/dxmt/src/d3d11/d3d11_resource_staging.cpp
++++ b/dxmt/src/d3d11/d3d11_resource_staging.cpp
+@@ -48,7 +48,6 @@
+   auto buffer = new StagingResource(metal, byte_width, byte_width, byte_width);
+   if (pInitialData) {
+     memcpy(buffer->mappedImmediateMemory(), pInitialData->pSysMem, byte_width);
+-    buffer->liveSealInitial();
+   }
+   *ppBuffer = reinterpret_cast<ID3D11Buffer *>(ref(new StagingBuffer(pDesc, pDevice, buffer)));
+   return S_OK;
+@@ -130,7 +129,6 @@
+           memcpy(dst_data, src_data, std::min(bpr, bpr_read));
+         }
+       }
+-      buffer->liveSealInitial();
+     }
+     subresources.push_back(buffer);
+   }
+--- a/dxmt/src/dxmt/dxmt_buffer.cpp
++++ b/dxmt/src/dxmt/dxmt_buffer.cpp
+@@ -23,7 +23,7 @@
+   // (sub)allocate a minimum of 256B buffer so that texture can be created
+   info_.length = std::max(info_.length, 256ull);
+   suballocation_size_ = info_.length;
+-  if (flags_.test(BufferAllocationFlag::SuballocateFromOnePage) && !flags_.test(BufferAllocationFlag::BedrockDirectUpload) && suballocation_size_ <= DXMT_PAGE_SIZE) {
++  if (flags_.test(BufferAllocationFlag::SuballocateFromOnePage) && suballocation_size_ <= DXMT_PAGE_SIZE) {
+     suballocation_size_ = align(info_.length, 16);
+     suballocation_count_ = DXMT_PAGE_SIZE / suballocation_size_;
+     info_.length = DXMT_PAGE_SIZE;
+--- a/dxmt/src/dxmt/dxmt_buffer.hpp
++++ b/dxmt/src/dxmt/dxmt_buffer.hpp
+@@ -1,4 +1,3 @@
+-#include <vector>
+ #pragma once
+ 
+ #include "Metal.hpp"
+@@ -29,7 +28,6 @@
+   SuballocateFromOnePage = 5,
+   CpuPlaced = 6,
+   BedrockRetainedDynamic = 7,
+-  BedrockDirectUpload = 8,
+ };
+ 
+ typedef uint64_t BufferViewKey;
+@@ -60,18 +58,18 @@
+   uint64_t bedrock_incarnation = 0, bedrock_generation = 1;
+ #endif
+ 
+-  uint32_t bedrockObserve(uint64_t operation) const noexcept {
++  void bedrockObserve(uint64_t operation) const noexcept {
+ #ifdef BEDROCK_NATIVE_DRAW_CUT
+     static const bool enabled=[] {const char *v=std::getenv("BEDROCK_PRIVATE_RETAINED_OBSERVER"),*r=std::getenv("BEDROCK_NATIVE_RETAINED");return (v&&std::strcmp(v,"1")==0)||(r&&std::strcmp(r,"1")==0);}();
+-    if(!enabled)return 0;uint64_t bits=0;for(unsigned i=0;i<=8;i++)if(flags_.test(BufferAllocationFlag(i)))bits|=uint64_t(1)<<i;
++    if(!enabled)return;uint64_t bits=0;for(unsigned i=0;i<=7;i++)if(flags_.test(BufferAllocationFlag(i)))bits|=uint64_t(1)<<i;
+     // Pointer/update/alias events taint the entire allocation lifetime. They
+     // can run on the application thread, so never read the encoding owner's
+     // mutable generation here. A fixed nonzero placeholder satisfies the
+     // observer ABI; these taints dominate any generation classification.
+     const uint64_t generation=(operation==2||operation==3||operation==4)?1:bedrock_generation;
+-    return WMTPrivateRetainedObserve(operation,bedrock_incarnation,generation,obj_.handle,info_.length,bits,suballocation_count_);
++    WMTPrivateRetainedObserve(operation,bedrock_incarnation,generation,obj_.handle,info_.length,bits,suballocation_count_);
+ #else
+-    (void)operation;return 0;
++    (void)operation;
+ #endif
+   }
+   WMT::Buffer
+@@ -131,27 +129,9 @@
+     bedrockObserve(3);
+     if (likely(mappedMemory_ != nullptr && !flags_.test(BufferAllocationFlag::GpuManaged))) {
+       memcpy(reinterpret_cast<char *>(mappedMemory_) + suballocation * suballocation_size_ + offset, data, length);
+-    } else {
+-      obj_.updateContents(suballocation * suballocation_size_ + offset, data, length);
++      return;
+     }
+-#ifdef BEDROCK_NATIVE_DRAW_CUT
+-    const char *live=std::getenv("BEDROCK_LIVE_COMMANDS");
+-    if(!(live&&std::strcmp(live,"1")==0)&&offset==0)bedrockSealInitial(length);
+-#endif
+-  }
+-  void bedrockSealInitial(size_t length) {
+-#ifdef BEDROCK_NATIVE_DRAW_CUT
+-    if(flags_.test(BufferAllocationFlag::BedrockDirectUpload)&&mappedMemory_&&suballocation_count_==1&&
+-       length<=suballocation_size_&&length<=32u*1024u*1024u) {
+-      uint32_t epoch=bedrockObserve(9);
+-      if(epoch) {try {
+-        std::vector<uint8_t> sealed(length+24);uint64_t magic=UINT64_C(0x3155504355444646);
+-        memcpy(sealed.data(),&magic,8);memcpy(sealed.data()+8,&epoch,4);memcpy(sealed.data()+16,&length,8);
+-        memcpy(sealed.data()+24,mappedMemory_,length);
+-        WMTBoundaryUpload(bedrock_incarnation,bedrock_generation,0,sealed.data(),sealed.size(),obj_.handle);
+-      }catch(...) { /* An absent owned version rejects direct execution. */ }}
+-    }
+-#endif
++    obj_.updateContents(suballocation * suballocation_size_ + offset, data, length);
+   }
+ 
+   DXMT_RESOURCE_RESIDENCY_STATE residencyState;
+--- a/dxmt/src/dxmt/dxmt_dynamic.hpp
++++ b/dxmt/src/dxmt/dxmt_dynamic.hpp
+@@ -7,8 +7,6 @@
+ 
+ class DynamicBuffer {
+ public:
+-  // Sticky API-owner evidence: any queued GPU writer requires coherence before a full CPU seal.
+-  std::atomic<bool> bedrock_gpu_write_seen{false};
+   void incRef();
+   void decRef();
+ 
+--- a/dxmt/src/dxmt/dxmt_resource_initializer.cpp
++++ b/dxmt/src/dxmt/dxmt_resource_initializer.cpp
+@@ -1,7 +1,6 @@
+ #include "Metal.hpp"
+ #include "dxmt_resource_initializer.hpp"
+ #include "dxmt_format.hpp"
+-#include "live_startup_writer.hpp"
+ #include "util_math.hpp"
+ #include <cstdint>
+ #include <mutex>
+@@ -146,7 +145,6 @@
+ ResourceInitializer::initWithZero(
+     const Texture *texture, TextureAllocation *allocation, uint32_t slice, uint32_t level
+ ) {
+-  liveTextureInitialize(texture,allocation,slice,level,nullptr,0,0);
+   if (auto dsv_planar = DepthStencilPlanarFlags(texture->pixelFormat())) {
+     return initDepthStencilWithZero(texture, allocation, slice, level, dsv_planar);
+   }
+@@ -215,7 +213,6 @@
+     const Texture *texture, TextureAllocation *allocation, uint32_t slice, uint32_t level, const void *data,
+     size_t row_pitch, size_t depth_pitch
+ ) {
+-  liveTextureInitialize(texture,allocation,slice,level,data,row_pitch,depth_pitch);
+   auto width_sub = std::max(1u, texture->width() >> level);
+   auto height_sub = std::max(1u, texture->height() >> level);
+   auto depth_sub = std::max(1u, texture->depth() >> level);
+--- a/dxmt/src/dxmt/dxmt_staging.cpp
++++ b/dxmt/src/dxmt/dxmt_staging.cpp
+@@ -77,7 +77,6 @@
+   }
+   if (ret == ~0ull) {
+     Flags<BufferAllocationFlag> flags;
+-    const char *live=std::getenv("BEDROCK_LIVE_COMMANDS");if(live&&std::strcmp(live,"1")==0&&length<=32u*1024u*1024u)flags.set(BufferAllocationFlag::BedrockDirectUpload);
+ #ifdef __i386__
+     flags.set(BufferAllocationFlag::CpuPlaced);
+ #endif
+--- a/dxmt/src/dxmt/dxmt_staging.hpp
++++ b/dxmt/src/dxmt/dxmt_staging.hpp
+@@ -27,9 +27,6 @@
+ 
+   uint64_t allocate(uint64_t coherent_seq_id);
+   void updateImmediateName(uint64_t current_seq_id, uint64_t allocation);
+-
+-  Rc<BufferAllocation> immediateAllocation(){return buffer_pool[immediate_name_];}
+-  void liveSealInitial(){immediateAllocation()->bedrockSealInitial(length);}
+ 
+   void *
+   mappedImmediateMemory() {
+--- a/dxmt/src/dxmt/frame_stream_dxmt.hpp
++++ b/dxmt/src/dxmt/frame_stream_dxmt.hpp
+@@ -41,7 +41,7 @@
+   uint32_t ordinal = 0;
+   bool enabled = false, active = false, started = false, closed = false, presented = false, encoder_present = false;
+   bool target_set = false, observed = false;
+-  bool continuous = false, live_history = false;
++  bool continuous = false;
+   std::array<uint64_t, kParityLane> fence_versions{};
+   std::array<bool, kParityLane> fence_signalled{};
+   static_assert(FrameStreamVersionIndex::capacity==FFS_MAX_VIEWS,"live writer history matches collector view capacity");
+@@ -141,7 +141,6 @@
+   }
+ 
+   void fences(std::vector<Dependency> &out, FenceSet set, uint64_t stage, uint64_t action) {
+-    if(!active)return;
+     set.forEach([&](auto lane) {
+       if (lane >= fence_versions.size()) { reject(FFS_IDENTITY); return; }
+       if (!fence_versions[lane]) fence_versions[lane] = 1;
+@@ -164,7 +163,6 @@
+   }
+ 
+   void event(std::vector<Dependency> &out, WMT::Event handle, uint64_t value, uint64_t action) {
+-    if(!active)return;
+     size_t i = 0;
+     for (; i < events.size(); i++) if (events[i].retained.handle == handle.handle) break;
+     if (i == events.size()) {
+@@ -186,11 +184,11 @@
+   uint64_t prepare(WMT::CommandBuffer command,WMTRenderPassInfo *info) {
+     std::vector<ffs_producer_resource> refs;
+     for(auto r:planned_resources){
+-      uint64_t before=active?(r.root?version(r):0):1;
++      uint64_t before=r.root?version(r):0;
+       refs.push_back({r.handle,r.kind,r.root,r.view,r.generation,before,before+((r.flags&FFS_WRITE)?1:0),r.offset,r.length,r.flags,r.role,r.buffer_base_offset,r.buffer_length});
+     }
+-    if(!active&&!live_history)return 0;
+-    auto c=context(uint32_t(planned_type));if(!active)c.stream=0;c.command_count=planned_commands.size();c.resource_count=refs.size();c.resources.set(refs.data());
++    if(!active)return 0;
++    auto c=context(uint32_t(planned_type));c.command_count=planned_commands.size();c.resource_count=refs.size();c.resources.set(refs.data());
+     c.present.set(planned_type==EncoderType::Present?&present_state:nullptr);
+     c.commands.set(planned_commands.empty()?nullptr:planned_commands.front());
+     std::vector<ffs_producer_dependency> dependencies;
+@@ -216,7 +214,6 @@
+ 
+ public:
+   FrameStreamWriter() {
+-    const char *live=std::getenv("BEDROCK_LIVE_COMMANDS");live_history=live&&!std::strcmp(live,"1");
+     const char *mode = std::getenv("DXMT_FRAME_STREAM"); enabled = mode && !std::strcmp(mode,"1");
+     const char *chunks_mode=std::getenv("DXMT_CHUNK_STREAM");continuous=chunks_mode&&!std::strcmp(chunks_mode,"1");
+     if (const char *text = std::getenv("DXMT_FRAME_STREAM_FRAME")) {
+@@ -237,9 +234,6 @@
+ 
+   void beginChunk(uint64_t frame_id, uint64_t chunk_id, unsigned count, uint64_t initializer, uint64_t completion) {
+     raw_writes.clear();
+-    // DXMT's first frame is zero; the retained protocol uses nonzero identities.
+-    // Map the entire direct stream to one-based wire frame numbers.
+-    if(live_history){if(frame_id==UINT64_MAX){reject(FFS_LIMIT);return;}++frame_id;}
+     if (!enabled || closed) {retireInactiveLifetimes();return;}
+     bool first_chunk = !observed || observed_frame != frame_id;
+     observed = true; observed_frame = frame_id;
+@@ -258,7 +252,7 @@
+   }
+ 
+   void beforeEncoder(WMT::CommandBuffer command,EncoderData *data) {
+-    if (!active&&!live_history) return;
++    if (!active) return;
+     versions.clearWrites();
+     readback_index=query_count=0;
+     std::vector<Resource> resources;
+@@ -361,13 +355,12 @@
+     if (resource_count > FFS_MAX_RESOURCES) { rejectLimit("resources",resource_count,FFS_MAX_RESOURCES); return; }
+     if (dependency_count > FFS_MAX_DEPENDENCIES) { rejectLimit("dependencies",dependency_count,FFS_MAX_DEPENDENCIES); return; }
+     planned_type=type;planned_resources=std::move(resources);planned_dependencies=std::move(dependencies);planned_commands=std::move(list);
+-    if(live_history&&!active&&type==EncoderType::Compute)(void)prepare(command,nullptr);
+     if(type!=EncoderType::Render&&type!=EncoderType::Clear&&type!=EncoderType::Resolve&&type!=EncoderType::Blit)
+       emitPlanned(type==EncoderType::Present||type==EncoderType::SampleTimestamp||type==EncoderType::SignalEvent?prepare(command,nullptr):0);
+   }
+ 
+   void prepareRender(WMT::CommandBuffer command,WMTRenderPassInfo *info){
+-    if((active||live_history)&&(planned_type==EncoderType::Render||planned_type==EncoderType::Clear||planned_type==EncoderType::Resolve||planned_type==EncoderType::Blit))emitPlanned(prepare(command,info));
++    if(active&&(planned_type==EncoderType::Render||planned_type==EncoderType::Clear||planned_type==EncoderType::Resolve||planned_type==EncoderType::Blit))emitPlanned(prepare(command,info));
+   }
+ 
+   void afterEncoder() {
+--- a/dxmt/src/dxmt/native_boundary_mutations.hpp
++++ b/dxmt/src/dxmt/native_boundary_mutations.hpp
+@@ -9,36 +9,6 @@
+ #include <vector>
+ 
+ namespace dxmt::boundary_mutations {
+-inline bool direct_upload_configured(){
+-  static const bool enabled=[] {const char *v=std::getenv("BEDROCK_DIRECT_UPLOAD");return v&&(std::strcmp(v,"1")==0||std::strcmp(v,"2")==0);}();return enabled;
+-}
+-inline std::mutex direct_map_lock;
+-inline std::unordered_map<const void *,uint32_t> direct_maps;
+-inline void direct_mapped(const void *resource,uint32_t type){
+- if(!direct_upload_configured())return;std::lock_guard<std::mutex> lock(direct_map_lock);
+- if(direct_maps.size()<4096)direct_maps[resource]=type;
+-}
+-inline uint32_t direct_discard(const void *resource){
+- if(!direct_upload_configured())return false;std::lock_guard<std::mutex> lock(direct_map_lock);
+- auto it=direct_maps.find(resource);if(it==direct_maps.end())return false;
+- uint32_t valid=(it->second==4||it->second==5)?it->second:0;direct_maps.erase(it);return valid;
+-}
+-inline std::atomic<size_t> direct_pending_bytes{0};
+-struct DirectUpload {
+-  std::vector<uint8_t> bytes;
+-  explicit DirectUpload(size_t length):bytes(length){}
+-  ~DirectUpload(){direct_pending_bytes.fetch_sub(bytes.size(),std::memory_order_relaxed);}
+-};
+-inline std::shared_ptr<DirectUpload> direct_seal(const void *bytes,size_t length){
+-  if(!bytes||!length||length>32u*1024u*1024u)return {};size_t total=length+24,prior=direct_pending_bytes.load(std::memory_order_relaxed);
+-  do {if(prior>128u*1024u*1024u-total)return {};}
+-  while(!direct_pending_bytes.compare_exchange_weak(prior,prior+total,std::memory_order_relaxed));
+-  std::shared_ptr<DirectUpload> result;try{result=std::make_shared<DirectUpload>(total);}
+-  catch(...){direct_pending_bytes.fetch_sub(total,std::memory_order_relaxed);return {};}
+-  uint64_t magic=UINT64_C(0x3155504355444646),n=length;
+-  std::memcpy(result->bytes.data(),&magic,8);std::memcpy(result->bytes.data()+16,&n,8);
+-  std::memcpy(result->bytes.data()+24,bytes,length);return result;
+-}
+ inline bool uploads_configured(){
+ #ifdef BEDROCK_BOUNDARY_UPLOADS
+   static const bool enabled=[] {const char *v=std::getenv("BEDROCK_BOUNDARY_UPLOADS");return v&&std::strcmp(v,"1")==0;}();return enabled;

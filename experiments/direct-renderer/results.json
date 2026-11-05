@@ -1,0 +1,80 @@
+{
+  "scope": "Direct native command backend from process startup; existing native renderer is the performance control. This is not a new DXMT comparison.",
+  "configuration": {
+    "view_distance_setting": 128,
+    "source_fps_limit": 0,
+    "source_vsync": 0,
+    "native_vsync": 1,
+    "window_pixels": [
+      1280,
+      772
+    ],
+    "warmup_seconds": 20,
+    "stationary_seconds": 12,
+    "turn_events": 512,
+    "relative_x_per_event": 1,
+    "turn_seconds": 4
+  },
+  "runs": [
+    {
+      "label": "baseline-a",
+      "mode": "selected-native-baseline",
+      "state": "measured",
+      "stationary_fps": 48.27199077135438,
+      "turning_fps": 45.037257133117485,
+      "wire_bytes_per_frame": 2640866.6271477663,
+      "packet_decode_ms_per_frame": 9.67220274862134,
+      "native_execute_ms_per_frame": 14.26353264542831
+    },
+    {
+      "label": "startup-game-k",
+      "mode": "direct-command",
+      "state": "measured",
+      "stationary_fps": 9.56031905611615,
+      "turning_fps": 9.20649728639556,
+      "wire_bytes_per_frame": 8190602.2844827585,
+      "packet_decode_ms_per_frame": 19.28934483093426,
+      "native_execute_ms_per_frame": 56.95398275766538
+    },
+    {
+      "label": "startup-game-l",
+      "mode": "direct-command",
+      "state": "measured",
+      "stationary_fps": 9.930084618792687,
+      "turning_fps": 9.554521683664362,
+      "wire_bytes_per_frame": 8104533.833333333,
+      "packet_decode_ms_per_frame": 18.194224999509363,
+      "native_execute_ms_per_frame": 49.56220000070365
+    },
+    {
+      "label": "startup-game-m",
+      "mode": "direct-command",
+      "state": "measured",
+      "stationary_fps": 10.142269683460055,
+      "turning_fps": 9.637468798352,
+      "wire_bytes_per_frame": 8229802.983606557,
+      "packet_decode_ms_per_frame": 16.36472131296435,
+      "native_execute_ms_per_frame": 26.181344261352873
+    },
+    {
+      "label": "startup-game-o",
+      "mode": "direct-command",
+      "state": "measured",
+      "stationary_fps": 13.051929348985801,
+      "turning_fps": 12.778485373665793,
+      "wire_bytes_per_frame": 7836922.101910828,
+      "packet_decode_ms_per_frame": 17.97052229265979,
+      "native_execute_ms_per_frame": 26.529732484675968
+    },
+    {
+      "label": "baseline-c",
+      "mode": "selected-native-baseline",
+      "state": "measured",
+      "stationary_fps": 49.184249739250845,
+      "turning_fps": 46.941367298347814,
+      "wire_bytes_per_frame": 2476950.9110738253,
+      "packet_decode_ms_per_frame": 9.810486576858214,
+      "native_execute_ms_per_frame": 14.138793623324519
+    }
+  ]
+}

@@ -23,3 +23,10 @@ experiment on macOS 15.3.1. The recorded test demonstrated offscreen reflections
 and indirect light, about 25 minutes without a fault, and save/restart/reload.
 See its [results and limits](mullion/RESULTS.md). It does not change ordinary
 startup or claim hours-long stability; Vibrant Visuals has a separate known crash.
+
+## Native renderer handoff
+
+[Direct-command Metal renderer](direct-renderer/README.md): source and measured
+results for a working gameplay prototype that regressed to about 13 FPS versus
+49 FPS for the previous native renderer. Includes both renderer builds, a D3D fixture benchmark, and an unverified
+launcher for a disposable game setup.

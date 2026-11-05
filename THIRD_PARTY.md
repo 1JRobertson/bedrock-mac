@@ -229,3 +229,12 @@ The probe's BedrockOnLinux-derived declarations retain their
 [MIT notice](experiments/mullion/probes/LICENSE-BedrockOnLinux.txt). Microsoft DXC
 and all game/runtime binaries are retrieved separately and are not in this source
 export. No experimental files alter the normal launcher by their presence.
+
+## Direct-command renderer research
+
+The separate `research/direct-renderer-handoff` branch includes original GPLv3
+producer/Metal-worker research in `experiments/direct-renderer/`. Its DXMT
+patch targets the same MIT-licensed 0.80 revision listed above; DXMT-derived
+changes retain upstream notices and terms. No compiled renderer, game content,
+Apple SDK or Wine runtime is included. See the experiment README for build
+limitations and the measured performance regression.
