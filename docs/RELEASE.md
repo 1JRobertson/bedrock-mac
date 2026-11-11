@@ -27,8 +27,8 @@ Each later PR must record checks on its own final commit and disclose unavailabl
 jobs; an earlier pass cannot qualify changed source. Native test gaps remain
 visible even when a source change is ready for review.
 
-The current [source download](SOURCE_PREVIEW.md) is **0.3.0 source preview 5**,
-published November 2. The latest hosted run, on October 28, passed both Python
+The current [source download](SOURCE_PREVIEW.md) is **0.3.0 source preview 6**.
+The latest hosted run, on October 28, passed both Python
 jobs, account-helper and file-pickers; native-launcher was cancelled. It was not
 a complete passing run. Hosted checks are manual; local checks remain the
 default merge evidence. See [the run](https://github.com/1JRobertson/bedrock-mac/actions/runs/40701249996)

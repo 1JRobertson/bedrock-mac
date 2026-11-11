@@ -129,8 +129,9 @@ copies all three helper inputs: the example, XVD verifier module and pinned
 public key; no separate manual copy is needed.
 
 Default tests use fake/in-memory credentials. Coverage includes credential
-cache and denial handling, sign-out, paths/URL policy, signature rejection,
-hash-tree corruption and identity checks, and verified local-reader bounds,
+cache and denial handling, content license ticket formatting, sign-out,
+paths/URL policy, signature rejection, hash-tree corruption and identity checks,
+and verified local-reader bounds,
 reopen and changed-backing-file rejection. Test counts change with the source;
 record the actual command, source hashes and result for each run.
 
