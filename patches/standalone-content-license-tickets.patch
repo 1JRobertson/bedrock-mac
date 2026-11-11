@@ -1,0 +1,123 @@
+diff --git a/crates/xodus-cli/src/license.rs b/crates/xodus-cli/src/license.rs
+index b90fa61..9ff5117 100644
+--- a/crates/xodus-cli/src/license.rs
++++ b/crates/xodus-cli/src/license.rs
+@@ -70,6 +70,10 @@ pub async fn get_license(
+         return Err("Unsupported token".to_string());
+     };
+ 
++    // Format the exchanged tickets only for the content-license request.
++    let ms_device_token = licensing_device_ticket(ms_device_token);
++    let user_token = licensing_user_ticket(user_token);
++
+     let (_content, game_license) = xodus::licensing::content::get_license_content(
+         client,
+         ms_device_token,
+@@ -93,3 +97,107 @@ pub async fn get_license(
+         .derive_device_key();
+     Ok((key, game_splicense))
+ }
++
++// The service expects bare compact JWE. Keep other device tickets intact.
++fn licensing_device_ticket(ticket: String) -> String {
++    let bare = without_ticket_prefix(&ticket);
++    if is_compact_jwe(bare) {
++        return bare.to_owned();
++    }
++    ticket
++}
++
++// Opaque user delegation tickets use the t= prefix for content licensing.
++fn licensing_user_ticket(ticket: String) -> String {
++    let bare = without_ticket_prefix(&ticket);
++    if is_compact_jwe(bare) {
++        return bare.to_owned();
++    }
++    match ticket.strip_prefix("d=") {
++        Some(value) => format!("t={value}"),
++        None => ticket,
++    }
++}
++
++fn without_ticket_prefix(ticket: &str) -> &str {
++    ticket
++        .strip_prefix("d=")
++        .or_else(|| ticket.strip_prefix("t="))
++        .unwrap_or(ticket)
++}
++
++fn is_compact_jwe(value: &str) -> bool {
++    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
++
++    let parts: Vec<_> = value.splitn(6, '.').collect();
++    if parts.len() != 5
++        || parts[0].is_empty()
++        || parts[0].len() > 8192
++        || parts[2..].iter().any(|part| part.is_empty())
++    {
++        return false;
++    }
++    if !parts.iter().all(|part| {
++        part.len() % 4 != 1
++            && part
++                .bytes()
++                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
++    }) {
++        return false;
++    }
++    let Ok(header) = URL_SAFE_NO_PAD.decode(parts[0]) else {
++        return false;
++    };
++    let Ok(header) = serde_json::from_slice::<serde_json::Value>(&header) else {
++        return false;
++    };
++    ["alg", "enc"].iter().all(|key| {
++        header
++            .get(key)
++            .and_then(|value| value.as_str())
++            .is_some_and(|value| !value.is_empty())
++    })
++}
++
++#[cfg(test)]
++mod licensing_ticket_tests {
++    use super::*;
++
++    const JWE: &str = "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..aXY.Y2lwaGVy_dGV4dA.dGFn";
++
++    #[test]
++    fn sends_compact_jwe_bare_for_both_ticket_types() {
++        for prefix in ["", "d=", "t="] {
++            let ticket = format!("{prefix}{JWE}");
++            assert_eq!(licensing_device_ticket(ticket.clone()), JWE);
++            assert_eq!(licensing_user_ticket(ticket), JWE);
++        }
++    }
++
++    #[test]
++    fn preserves_opaque_and_malformed_device_tickets() {
++        for ticket in [
++            "d=opaque",
++            "t=compact&p=proof",
++            "d=eyJ..a.b.c",
++            "d=e30..aXY.Y2lwaGVy.dGFn",
++            "",
++            &format!("d={JWE}.extra"),
++            &format!("d={JWE}="),
++        ] {
++            assert_eq!(licensing_device_ticket(ticket.into()), ticket);
++        }
++    }
++
++    #[test]
++    fn uses_delegation_prefix_for_opaque_user_tickets() {
++        for (ticket, expected) in [
++            ("d=opaque", "t=opaque"),
++            ("t=compact&p=proof", "t=compact&p=proof"),
++            ("opaque", "opaque"),
++            ("d=eyJ..a.b.c", "t=eyJ..a.b.c"),
++        ] {
++            assert_eq!(licensing_user_ticket(ticket.into()), expected);
++        }
++    }
++}
