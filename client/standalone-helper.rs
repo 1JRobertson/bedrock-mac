@@ -4,7 +4,7 @@ use std::{collections::{HashMap, HashSet}, path::{Component, Path, PathBuf}, pro
 use std::os::unix::{ffi::OsStrExt, fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt}};
 use futures_util::{stream, StreamExt, TryStreamExt};
 use msixvc::{streaming, xvd::{SegmentFile, XvdFile}};
-use tokio::{fs::{File, OpenOptions}, io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt}};
+use tokio::{fs::{File, OpenOptions}, io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, BufWriter}};
 use xodus::models::secrets::Token;
 use xodus::licensing::splicense::ContentKey;
 use xodus::tokens::{TokenManager, store::TokenStoreError};
@@ -20,6 +20,7 @@ use std::time::{Duration, Instant};
 
 type Outcome<T> = Result<T, Box<dyn std::error::Error>>;
 const PRODUCT: &str = "9NBLGGH2JHXJ";
+const EXTRACTION_BUFFER_BYTES: usize = 64 * 1024;
 
 #[derive(Debug)]
 struct SetupFailure(&'static str);
@@ -86,7 +87,7 @@ impl AuthenticatedPackageReader {
 impl tokio::io::AsyncRead for AuthenticatedPackageReader {
     fn poll_read(mut self: std::pin::Pin<&mut Self>, _: &mut std::task::Context<'_>,
         buffer: &mut tokio::io::ReadBuf<'_>) -> std::task::Poll<std::io::Result<()>> {
-        let length = buffer.remaining().min(64 * 1024);
+        let length = buffer.remaining().min(EXTRACTION_BUFFER_BYTES);
         let result = std::io::Read::read(&mut self.inner, &mut buffer.initialize_unfilled()[..length]);
         std::task::Poll::Ready(result.map(|count| { buffer.advance(count); self.position += count as u64; }))
     }
@@ -518,6 +519,11 @@ async fn authorize_game(client: &reqwest::Client, tokens: &TokenManager, directo
     Ok(())
 }
 
+async fn finish_extracted_file(mut output: BufWriter<File>) -> std::io::Result<()> {
+    output.flush().await?;
+    output.get_ref().sync_all().await
+}
+
 async fn download(client: &reqwest::Client, tokens: &TokenManager, directory: &Path, market: &str, check_only: bool) -> Outcome<()> {
     if directory.symlink_metadata().is_ok() {
         return Err("The download destination must not exist; existing games are never overwritten.".into());
@@ -619,25 +625,31 @@ async fn download(client: &reqwest::Client, tokens: &TokenManager, directory: &P
             let relative = safe_relative(name)?;
             let target = out.join(&relative);
             std::fs::create_dir_all(target.parent().ok_or("Missing output parent.")?)?;
-            let mut output = OpenOptions::new().write(true).create_new(true).open(&target).await?;
-            let mut source = AuthenticatedPackageReader::new(verified.reopen(quarantine.reopen()?).map_err(integrity_failure)?);
+            // The extractor consumes one cipher block at a time. Batch adjacent
+            // authenticated reads and writes without reading ahead for tiny files.
+            let buffer_size = (info.length.min(EXTRACTION_BUFFER_BYTES as u64) as usize)
+                .div_ceil(4096).max(1) * 4096;
+            let file = OpenOptions::new().write(true).create_new(true).open(&target).await?;
+            let mut output = BufWriter::with_capacity(buffer_size, file);
+            let source = AuthenticatedPackageReader::new(verified.reopen(quarantine.reopen()?).map_err(integrity_failure)?);
+            let mut source = BufReader::with_capacity(buffer_size, source);
             tokio::time::timeout(std::time::Duration::from_secs(900),
                 xvd.extract_file(&mut source, &mut output, info, **key, |_, _| {})).await
                 .map_err(|_| "A game file download timed out; retry setup.")?
                 .map_err(|_| "A game file download failed; retry setup.")?;
-            output.sync_all().await?;
-            drop(output);
+            finish_extracted_file(output).await?;
             // Encrypted files preserve complete 4 KiB cipher blocks until preparation.
             let stored_length = if info.keep_encrypted { info.length.div_ceil(4096) * 4096 } else { info.length };
             if target.metadata()?.len() != stored_length { return Err("A game file has an unexpected size.".into()); }
             if info.keep_encrypted {
-                let mut input = File::open(&target).await?;
+                let mut input = BufReader::with_capacity(buffer_size, File::open(&target).await?);
                 let prepared = target.with_extension("standalone-preparing");
-                let mut output = OpenOptions::new().write(true).create_new(true).open(&prepared).await?;
+                let file = OpenOptions::new().write(true).create_new(true).open(&prepared).await?;
+                let mut output = BufWriter::with_capacity(buffer_size, file);
                 xvd.mount_mem_fd(&mut input, &mut output, info, **key, |_, _| {}).await
                     .map_err(|_| "Licensed executable preparation failed.")?;
-                output.sync_all().await?;
-                drop(output);
+                finish_extracted_file(output).await?;
+                drop(input);
                 if prepared.metadata()?.len() != info.length { return Err("The prepared executable has an unexpected size.".into()); }
                 let mut check = File::open(&prepared).await?;
                 let mut signature = [0; 2];
@@ -807,6 +819,19 @@ async fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn finishing_a_buffered_file_preserves_the_final_partial_block() {
+        let temporary = tempfile::tempdir().unwrap();
+        let target = temporary.path().join("asset");
+        let file = File::create(&target).await.unwrap();
+        let mut output = BufWriter::with_capacity(8192, file);
+        let page = [0x55; 4096];
+        output.write_all(&page).await.unwrap();
+        output.write_all(b"tail").await.unwrap();
+        finish_extracted_file(output).await.unwrap();
+        assert_eq!(std::fs::read(target).unwrap(), [&page[..], b"tail"].concat());
+    }
 
     #[test]
     fn parent_receipt_requires_matching_process_and_resolved_executable() {
