@@ -8,6 +8,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import unittest
@@ -181,6 +182,56 @@ class StartTests(unittest.TestCase):
                  patch.object(start, 'setup', side_effect=AssertionError('setup started')):
                 self.assertEqual(start.main(['--market', 'US', '--check']), 0 if ready else 1)
         self.assertFalse((self.root / 'runtime').exists())
+
+    def test_cold_setup_reports_low_space_and_ssh_before_building(self):
+        with patch.object(start.shutil, 'disk_usage', return_value=SimpleNamespace(free=7 * start.GIB)), \
+             patch.object(start.sys, 'platform', 'darwin'), \
+             patch.dict(os.environ, {'SSH_CONNECTION': 'test'}), patch.object(start.subprocess, 'run') as run:
+            issues = start.setup_preflight()
+        self.assertEqual(len(issues), 2)
+        self.assertTrue(any('on the Mac itself' in issue for issue in issues))
+        self.assertTrue(any('8 GiB' in issue for issue in issues))
+        run.assert_not_called()
+
+    def test_prebuilt_wine_rejects_escaping_link_and_preserves_existing_runtime(self):
+        source = Path(__file__).resolve().parents[1]
+        spec = importlib.util.spec_from_file_location('prebuilt', source / 'tools/prebuilt-wine.py')
+        prebuilt = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(prebuilt)
+        archive = self.root / 'wine.tar.gz'
+        link = tarfile.TarInfo('wine/lib/escape.dylib')
+        link.type, link.linkname = tarfile.SYMTYPE, '../../../outside'
+        with tarfile.open(archive, 'w:gz') as package:
+            package.addfile(link)
+        with self.assertRaisesRegex(ValueError, 'outside the Wine tools'):
+            prebuilt.install(self.root, archive, prebuilt.digest(archive))
+        wine = self.root / prebuilt.RUNTIME / 'wine'
+        wine.mkdir()
+        original = wine / 'existing'
+        original.write_text('keep')
+        with self.assertRaisesRegex(ValueError, 'preserved'):
+            prebuilt.install(self.root, archive, prebuilt.digest(archive))
+        self.assertEqual(original.read_text(), 'keep')
+
+    def test_prebuilt_setup_skips_wine_source_and_keeps_graphics_validation(self):
+        bootstrap = SimpleNamespace(PROJECTS={'winegdk': {}, 'xodus': {}, 'dxmt': {}},
+                                    HELPER_INPUTS=(), bootstrap=unittest.mock.Mock())
+        bootstrap.PROJECTS['xodus']['patches'] = ()
+        builder = SimpleNamespace(require_build_path=unittest.mock.Mock())
+        pickers = SimpleNamespace(SOURCE_INPUTS=())
+        archive = self.root / 'wine.tar.gz'
+        modules = {'build-native-dependencies': builder, 'bootstrap-sources': bootstrap, 'standalone-pickers': pickers}
+        with patch.object(start, 'module', side_effect=modules.__getitem__), \
+                patch.object(start, 'native_dependencies') as dependencies, \
+                patch.object(start, 'Steps') as steps, patch.object(start, 'run') as run:
+            start.setup(2, 'CA', (archive, 'a' * 64))
+        dependencies.assert_not_called()
+        self.assertEqual([call.args[1] for call in bootstrap.bootstrap.call_args_list], [('xodus',), ('dxmt',)])
+        staged = steps.return_value.step.call_args_list
+        self.assertEqual([call.args[0] for call in staged], ['wine', 'graphics', 'helper', 'bridge'])
+        self.assertIn(str(archive), staged[0].args[2][0])
+        self.assertTrue(any('--validate' in command for command in staged[-1].args[2]))
+        self.assertIn('--download-game', run.call_args.args[0])
 
     def test_second_start_cannot_enter_while_first_is_active(self):
         with start.lock('start.lock'):

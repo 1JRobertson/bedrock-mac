@@ -952,16 +952,19 @@ class OnboardingTests(unittest.TestCase):
             worker.account_update(b'Checking the signed Minecraft package header.\n')
             worker.account_update(b"Checking this account's Minecraft ownership.\n")
             worker.account_update(b'Downloading Minecraft into private staging.\n')
+            worker.account_update(b'Downloading Minecraft: 1.0 GiB of 2.0 GiB (50%).\n')
+            worker.account_update(b'Downloading Minecraft: 1.0 GiB of 2.0 GiB (101%).\n')
             worker.account_update(b"Checking Microsoft's game signature and package integrity.\n")
-            worker.account_update(b'Downloading Minecraft 1.26 (1000 files).\n')
-            worker.account_update(b'Downloaded 500/1000 files.\n')
+            worker.account_update(b'Preparing Minecraft 1.26 (1000 files).\n')
+            worker.account_update(b'Prepared 500/1000 files.\n')
             worker.account_update(b'Downloaded 1000/1000 files.\n')
             worker.account_update(b'Downloaded 1/0 files.\n')
             worker.account_update(b'Downloaded 2/1 files.\n')
         statuses = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertEqual([status['title'] for status in statuses], [
-            'Checking download', 'Checking your Minecraft purchase', 'Downloading Minecraft',
+            'Checking download', 'Checking your Minecraft purchase', 'Downloading Minecraft', 'Downloading Minecraft',
             'Checking download', 'Preparing Minecraft', 'Preparing Minecraft', 'Preparing Minecraft'])
+        self.assertEqual(statuses[3]['detail'], '1.0 GiB of 2.0 GiB')
         self.assertEqual([status['progress'] for status in statuses], sorted(status['progress'] for status in statuses))
         self.assertTrue(all(0 <= event['progress'] <= 1 for event in statuses))
 

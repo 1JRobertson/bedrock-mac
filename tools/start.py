@@ -9,6 +9,8 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -17,6 +19,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 STAGE_NAMES = ('wine', 'graphics', 'helper', 'probes', 'bridge')
+GIB = 1024**3
 
 
 def module(name):
@@ -54,6 +57,24 @@ def installed():
                    'minecraft_store_product', 'package_metadata_present', 'gameinput_installer_present'))
     except (OSError, RuntimeError, ValueError, KeyError, TypeError):
         return False
+
+
+def setup_preflight():
+    """Report requirements before downloading or compiling anything."""
+    free = shutil.disk_usage(ROOT).free
+    print(f'Free space for setup: {free / GIB:.1f} GiB.', flush=True)
+    issues = []
+    if sys.platform == 'darwin' and (
+            os.environ.get('SSH_CONNECTION') or subprocess.run(
+                ['/bin/launchctl', 'print', f'gui/{os.getuid()}'],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode):
+        issues.append('Open Start.command on the Mac itself so setup can check graphics.')
+    started = (ROOT / 'build/start-native-dependencies').is_dir() or (ROOT / 'game').is_dir()
+    if not started and free < 8 * GIB:
+        issues.append('Free up at least 8 GiB on this drive before starting. Aim for 12 GiB or more.')
+    elif not started and free < 12 * GIB:
+        print('For a fresh build, 12 GiB or more is recommended.', flush=True)
+    return issues
 
 
 def native_dependencies(python, jobs):
@@ -196,7 +217,7 @@ class Steps:
                 temporary.unlink(missing_ok=True)
 
 
-def setup(jobs, market):
+def setup(jobs, market, prebuilt_wine=None):
     dependencies_builder = module('build-native-dependencies')
     dependencies_builder.require_build_path(ROOT, 'Source checkout')
     if os.environ.get('STANDALONE_DEPENDENCY_PREFIX'):
@@ -208,9 +229,11 @@ def setup(jobs, market):
     python = '/opt/homebrew/opt/python@3.13/bin/python3.13'
     run([python, '-c', 'import sys; assert sys.version_info >= (3, 12)'], 'Checking source-build Python')
     os.environ['PATH'] = '/opt/homebrew/opt/python@3.13/libexec/bin:' + os.environ.get('PATH', '')
-    dependencies = native_dependencies(python, jobs)
     bootstrap = module('bootstrap-sources')
+    dependencies = None if prebuilt_wine else native_dependencies(python, jobs)
     for name, project in bootstrap.PROJECTS.items():
+        if name == 'winegdk' and prebuilt_wine:
+            continue
         if (ROOT / 'sources' / name).exists():
             if name == 'xodus':
                 # These examples are generated copies of this checkout's
@@ -223,19 +246,30 @@ def setup(jobs, market):
     steps = Steps()
     wine = ROOT / 'runtime/standalone/wine'
     wine_inputs = ['tools/build-standalone-wine.sh', 'tools/verify-wine-source.py', 'tools/bootstrap-sources.py',
-                   'tools/build-native-dependencies.py', 'config/native-dependencies.lock.json',
-                   str(dependencies / 'dependency-manifest.json')]
+                   'tools/build-native-dependencies.py', 'config/native-dependencies.lock.json']
     wine_inputs += [str(p.relative_to(ROOT)) for p in (ROOT / 'patches').glob('*wine*.patch')]
     wine_inputs += ['patches/minecraft-store-callback.patch']
     wine_inputs += list(module('standalone-pickers').SOURCE_INPUTS)
-    steps.step('wine', 'Building the Windows compatibility runtime',
-        [['/usr/bin/env', 'STANDALONE_DEPENDENCY_PREFIX=' + str(dependencies),
-          '/bin/sh', str(ROOT / 'tools/build-standalone-wine.sh')]], wine_inputs,
-        ['runtime/standalone/wine/bin/wine', 'runtime/standalone/wine/build-manifest.json',
-         'runtime/standalone/wine/lib/wine/x86_64-unix/ntdll.so',
-         'runtime/standalone/wine/lib/wine/x86_64-windows/xgameruntime.dll',
-         'runtime/standalone/wine/lib/wine/x86_64-windows/bedrock-pickers.dll',
-         'runtime/standalone/wine/file-pickers-build.json'])
+    wine_outputs = ['runtime/standalone/wine/bin/wine', 'runtime/standalone/wine/build-manifest.json',
+                    'runtime/standalone/wine/lib/wine/x86_64-unix/ntdll.so',
+                    'runtime/standalone/wine/lib/wine/x86_64-windows/xgameruntime.dll',
+                    'runtime/standalone/wine/lib/wine/x86_64-windows/bedrock-pickers.dll',
+                    'runtime/standalone/wine/file-pickers-build.json']
+    probes = ['standalone-graphics-probe', 'standalone-graphics-shader-probe',
+              'runtime-auth-probe', 'store-callback-probe', 'runtime-privilege-probe']
+    probe_inputs = ['tools/build-standalone-probes.sh', 'tests/xuser-claims.c'] + [
+        'native/probes/' + name + '.c' for name in probes]
+    probe_outputs = ['runtime/standalone/probes/' + name + '.exe' for name in probes + ['xuser-claims-test']]
+    if prebuilt_wine:
+        archive, checksum = prebuilt_wine
+        steps.step('wine', 'Installing verified prebuilt Wine tools',
+            [[python, str(ROOT / 'tools/prebuilt-wine.py'), 'install', str(archive), '--sha256', checksum]],
+            wine_inputs + probe_inputs + ['tools/prebuilt-wine.py'], wine_outputs + probe_outputs)
+    else:
+        steps.step('wine', 'Building the Windows compatibility runtime',
+            [['/usr/bin/env', 'STANDALONE_DEPENDENCY_PREFIX=' + str(dependencies),
+              '/bin/sh', str(ROOT / 'tools/build-standalone-wine.sh')]],
+            wine_inputs + [str(dependencies / 'dependency-manifest.json')], wine_outputs)
     graphics = [f'x86_64-windows/{name}.dll' for name in ('d3d11', 'dxgi', 'd3d10core', 'winemetal')]
     steps.step('graphics', 'Installing graphics support',
         [['/bin/sh', str(ROOT / 'tools/build-standalone-graphics.sh'), '--wine-runtime', str(wine)]],
@@ -249,12 +283,9 @@ def setup(jobs, market):
         [[python, str(ROOT / 'client/standalone-setup.py'), '--build-helper', '--jobs', str(jobs)]],
         helper_inputs,
         ['sources/xodus/target/release/examples/standalone_helper'])
-    probes = ['standalone-graphics-probe', 'standalone-graphics-shader-probe',
-              'runtime-auth-probe', 'store-callback-probe', 'runtime-privilege-probe']
-    steps.step('probes', 'Building graphics checks',
-        [['/bin/sh', str(ROOT / 'tools/build-standalone-probes.sh')]],
-        ['tools/build-standalone-probes.sh', 'tests/xuser-claims.c'] + ['native/probes/' + p + '.c' for p in probes],
-        ['runtime/standalone/probes/' + p + '.exe' for p in probes + ['xuser-claims-test']])
+    if not prebuilt_wine:
+        steps.step('probes', 'Building graphics checks',
+            [['/bin/sh', str(ROOT / 'tools/build-standalone-probes.sh')]], probe_inputs, probe_outputs)
     bridge = ['/bin/sh', str(ROOT / 'tools/build-standalone-dxmt-unix.sh')]
     steps.step('bridge', 'Building and testing the graphics memory fixes',
         [bridge, bridge + ['--validate'], bridge + ['--stage-existing-runtime', str(wine)]],
@@ -275,17 +306,25 @@ def main(argv=None):
     parser.add_argument('--setup-only', action='store_true', help='Complete setup without starting Minecraft')
     parser.add_argument('--market', default='CA', help='Two-letter Store country code (default CA)')
     parser.add_argument('--jobs', type=int, default=2, help='Build workers (default 2, suitable for initial M1 Air testing)')
+    parser.add_argument('--prebuilt-wine', type=Path, help='Use a verified Wine tools archive in a fresh setup')
+    parser.add_argument('--prebuilt-sha256', help='Trusted SHA-256 of the prebuilt Wine tools archive')
     args = parser.parse_args(argv)
     if len(args.market) != 2 or not args.market.isascii() or not args.market.isupper() or not args.market.isalpha():
         parser.error('--market must be a two-letter uppercase country code')
     if not 1 <= args.jobs <= 12:
         parser.error('--jobs must be between 1 and 12')
+    if bool(args.prebuilt_wine) != bool(args.prebuilt_sha256) or (
+            args.prebuilt_sha256 and not re.fullmatch(r'[0-9a-fA-F]{64}', args.prebuilt_sha256)):
+        parser.error('Provide --prebuilt-wine together with its 64-character --prebuilt-sha256.')
     # Source setup owns this checkout's locks, runtime, game and saves. Do not
     # let inherited packaged-worker variables redirect only part of the flow.
     os.environ['BEDROCK_HOME'] = str(ROOT)
     os.environ.pop('BEDROCK_BUNDLE', None)
     if args.check:
         ready = installed()
+        if not ready:
+            for issue in setup_preflight():
+                print(issue)
         print('Ready to launch.' if ready else 'Setup needed. Open Start.command to continue.')
         return 0 if ready else 1
     if sys.platform != 'darwin' or platform.machine() != 'arm64' or int(platform.mac_ver()[0].split('.')[0]) < 15:
@@ -301,10 +340,16 @@ def main(argv=None):
             print('Minecraft is already running.')
             return 0
         if not installed():
+            issues = setup_preflight()
+            if issues:
+                raise RuntimeError(' '.join(issues))
             print('First-time setup downloads several GB and builds the runtime. Keep this window open.', flush=True)
             with lock('launcher.lock'):
                 launcher.wait_for_idle_prefix()
-                setup(args.jobs, args.market)
+                if args.prebuilt_wine:
+                    setup(args.jobs, args.market, (args.prebuilt_wine.resolve(), args.prebuilt_sha256.lower()))
+                else:
+                    setup(args.jobs, args.market)
             if not installed():
                 raise RuntimeError('Installation verification failed. Open Start.command again to retry.')
         if args.setup_only:

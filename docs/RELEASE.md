@@ -27,8 +27,8 @@ Each later PR must record checks on its own final commit and disclose unavailabl
 jobs; an earlier pass cannot qualify changed source. Native test gaps remain
 visible even when a source change is ready for review.
 
-The current [source download](SOURCE_PREVIEW.md) is **0.3.0 source preview 7**.
-It lets Homebrew update normally when installing missing build tools.
+The current [source download](SOURCE_PREVIEW.md) is **0.3.0 source preview 8**.
+It adds first-run checks, download progress, and optional prebuilt Wine tools.
 The latest hosted run, on October 28, passed both Python
 jobs, account-helper and file-pickers; native-launcher was cancelled. It was not
 a complete passing run. Hosted checks are manual; local checks remain the

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import platform
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -159,13 +160,16 @@ def account_update(line, updating=False):
         event('busy', 'Checking download', '', 0.3)
     elif line.startswith(b'Downloading Minecraft into private staging.'):
         event('busy', 'Downloading Minecraft', 'Keep this app open.' if updating else 'Keep this app open. Minecraft will start when it’s ready.', 0.35)
+    elif line.startswith(b'Downloading Minecraft: '):
+        match = re.fullmatch(rb'Downloading Minecraft: (\d{1,5}\.\d GiB of \d{1,5}\.\d GiB) \((\d{1,3})%\)\.\s*', line)
+        if match and int(match[2]) <= 100:
+            event('busy', 'Downloading Minecraft', match[1].decode('ascii'), 0.35 + 0.43 * int(match[2]) / 100)
     elif line.startswith(b"Checking Microsoft's game signature and package integrity."):
         event('busy', 'Checking download', 'Keep this app open.', 0.8)
-    elif line.startswith(b'Downloading Minecraft '):
+    elif line.startswith((b'Preparing Minecraft ', b'Downloading Minecraft ')):
         event('busy', 'Preparing Minecraft', '', 0.85)
-    elif line.startswith(b'Downloaded ') and b' files.' in line:
-        import re
-        match = re.fullmatch(rb'Downloaded (\d+)/(\d+) files\.\s*', line)
+    elif line.startswith((b'Prepared ', b'Downloaded ')):
+        match = re.fullmatch(rb'(?:Prepared|Downloaded) (\d{1,9})/(\d{1,9}) files\.\s*', line)
         if match:
             done, total = map(int, match.groups())
             if 0 <= done <= total and total > 0:

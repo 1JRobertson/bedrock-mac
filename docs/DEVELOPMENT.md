@@ -315,6 +315,7 @@ See [CLI reference](CLI.md),
 
 | Failure | Check |
 | --- | --- |
+| Setup asks for a logged-in desktop | Open `Start.command` from Finder or Terminal in the Mac desktop session so graphics can be checked. |
 | Homebrew reports `unknown install step` while installing build tools | Run `/opt/homebrew/bin/brew update`, then run `Start.command` again. |
 | Bootstrap destination exists | Run `python3 tools/bootstrap-sources.py --check`; preserve local changes before preparing a new source tree. Do not fetch a different branch into the pinned checkout to silence a mismatch. |
 | Cargo lock or source patch mismatch | Compare tracked patches, `patches/Cargo.lock`, and the pinned source check. Keep `--locked`; update provenance and checksums intentionally. |
@@ -334,3 +335,41 @@ The launcher builder handles duplicate legacy `SwiftBridging` module maps in
 some Command Line Tools installations with a build-local VFS overlay. It does
 not edit the system toolchain. Keep the generated build logs when reporting a
 remaining Swift compile failure.
+
+## Reuse prebuilt Wine tools
+
+The optional Wine archive contains the verified Wine build and compiled probes.
+It skips compiling Wine, its native dependencies, and the probes on the next
+Mac. Setup still builds the sign-in helper, acquires the pinned graphics files,
+checks graphics in the desktop session, and downloads the owned game.
+
+For preview 8, download `bedrock-wine-0.3.0-source.8.tar.gz` from the
+[release page](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.8).
+In a fresh preview 8 folder, run this from Terminal on the Mac desktop:
+
+```sh
+./Start.command --prebuilt-wine "$HOME/Downloads/bedrock-wine-0.3.0-source.8.tar.gz" \
+  --prebuilt-sha256 644d1855aa53768b4063026b1adeae2cf91597983071a04f90f4e26304e9d295
+```
+
+### Build an archive yourself
+
+From the matching source checkout, use Python 3.12 or later to package a
+completed source build. The tool prints the archive's SHA-256.
+
+```sh
+python3 tools/prebuilt-wine.py pack /path/to/bedrock-prebuilt-wine.tar.gz \
+  --built-root /path/to/completed-source-setup
+```
+
+Use a fresh source folder. Replace `ARCHIVE_SHA256` with the published checksum
+from the builder you trust.
+
+```sh
+./Start.command --prebuilt-wine /path/to/bedrock-prebuilt-wine.tar.gz \
+  --prebuilt-sha256 ARCHIVE_SHA256
+```
+
+Keep the same archive and checksum for a setup retry. Publish binary archives
+with the matching source, build materials, and component notices described in
+[the publishing guide](PUBLISHING.md#release-status-and-remaining-setup).
