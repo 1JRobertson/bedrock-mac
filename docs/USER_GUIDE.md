@@ -1,22 +1,18 @@
 # Using Bedrock for Mac
 
-**Local RC4 is a test candidate.** Native first-run, update, gameplay and clean-M1
-qualification remain open in the [release record](RELEASE.md).
+**Downloading Bedrock for Mac?** Get the [current source preview](SOURCE_PREVIEW.md)
+and follow the [`Start.command` setup guide](../README.md#start-from-source).
+See the [M1 Air install and gameplay result](RELEASE.md#m1-air-source-install-and-first-play).
 
-This is an open-source preview. There is no public notarized installer yet.
-The steps below describe a complete local app built from this repository;
-GitHub's **Download ZIP** contains source, not an installable app. Developers can
-follow [the build guide](DEVELOPMENT.md). To play directly from source using
-`Start.command`, begin with [the README](../README.md#start-from-source). Source
-setup installs build tools and compiles locally; the app instructions below
-apply to a complete bundle.
+The instructions below cover the Mac app you can
+[build locally](DEVELOPMENT.md#build-a-complete-local-app). The
+[release record](RELEASE.md#recorded-local-artifact) tracks tests for that app.
 
 ## Before you start
 
 - An Apple Silicon Mac. Intel Macs are not supported by the current launcher.
 - macOS **15.0 or later** for local 0.3.0 RC4 (build 6), based on the complete
-  binary audit. Gameplay qualification remains pending; see
-  [compatibility](COMPATIBILITY.md). Check the manifest again for later builds.
+  [binary audit](COMPATIBILITY.md). Check the manifest for later builds.
 - Rosetta, which runs the Intel-based Wine and graphics components. Follow
   [Apple's Rosetta instructions](https://support.apple.com/en-us/102527).
 - An internet connection and a Microsoft account that owns **Minecraft for
