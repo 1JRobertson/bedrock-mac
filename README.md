@@ -13,34 +13,31 @@ the session details.
 played in a local world on a 16 GB M1 MacBook Air running macOS 26.6.2. Setup
 required a Homebrew update. [M1 test](docs/RELEASE.md#m1-air-source-install-and-first-play)
 
-[Download source preview 7](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.7)
+[Download source preview 8](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.8)
 and follow the [setup steps](#start-from-source). The first run builds the
-tools needed to run the Windows game and downloads your owned copy. Preview 7
-fixes the Homebrew setup problem found during the M1 test.
+tools needed to run the Windows game and downloads your owned copy.
 
 ## Start from source
 
-On an **Apple Silicon Mac with macOS 15 or later**:
+You’ll need **Apple Silicon, macOS 15 or later, internet**, and a Microsoft
+account that owns **Minecraft for Windows**. For a first build, aim for
+**12 GiB or more** of free space. Open setup from the Mac’s desktop.
 
-1. Extract the source release. You can also clone this repository or use
-   **Code → Download ZIP**.
-2. Keep the folder in a permanent location you control: it holds your game,
-   settings, and saves. Do not replace or delete it when updating source.
-   Source builds require a full path containing only ASCII letters, digits,
-   `/`, `.`, `_`, `+` and `-` (for example, `~/git/bedrock-mac` after expanding `~`).
-   See [build path requirements](docs/DEVELOPMENT.md#build-paths).
-3. Double-click **Start.command**, or run `./Start.command` from Terminal in
-   that folder. Keep Terminal open through setup and play.
-4. Follow the Apple/Homebrew prompts and sign in with the Microsoft account
-   that owns **Minecraft for Windows**. A console/mobile purchase alone is
-   insufficient. If Minecraft asks, select **Sign in now**.
+1. Extract the source download into a permanent folder such as
+   `~/git/bedrock-mac`. Use a path without spaces and keep the folder for your
+   game, settings, and worlds. [Full path requirements](docs/DEVELOPMENT.md#build-paths)
+2. Double-click **Start.command**. Keep Terminal open during setup and play.
+3. Follow the Apple and Homebrew prompts, then sign in. If Minecraft shows
+   **Sign in now**, select it.
 
-The first run installs missing build tools, fetches pinned sources, compiles
-Wine and the account helper, validates the graphics memory fixes, and downloads
-your owned game. It needs internet access, Rosetta, several GB of downloads,
-and room for source/build outputs as well as the game. Build time and minimum
-build-space requirements have not been measured. Apple Command Line Tools
-installation asks you to press Return when it finishes.
+The first run installs missing tools, builds Wine and its account helper,
+checks graphics, and downloads your owned game. Building took at least
+25 minutes on the tested M1 Air. Setup shows separate download, verification,
+and preparation stages. Apple Command Line Tools setup asks you to press
+Return when installation finishes.
+
+You can skip compiling Wine with the optional
+[prebuilt Wine tools](docs/DEVELOPMENT.md#reuse-prebuilt-wine-tools).
 
 Use **Start.command** again to play. It reuses a complete installation and
 retries interrupted setup; interrupted game downloads restart. It does not
@@ -56,6 +53,19 @@ setup-only commands are available:
 If macOS blocks opening the script, follow [Apple's opening guidance](https://support.apple.com/en-us/102445)
 after checking the source. See [the build guide](docs/DEVELOPMENT.md) for
 manual setup steps and troubleshooting.
+
+## Verify the download
+
+Download the named `.tar.gz` archive and `SHA256SUMS.txt` from the same GitHub
+release. In Terminal, open the folder containing both files and run:
+
+```sh
+shasum -a 256 -c SHA256SUMS.txt
+```
+
+`OK` means the archive matches the published checksum. The release page
+records the source commit and tests. The project downloads the game from
+Microsoft after verifying your ownership. [Source and licenses](THIRD_PARTY.md)
 
 ## Locally built app
 

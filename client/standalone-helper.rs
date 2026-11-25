@@ -10,6 +10,7 @@ use xodus::licensing::splicense::ContentKey;
 use xodus::tokens::{TokenManager, store::TokenStoreError};
 use xodus::tokens::{backend::{KeychainBackend, MemoryBackend}, store::TokenBackend};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 #[path = "../src/webview.rs"] mod webview;
 #[path = "../src/commands/login.rs"] mod login;
@@ -183,6 +184,7 @@ where S: futures_util::Stream<Item = Outcome<B>> + Unpin, B: AsRef<[u8]>,
     let mut header_verified = false;
     let mut authenticated_header_hash = None;
     let mut authorization = None;
+    let mut last_progress = Instant::now();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
         let chunk = chunk.as_ref();
@@ -208,6 +210,13 @@ where S: futures_util::Stream<Item = Outcome<B>> + Unpin, B: AsRef<[u8]>,
             }
         }
         writer.write_all(chunk).await?;
+        if header_verified && (received == expected_size || last_progress.elapsed() >= Duration::from_secs(3)) {
+            let gib = (1u64 << 30) as f64;
+            let percent = u128::from(received) * 100 / u128::from(expected_size);
+            eprintln!("Downloading Minecraft: {:.1} GiB of {:.1} GiB ({percent}%).",
+                received as f64 / gib, expected_size as f64 / gib);
+            last_progress = Instant::now();
+        }
     }
     if received != expected_size || !header_verified { return Err(failure("package_size")); }
     writer.sync_all().await?;
@@ -597,7 +606,7 @@ async fn download(client: &reqwest::Client, tokens: &TokenManager, directory: &P
         eprintln!("Minecraft download checks passed.");
         return Ok(());
     }
-    eprintln!("Downloading Minecraft {} ({} files).", details.version, files.len());
+    eprintln!("Preparing Minecraft {} ({} files).", details.version, files.len());
     let completed = AtomicUsize::new(0);
     let total = files.len();
     stream::iter(files.iter()).map(|(name, info)| {
@@ -639,7 +648,7 @@ async fn download(client: &reqwest::Client, tokens: &TokenManager, directory: &P
                 std::fs::rename(&prepared, &target)?;
             }
             let count = completed.fetch_add(1, Ordering::Relaxed) + 1;
-            if count % 500 == 0 || count == total { eprintln!("Downloaded {count}/{total} files."); }
+            if count % 500 == 0 || count == total { eprintln!("Prepared {count}/{total} files."); }
             Ok::<(), Box<dyn std::error::Error>>(())
         }
     }).buffer_unordered(4).try_collect::<Vec<_>>().await?;

@@ -176,6 +176,7 @@ ALLOWED_FILES = (
     "legacy/build-helper.sh",
     "tools/build-launcher.sh",
     "tools/package-launcher.py",
+    "tools/prebuilt-wine.py",
     "tools/build-dmg.py",
     "launcher/BedrockLauncher.swift",
     "launcher/setup.py",

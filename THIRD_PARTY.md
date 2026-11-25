@@ -195,6 +195,13 @@ Existing receipts are checked with `--verify`; they are never regenerated to
 approve changed files. Source archives and build records remain local outputs
 until distribution is separately approved.
 
+The optional [prebuilt Wine tools](docs/DEVELOPMENT.md#reuse-prebuilt-wine-tools)
+use this native dependency build and the patched WineGDK tree. The release
+provides their corresponding source archives alongside the binaries. The source
+preview carries the build scripts, patches, probe sources, and license texts.
+The prebuilt archive includes Wine and its probes. Setup acquires DXMT from
+upstream and builds the Microsoft account helper separately.
+
 `tools/collect-helper-licenses.py` generates the macOS helper's locked dependency
 notices and corresponding-source materials, with exact-input verification and
 an included reconstruction script. The tested standalone target uses
