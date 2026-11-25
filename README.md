@@ -6,9 +6,12 @@ with macOS 15 or later. No CrossOver subscription is required.
 **LAN and online multiplayer.** The maintainer has played with friends on
 Xbox and PS5 over LAN and online. Two online sessions and local world save
 and reopen were recorded on an M4 Pro Mac mini running macOS 15.3.1. The
-maintainer has also run the game on a 16 GB M1 MacBook Air.
-[Gameplay record](docs/history/GAMEPLAY.md#repeated-cross-platform-play) ·
-[Compatibility](docs/COMPATIBILITY.md)
+[gameplay record](docs/history/GAMEPLAY.md#repeated-cross-platform-play) has
+the session details.
+
+**Tested on an M1 Air.** We built source preview 6, downloaded Minecraft, and
+played in a local world on a 16 GB M1 MacBook Air running macOS 26.6.2. Setup
+required a Homebrew update. [M1 test](docs/RELEASE.md#m1-air-source-install-and-first-play)
 
 [Download source preview 6](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.6)
 and follow the [setup steps](#start-from-source). The first run builds the

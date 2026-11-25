@@ -18,7 +18,7 @@ source publication and the next acceptance steps.
 | App/DMG | Local RC4 resource, notice-copy, signature and complete minimum-OS audit passed | Rebuild/audit any changed app; verify its exact artifact |
 | Saves and updates | Historical development save/reopen and synthetic update/recovery checks | Candidate save/reopen/backup restore and actual game upgrade/recovery |
 | Multiplayer/stability | Maintainer reports LAN and online play with multiple friends on Xbox and PS5. [Gameplay history](history/GAMEPLAY.md#repeated-cross-platform-play) includes two monitored online sessions. The October 31 WinHTTP fix was followed by a [successful friend-world retry](history/PARTY-WINHTTP-2026-10-25.md#october-31-installed-fix-and-friend-world-acceptance). | Candidate join/disconnect/rejoin, party creation/invites, active Realm entry and extended session |
-| Clean-machine/M1 | Maintainer reports it working on an M1 Air, 16 GB; exact OS/revision/scenarios unrecorded | Fresh-machine setup and artifact-specific acceptance receipt |
+| M1 source setup | [Preview 6 first install and local world play](#m1-air-source-install-and-first-play) on a 16 GB M1 Air with macOS 26.6.2. | Repeat from a Mac without the prerequisites and qualify the packaged app separately. |
 | Distribution | Source-built dependency receipts and collected notices exist | Final binary corresponding-source/build mapping; Developer ID/notarization and downloaded-app checks |
 
 [PR #10](https://github.com/1JRobertson/bedrock-mac/pull/10) passed its hosted
@@ -33,6 +33,26 @@ jobs, account-helper and file-pickers; native-launcher was cancelled. It was not
 a complete passing run. Hosted checks are manual; local checks remain the
 default merge evidence. See [the run](https://github.com/1JRobertson/bedrock-mac/actions/runs/40701249996)
 and [validation policy](TESTING.md#local-validation-record).
+
+## M1 Air source install and first play
+
+On November 25, 2026, the published [source preview 6](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.6)
+at `2bec6df11cfe4519d948a22a63d6270b06ae7e3a` built and launched in a new
+folder on a 16 GB M1 MacBook Air running macOS 26.6.2 (`25G83`). The release
+archive and its source inventory matched the published checksums. Developer
+tools, Rosetta, and Homebrew were present at the start.
+
+An outdated Homebrew failed while installing Python. Running
+`/opt/homebrew/bin/brew update` resolved that error. The first graphics probe
+failed in the remote shell. Running the same `Start.command` in the Mac's
+desktop session reused the build and passed both graphics probes.
+
+After the maintainer approved Keychain access, the helper verified Microsoft
+ownership, downloaded and verified the package, and prepared all 12,902 files
+for Minecraft `1.26.6501.0`. The launcher created a fresh game profile. The
+maintainer confirmed the main menu and successful play in a local world.
+Save/reopen, multiplayer on this M1 install, and the packaged app still need
+separate test results.
 
 ## Recorded local artifact
 
