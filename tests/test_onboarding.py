@@ -963,8 +963,10 @@ class OnboardingTests(unittest.TestCase):
         statuses = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertEqual([status['title'] for status in statuses], [
             'Checking download', 'Checking your Minecraft purchase', 'Downloading Minecraft', 'Downloading Minecraft',
-            'Checking download', 'Preparing Minecraft', 'Preparing Minecraft', 'Preparing Minecraft'])
+            'Verifying Minecraft', 'Unpacking Minecraft', 'Unpacking Minecraft', 'Unpacking Minecraft'])
         self.assertEqual(statuses[3]['detail'], '1.0 GiB of 2.0 GiB')
+        self.assertEqual(statuses[4]['detail'], 'Download complete. Checking the game files.')
+        self.assertEqual(statuses[6]['detail'], '50% unpacked')
         self.assertEqual([status['progress'] for status in statuses], sorted(status['progress'] for status in statuses))
         self.assertTrue(all(0 <= event['progress'] <= 1 for event in statuses))
 
