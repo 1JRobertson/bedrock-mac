@@ -1,6 +1,6 @@
 //! One stable executable owns sign-in, licensed download, and Xbox IPC.
 //! Credentials stay in Keychain. Never log raw service errors or panic payloads.
-use std::{collections::{HashMap, HashSet}, path::{Component, Path, PathBuf}, process::ExitCode, sync::{Arc, atomic::{AtomicBool, AtomicUsize, Ordering}}};
+use std::{cell::Cell, collections::{HashMap, HashSet}, ops::Range, path::{Component, Path, PathBuf}, process::ExitCode, sync::{Arc, atomic::{AtomicBool, AtomicUsize, Ordering}}};
 use std::os::unix::{ffi::OsStrExt, fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt}};
 use futures_util::{stream, StreamExt, TryStreamExt};
 use msixvc::{streaming, xvd::{SegmentFile, XvdFile}};
@@ -21,6 +21,9 @@ use std::time::{Duration, Instant};
 type Outcome<T> = Result<T, Box<dyn std::error::Error>>;
 const PRODUCT: &str = "9NBLGGH2JHXJ";
 const EXTRACTION_BUFFER_BYTES: usize = 64 * 1024;
+const PACKAGE_HEADER_BYTES: usize = 4096;
+const PARALLEL_TRANSFER_MINIMUM: u64 = 128 * 1024 * 1024;
+const PACKAGE_TRANSFER_PARTS: u64 = 4;
 
 #[derive(Debug)]
 struct SetupFailure(&'static str);
@@ -132,13 +135,149 @@ fn authenticated_content_matches(expected: uuid::Uuid, actual: uuid::Uuid) -> Ou
     Ok(())
 }
 
+fn authenticate_package_header(header: &[u8; PACKAGE_HEADER_BYTES], filename: &str,
+    expected_size: u64, expected_content_id: uuid::Uuid) -> Outcome<([u8; 32], uuid::Uuid)> {
+    let layout = integrity::authenticate_header(header, filename, expected_size).map_err(integrity_failure)?;
+    // Read the signed content UUID only after authenticating the header.
+    let content_id = uuid::Uuid::from_bytes_le(header[0x220..0x230].try_into().expect("fixed UUID"));
+    authenticated_content_matches(expected_content_id, content_id)?;
+    Ok((layout.header_sha256(), content_id))
+}
+
+async fn package_content_key(client: &reqwest::Client, tokens: &TokenManager, content_id: uuid::Uuid,
+    market: &str) -> Outcome<ContentKey> {
+    let (device_key, owned_license) = license::get_license(client, tokens, content_id.to_string(), market.into()).await
+        .map_err(|_| failure("content_license"))?;
+    if owned_license.content_keys.len() != 1 { return Err(failure("content_license")); }
+    let content_key = owned_license.content_keys.into_values().next().ok_or_else(|| failure("content_license"))?;
+    content_key.unpack(&device_key).map_err(|_| failure("content_license"))
+}
+
+type QuarantinedPackage<K> = (tempfile::NamedTempFile, integrity::VerifiedReader<std::fs::File>, K, uuid::Uuid);
+
+fn range_request(client: &reqwest::Client, url: &reqwest::Url, range: &Range<u64>) -> reqwest::RequestBuilder {
+    client.get(url.clone()).header(reqwest::header::ACCEPT_ENCODING, "identity")
+        .header(reqwest::header::RANGE, format!("bytes={}-{}", range.start, range.end - 1))
+}
+
+fn valid_range(headers: &reqwest::header::HeaderMap, length: Option<u64>, range: &Range<u64>, total: u64) -> bool {
+    use reqwest::header::{CONTENT_ENCODING, CONTENT_RANGE};
+    let expected = format!("bytes {}-{}/{total}", range.start, range.end - 1);
+    length == Some(range.end - range.start)
+        && headers.get_all(CONTENT_RANGE).iter().count() == 1
+        && headers.get(CONTENT_RANGE).is_some_and(|value| value == expected.as_str())
+        && headers.get_all(CONTENT_ENCODING).iter().all(|value| value == "identity")
+}
+
+fn package_ranges(total: u64) -> impl Iterator<Item = Range<u64>> {
+    let header_end = PACKAGE_HEADER_BYTES as u64;
+    let width = (total - header_end).div_ceil(PACKAGE_TRANSFER_PARTS);
+    (0..PACKAGE_TRANSFER_PARTS).map(move |part| {
+        let start = header_end + part * width;
+        start..(start + width).min(total)
+    })
+}
+
+async fn write_range(response: reqwest::Response, expected: u64,
+    output: &mut (impl tokio::io::AsyncWrite + Unpin), mut progress: impl FnMut(usize)) -> Outcome<()> {
+    let mut chunks = response.bytes_stream();
+    let mut received = 0;
+    while let Some(chunk) = chunks.next().await {
+        let chunk = chunk.map_err(|error| { eprintln!("{}", package_diagnostic(&error)); failure("package_connection") })?;
+        received = received_within_bound(received, chunk.len(), expected)?;
+        output.write_all(&chunk).await?;
+        progress(chunk.len());
+    }
+    if received != expected { return Err(failure("package_size")); }
+    output.flush().await?;
+    Ok(())
+}
+
+fn report_transfer(received: u64, total: u64, last: &mut Instant) {
+    if received == total || last.elapsed() >= Duration::from_secs(3) {
+        let gib = (1u64 << 30) as f64;
+        let percent = u128::from(received) * 100 / u128::from(total);
+        eprintln!("Downloading Minecraft: {:.1} GiB of {:.1} GiB ({percent}%).",
+            received as f64 / gib, total as f64 / gib);
+        *last = Instant::now();
+    }
+}
+
+async fn quarantine_parts(client: &reqwest::Client, url: &reqwest::Url, out: &Path,
+    filename: &str, expected_size: u64, header: &[u8; PACKAGE_HEADER_BYTES], header_hash: [u8; 32],
+    key: ContentKey, content_id: uuid::Uuid) -> Outcome<Option<QuarantinedPackage<ContentKey>>> {
+    let quarantine = tempfile::Builder::new().prefix(".xodus-quarantine-").tempfile_in(out)?;
+    std::io::Write::write_all(&mut quarantine.as_file(), header)?;
+    let progress = Cell::new((header.len() as u64, Instant::now()));
+    eprintln!("BEDROCK_PACKAGE_TRANSFER:mode=parallel;parts={PACKAGE_TRANSFER_PARTS}");
+    eprintln!("Downloading Minecraft into private staging.");
+    let result = stream::iter(package_ranges(expected_size)).map(|range| {
+        let progress = &progress;
+        let quarantine = &quarantine;
+        async move {
+            let response = range_request(client, url, &range).send().await
+                .map_err(|error| { eprintln!("{}", package_diagnostic(&error)); failure("package_connection") })?;
+            if response.status() != reqwest::StatusCode::PARTIAL_CONTENT
+                || !valid_range(response.headers(), response.content_length(), &range, expected_size) {
+                return Err(failure("package_size"));
+            }
+            let mut file = File::from_std(quarantine.reopen()?);
+            file.seek(std::io::SeekFrom::Start(range.start)).await?;
+            let mut writer = BufWriter::with_capacity(EXTRACTION_BUFFER_BYTES, file);
+            write_range(response, range.end - range.start, &mut writer, |added| {
+                let (received, mut last) = progress.get();
+                let received = received + added as u64;
+                report_transfer(received, expected_size, &mut last);
+                progress.set((received, last));
+            }).await
+        }
+    }).buffer_unordered(PACKAGE_TRANSFER_PARTS as usize).try_collect::<Vec<_>>().await;
+    // Only transport and length failures can fall back. I/O and verification
+    // failures are reported rather than treating the partial download as valid.
+    if let Err(error) = result {
+        if error.downcast_ref::<SetupFailure>().is_some_and(|err| matches!(err.0, "package_connection" | "package_size")) {
+            eprintln!("BEDROCK_PACKAGE_TRANSFER:mode=sequential_fallback");
+            return Ok(None);
+        }
+        return Err(error);
+    }
+    File::from_std(quarantine.reopen()?).sync_all().await?;
+    let reader = verify_quarantine(&quarantine, expected_size, filename, header_hash).await?;
+    Ok(Some((quarantine, reader, key, content_id)))
+}
+
 async fn quarantine_package(client: &reqwest::Client, url: reqwest::Url, out: &Path,
     filename: &str, expected_size: u64, expected_content_id: uuid::Uuid, account_client: &reqwest::Client, tokens: &TokenManager, market: &str)
-    -> Outcome<(tempfile::NamedTempFile, integrity::VerifiedReader<std::fs::File>, ContentKey, uuid::Uuid)> {
+    -> Outcome<QuarantinedPackage<ContentKey>> {
     // Validation is repeated at the network boundary, not just the call site.
     if !package_url_allowed(&url) { return Err(failure("package_transport")); }
-    let response = client.get(url).header(reqwest::header::ACCEPT_ENCODING, "identity").send().await
-        .map_err(|error| { eprintln!("{}", package_diagnostic(&error)); failure("package_connection") })?;
+    let mut full_response = None;
+    if expected_size >= PARALLEL_TRANSFER_MINIMUM {
+        let header_range = 0..PACKAGE_HEADER_BYTES as u64;
+        if let Ok(response) = range_request(client, &url, &header_range).send().await {
+            if response.status() == reqwest::StatusCode::OK {
+                full_response = Some(response);
+            } else if response.status() == reqwest::StatusCode::PARTIAL_CONTENT
+                && valid_range(response.headers(), response.content_length(), &header_range, expected_size) {
+                let mut header = Vec::with_capacity(PACKAGE_HEADER_BYTES);
+                if write_range(response, header_range.end, &mut header, |_| {}).await.is_ok() {
+                    let header: &[u8; PACKAGE_HEADER_BYTES] = header.as_slice().try_into().expect("fixed header length");
+                    let (header_hash, content_id) = authenticate_package_header(header, filename, expected_size, expected_content_id)?;
+                    eprintln!("BEDROCK_PACKAGE_BINDING:catalog_content=matched;signed_version=matched");
+                    eprintln!("Checking this account's Minecraft ownership.");
+                    let key = package_content_key(account_client, tokens, content_id, market).await?;
+                    if let Some(result) = quarantine_parts(client, &url, out, filename, expected_size, header, header_hash, key, content_id).await? {
+                        return Ok(result);
+                    }
+                }
+            }
+        }
+    }
+    let response = match full_response {
+        Some(response) => response,
+        None => client.get(url).header(reqwest::header::ACCEPT_ENCODING, "identity").send().await
+            .map_err(|error| { eprintln!("{}", package_diagnostic(&error)); failure("package_connection") })?,
+    };
     if response.status() == reqwest::StatusCode::NOT_FOUND { return Err(failure("package_unavailable")); }
     if response.status() != reqwest::StatusCode::OK { return Err(failure("package_connection")); }
     if response.content_length() != Some(expected_size)
@@ -148,13 +287,9 @@ async fn quarantine_package(client: &reqwest::Client, url: reqwest::Url, out: &P
     let chunks = response.bytes_stream().map(|chunk| chunk.map_err(|error| {
         eprintln!("{}", package_diagnostic(&error)); failure("package_connection")
     }));
-    quarantine_stream(chunks, out, filename, expected_size, expected_content_id, |content_id| async move {
-        let (device_key, owned_license) = license::get_license(account_client, tokens, content_id.to_string(), market.into()).await
-            .map_err(|_| failure("content_license"))?;
-        if owned_license.content_keys.len() != 1 { return Err(failure("content_license")); }
-        let content_key = owned_license.content_keys.into_values().next().ok_or_else(|| failure("content_license"))?;
-        content_key.unpack(&device_key).map_err(|_| failure("content_license"))
-    }).await
+    eprintln!("BEDROCK_PACKAGE_TRANSFER:mode=sequential");
+    quarantine_stream(chunks, out, filename, expected_size, expected_content_id,
+        |content_id| package_content_key(account_client, tokens, content_id, market)).await
 }
 
 fn received_within_bound(received: u64, chunk: usize, expected_size: u64) -> Outcome<u64> {
@@ -174,54 +309,46 @@ impl Drop for CancelVerificationOnDrop {
 // tests. Header authentication and full verification are always production code.
 async fn quarantine_stream<S, B, A, F, K>(mut stream: S, out: &Path, filename: &str,
     expected_size: u64, expected_content_id: uuid::Uuid, authorize: A)
-    -> Outcome<(tempfile::NamedTempFile, integrity::VerifiedReader<std::fs::File>, K, uuid::Uuid)>
+    -> Outcome<QuarantinedPackage<K>>
 where S: futures_util::Stream<Item = Outcome<B>> + Unpin, B: AsRef<[u8]>,
     A: FnOnce(uuid::Uuid) -> F, F: std::future::Future<Output = Outcome<K>> {
     let quarantine = tempfile::Builder::new().prefix(".xodus-quarantine-").tempfile_in(out)?;
-    let mut writer = File::from_std(quarantine.reopen()?);
+    let mut writer = BufWriter::with_capacity(EXTRACTION_BUFFER_BYTES, File::from_std(quarantine.reopen()?));
     let mut authorize = Some(authorize);
     let mut received = 0u64;
-    let mut header = Vec::with_capacity(4096);
-    let mut header_verified = false;
-    let mut authenticated_header_hash = None;
+    let mut header = Vec::with_capacity(PACKAGE_HEADER_BYTES);
     let mut authorization = None;
     let mut last_progress = Instant::now();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
         let chunk = chunk.as_ref();
         received = received_within_bound(received, chunk.len(), expected_size)?;
-        if !header_verified {
-            let count = (4096 - header.len()).min(chunk.len());
+        if authorization.is_none() {
+            let count = (PACKAGE_HEADER_BYTES - header.len()).min(chunk.len());
             header.extend_from_slice(&chunk[..count]);
-            if header.len() == 4096 {
-                let fixed: &[u8; 4096] = header.as_slice().try_into().expect("fixed header length");
-                let layout = integrity::authenticate_header(fixed, filename, expected_size).map_err(integrity_failure)?;
-                authenticated_header_hash = Some(layout.header_sha256());
-                header_verified = true;
-                // Fixed offset and UUID representation match XVD's vduid. Only
-                // read it after production signature, size and version checks.
-                let content_id = uuid::Uuid::from_bytes_le(fixed[0x220..0x230].try_into().expect("fixed UUID"));
-                authenticated_content_matches(expected_content_id, content_id)?;
+            if header.len() == PACKAGE_HEADER_BYTES {
+                let fixed = header.as_slice().try_into().expect("fixed header length");
+                let (header_hash, content_id) = authenticate_package_header(fixed, filename, expected_size, expected_content_id)?;
                 eprintln!("BEDROCK_PACKAGE_BINDING:catalog_content=matched;signed_version=matched");
                 eprintln!("Checking this account's Minecraft ownership.");
                 let key = authorize.take().ok_or_else(|| failure("content_license"))?(content_id).await?;
-                authorization = Some((key, content_id));
+                authorization = Some((key, content_id, header_hash));
                 // Do not poll more public-package body data until ownership passes.
                 eprintln!("Downloading Minecraft into private staging.");
             }
         }
         writer.write_all(chunk).await?;
-        if header_verified && (received == expected_size || last_progress.elapsed() >= Duration::from_secs(3)) {
-            let gib = (1u64 << 30) as f64;
-            let percent = u128::from(received) * 100 / u128::from(expected_size);
-            eprintln!("Downloading Minecraft: {:.1} GiB of {:.1} GiB ({percent}%).",
-                received as f64 / gib, expected_size as f64 / gib);
-            last_progress = Instant::now();
-        }
+        if authorization.is_some() { report_transfer(received, expected_size, &mut last_progress); }
     }
-    if received != expected_size || !header_verified { return Err(failure("package_size")); }
-    writer.sync_all().await?;
-    drop(writer);
+    if received != expected_size { return Err(failure("package_size")); }
+    let (key, content_id, header_hash) = authorization.ok_or_else(|| failure("package_size"))?;
+    finish_extracted_file(writer).await?;
+    let reader = verify_quarantine(&quarantine, expected_size, filename, header_hash).await?;
+    Ok((quarantine, reader, key, content_id))
+}
+
+async fn verify_quarantine(quarantine: &tempfile::NamedTempFile, expected_size: u64,
+    filename: &str, authenticated_header_hash: [u8; 32]) -> Outcome<integrity::VerifiedReader<std::fs::File>> {
     eprintln!("Checking Microsoft's game signature and package integrity.");
     let source = quarantine.reopen()?;
     let filename = filename.to_owned();
@@ -231,11 +358,10 @@ where S: futures_util::Stream<Item = Outcome<B>> + Unpin, B: AsRef<[u8]>,
         integrity::verify_and_open_cancellable(source, expected_size, &filename, Some(&cancelled)))
         .await.map_err(|_| failure("package_integrity"))?.map_err(integrity_failure)?;
     drop(cancellation);
-    if authenticated_header_hash != Some(report.header_sha256) { return Err(failure("package_integrity")); }
+    if authenticated_header_hash != report.header_sha256 { return Err(failure("package_integrity")); }
     eprintln!("BEDROCK_PACKAGE_VERIFIED:signer={};tree_pages={};data_pages={};metadata_pages={}",
         report.signer, report.tree_pages_verified, report.data_pages_verified, report.metadata_pages_verified);
-    let (key, content_id) = authorization.ok_or_else(|| failure("content_license"))?;
-    Ok((quarantine, reader, key, content_id))
+    Ok(reader)
 }
 
 fn parent_record_matches(path: &Path, pid: u32, executable: &Path) -> bool {
@@ -819,6 +945,36 @@ async fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn package_ranges_cover_the_body_without_overlap_or_gaps() {
+        for total in [PARALLEL_TRANSFER_MINIMUM, PARALLEL_TRANSFER_MINIMUM + 3, 256 * 1024 * 1024 * 1024] {
+            let ranges = package_ranges(total).collect::<Vec<_>>();
+            assert_eq!(ranges.len(), 4);
+            assert_eq!(ranges[0].start, PACKAGE_HEADER_BYTES as u64);
+            assert_eq!(ranges.last().unwrap().end, total);
+            assert!(ranges.iter().all(|range| !range.is_empty()));
+            assert!(ranges.windows(2).all(|pair| pair[0].end == pair[1].start));
+        }
+    }
+
+    #[test]
+    fn range_response_must_match_identity_encoding_and_exact_byte_interval() {
+        use reqwest::header::{HeaderMap, CONTENT_ENCODING, CONTENT_RANGE};
+        let range = 4096..8192;
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_RANGE, "bytes 4096-8191/16384".parse().unwrap());
+        assert!(valid_range(&headers, Some(4096), &range, 16384));
+        assert!(!valid_range(&headers, Some(4095), &range, 16384));
+        assert!(!valid_range(&headers, None, &range, 16384));
+        assert!(!valid_range(&headers, Some(4096), &range, 16385));
+        assert!(!valid_range(&headers, Some(4096), &(8192..12288), 16384));
+        headers.insert(CONTENT_ENCODING, "gzip".parse().unwrap());
+        assert!(!valid_range(&headers, Some(4096), &range, 16384));
+        headers.remove(CONTENT_ENCODING);
+        headers.append(CONTENT_RANGE, "bytes 4096-8191/16384".parse().unwrap());
+        assert!(!valid_range(&headers, Some(4096), &range, 16384));
+    }
 
     #[tokio::test]
     async fn finishing_a_buffered_file_preserves_the_final_partial_block() {
