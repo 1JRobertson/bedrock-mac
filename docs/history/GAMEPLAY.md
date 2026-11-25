@@ -48,9 +48,9 @@ sessions below retain their own timing and memory evidence; the cumulative
 estimate is user-reported, not a continuous monitored soak or a test of a newly
 packaged release candidate.
 
-The maintainer also reports it working on an **M1 MacBook Air with 16 GB
-RAM**. Its OS, source/app revision, session duration and exact scenarios have not
-been recorded; this is a user report, not a clean-machine or RC4 acceptance test.
+On November 25, a fresh folder on a **16 GB M1 MacBook Air** was used to build
+source preview 6 and download Minecraft `1.26.6501.0`. The maintainer confirmed
+playing in a local world. [M1 test details](../RELEASE.md#m1-air-source-install-and-first-play)
 
 ## Earlier gameplay results
 

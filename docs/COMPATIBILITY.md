@@ -6,18 +6,18 @@ qualification remains pending. See [release readiness](RELEASE.md).
 
 | Area | Evidence | Current-candidate status |
 | --- | --- | --- |
-| Apple Silicon | Required by launcher source | Target platform; clean-machine verification pending |
+| Apple Silicon | Required by launcher source. [M1 source install and first play](RELEASE.md#m1-air-source-install-and-first-play) verified on macOS 26.6.2. | Packaged-app acceptance pending |
 | M4 Pro, 24 GB, macOS 15.3.1 | Earlier standalone gameplay recorded September 30 | Historical only; not the new app bundle |
-| MacBook Air M1, 16 GB | Maintainer reports it working; exact OS/revision/scenarios unrecorded | Reported working; clean-machine and exact-candidate qualification pending |
+| MacBook Air M1, 16 GB | Preview 6 built in a new folder, downloaded and launched Minecraft 1.26.6501.0, and reached a local world on macOS 26.6.2. | Source test used existing developer tools, Rosetta, and Homebrew. |
 | Minimum macOS | 0.3.0 RC4 whole-bundle audit: 15.0 across 95 native files | Clean-M1 / game execution on the minimum OS untested |
 | Intel Mac | Rejected by launcher hardware check | Unsupported |
 | Rosetta | Required for x86-64 Wine/graphics/game path | Required; native ARM game execution is not shipped |
 | Minecraft edition | Helper checks Microsoft entitlement for Minecraft for Windows | A console/mobile purchase alone is not proof of this entitlement |
-| Game version | Fresh replacement-helper output config: 1.26.5203.0; earlier gameplay notes use 1.26.52 | Catalog can change; RC3 in-game version is not yet recorded in the bounded session result |
-| First owned-game download | Same-Mac RC2 reached sign-in/catalog; four initial HTTPS GETs returned 404 | Old route failed in RC2 and was retained in RC3; exact replacement helper passed outside app and is now in RC4. RC4 native first-run pending |
+| Game version | M1 source preview 6 downloaded and played `1.26.6501.0`; earlier sessions used 1.26.52 and 26.60. | Microsoft Store availability can change. |
+| First owned-game download | Preview 6 verified ownership and prepared a new game download on the M1 Air. | RC4 native first-run pending |
 | Packaged graphics probes | Actual RC3 GPU presentation/readback/texture/discard passed; resources/signature intact | Probe pass only; game/font behavior and save acceptance pending |
 | RC3 functioning / exit | User-confirmed same-Mac functioning with copied owned payload; normal return supported by UI/process cleanup | Bounded pass; save/reopen, soak and clean-M1 remain unverified |
-| Local worlds | Earlier development save/reopen observed | Current candidate save/reopen and clean-M1 test pending |
+| Local worlds | World play confirmed on the M1 Air, and save/reopen confirmed on an earlier development build. | M1 save/reopen and packaged-app save/reopen pending |
 | Xbox / PS5 cross-play | Maintainer reports LAN and online play with multiple friends (November 25). The [gameplay record](history/GAMEPLAY.md#repeated-cross-platform-play) includes two monitored online sessions. | Packaged-app join/disconnect/rejoin still needs recording |
 | Minecraft Social parties | October 25 Create party failure traced to duplicate PlayFab HTTP writes; temporary callback-order correction succeeded in game; compiled source fix passed isolated native tests ([evidence](history/PARTY-WINHTTP-2026-10-25.md)) | October 31: installed compiled fix passed all three native write tests; host reported the friend-world retry worked on 26.60. Party creation/invites and broader joining acceptance remain unverified |
 | Featured servers | Earlier lobby entry observed | Candidate untested |
