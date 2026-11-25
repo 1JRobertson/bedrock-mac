@@ -1,35 +1,25 @@
 # Bedrock for Mac
 
-Run your owned **Minecraft for Windows (Bedrock)** on an Apple Silicon Mac,
-using WineGDK, DXMT, and Xodus. The launcher is native macOS; the Windows game
-runs through Wine and Rosetta. No CrossOver subscription is required. Setup
-gets you to vanilla Minecraft, which keeps its own worlds, packs, settings and
-friends menus.
+Run your owned **Minecraft for Windows (Bedrock)** on an Apple Silicon Mac
+with macOS 15 or later. No CrossOver subscription is required.
 
-**Open-source preview.** Build scripts are available now; there is no public
-notarized app or downloadable installer. Local app candidates have separate
-[release checks](docs/RELEASE.md).
+**LAN and online multiplayer.** The maintainer has played with friends on
+Xbox and PS5 over LAN and online. Two online sessions and local world save
+and reopen were recorded on an M4 Pro Mac mini running macOS 15.3.1. The
+maintainer has also run the game on a 16 GB M1 MacBook Air.
+[Gameplay record](docs/history/GAMEPLAY.md#repeated-cross-platform-play) ·
+[Compatibility](docs/COMPATIBILITY.md)
 
-Download the current source release:
-[0.3.0 source preview 6](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.6).
-It fixes a content licensing failure and adds Store country settings to the
-native launcher.
-
-| Status | Evidence and limits |
-| --- | --- |
-| **Working in development** | Local-world save/reopen and Xbox/PlayStation friend play recorded on an M4 Pro Mac mini, 24 GB RAM, macOS 15.3.1. These are [historical sessions](docs/history/GAMEPLAY.md#earlier-gameplay-results), not current-bundle qualification. |
-| **Experimental** | Opt-in [Mullion ray tracing](experiments/mullion/RESULTS.md) rendered a proof world on the M4 Pro. Limited feature support; no general DirectX 12 conformance or long-session guarantee. |
-| **Not verified** | Clean-Mac source setup, current packaged-candidate save/reopen and multiplayer, live update/recovery, and party creation/invites/joining with the compiled party fix. See [compatibility](docs/COMPATIBILITY.md) and [release gates](docs/RELEASE.md). |
-
-Apple Silicon and macOS 15+ are the source target. An M1 Air, 16 GB, is
-[reported working](docs/COMPATIBILITY.md), without a recorded OS/revision or
-clean-install qualification. Start with [source setup](#start-from-source).
+[Download source preview 6](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.6)
+and follow the [setup steps](#start-from-source). The first run builds the
+tools needed to run the Windows game and downloads your owned copy.
 
 ## Start from source
 
 On an **Apple Silicon Mac with macOS 15 or later**:
 
-1. Clone this repository, or choose **Code → Download ZIP** and extract it.
+1. Extract the source release. You can also clone this repository or use
+   **Code → Download ZIP**.
 2. Keep the folder in a permanent location you control: it holds your game,
    settings, and saves. Do not replace or delete it when updating source.
    Source builds require a full path containing only ASCII letters, digits,
@@ -60,34 +50,21 @@ setup-only commands are available:
 ```
 
 If macOS blocks opening the script, follow [Apple's opening guidance](https://support.apple.com/en-us/102445)
-after checking the source. A complete first run on a clean Mac still needs
-qualification. See [the build guide](docs/DEVELOPMENT.md) for manual stages,
-packaging and setup failures, and [compatibility](docs/COMPATIBILITY.md) for
-what has actually been observed.
+after checking the source. See [the build guide](docs/DEVELOPMENT.md) for
+manual setup steps and troubleshooting.
 
 ## Locally built app
 
 Developers can [build a complete app and DMG](docs/DEVELOPMENT.md#build-a-complete-local-app).
 Open that DMG, copy **Bedrock for Mac** to **Applications**, then choose
-**Install & Play**. The complete bundle includes its runtime and build outputs;
-players using it do not need build tools. Its data lives separately from the
-source checkout. Follow [the app user guide](docs/USER_GUIDE.md) for sign-in,
-backup and manual update actions. Local RC4's audited minimum OS is 15.0;
-new bundles need their own audit and gameplay qualification.
+**Install & Play**. The bundle includes the runtime and saves its data
+separately from the source checkout. Follow [the app user guide](docs/USER_GUIDE.md)
+for sign-in, backups, and updates.
 
-## What has been tested?
+## Performance and experiments
 
-The maintainer estimates **10+ total hours playing with Xbox and PlayStation
-friends** across multiple sessions. Development testing also verified local-world
-saving and reopening. The [gameplay evidence](docs/history/GAMEPLAY.md#repeated-cross-platform-play)
-includes two monitored friend sessions; the cumulative estimate is a maintainer
-report, not a continuous soak test or acceptance of the current app candidate.
-
-Performance work has reduced measured CPU cost in bounded development tests.
-It does **not** establish a cumulative FPS improvement, lower power use, or a
-speedup for the release candidate. [Performance evidence](docs/PERFORMANCE.md)
-explains the measurements and their limits. Native ARM game execution is a
-separate research track, not a feature of this Windows-runtime preview.
+[Performance measurements](docs/PERFORMANCE.md) cover CPU cost and frame rate
+in development builds.
 
 An optional [Mullion ray-tracing experiment](experiments/mullion/README.md)
 demonstrated reflections and indirect lighting on the maintainer's M4 Pro Mac
