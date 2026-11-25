@@ -165,15 +165,15 @@ def account_update(line, updating=False):
         if match and int(match[2]) <= 100:
             event('busy', 'Downloading Minecraft', match[1].decode('ascii'), 0.35 + 0.43 * int(match[2]) / 100)
     elif line.startswith(b"Checking Microsoft's game signature and package integrity."):
-        event('busy', 'Checking download', 'Keep this app open.', 0.8)
+        event('busy', 'Verifying Minecraft', 'Download complete. Checking the game files.', 0.8)
     elif line.startswith((b'Preparing Minecraft ', b'Downloading Minecraft ')):
-        event('busy', 'Preparing Minecraft', '', 0.85)
+        event('busy', 'Unpacking Minecraft', '', 0.85)
     elif line.startswith((b'Prepared ', b'Downloaded ')):
         match = re.fullmatch(rb'(?:Prepared|Downloaded) (\d{1,9})/(\d{1,9}) files\.\s*', line)
         if match:
             done, total = map(int, match.groups())
             if 0 <= done <= total and total > 0:
-                event('busy', 'Preparing Minecraft', f'{done * 100 // total}%', 0.85 + 0.04 * done / total)
+                event('busy', 'Unpacking Minecraft', f'{done * 100 // total}% unpacked', 0.85 + 0.04 * done / total)
 
 
 class Cancelled(BaseException):
@@ -241,10 +241,10 @@ def validate_install():
 
 
 def install(log):
-    event('busy', 'Preparing Minecraft', 'Checking the required Microsoft game component…', 0.9)
+    event('busy', 'Setting up Minecraft', 'Checking a required Microsoft game component.', 0.9)
     run([sys.executable, script_path('standalone-setup.py'), '--threading'], log,
         'Could not download the Microsoft game component. Check your connection and try again.')
-    event('busy', 'Finishing setup', '', 0.95)
+    event('busy', 'Finishing setup', 'Preparing your game profile.', 0.95)
     run([sys.executable, script_path('standalone.py'), 'prepare'], log,
         'Could not finish setting up the game. Open the setup log for details.')
 
@@ -519,7 +519,9 @@ def main():
                 with runtime.account(ROOT / 'game', args.market, download=not (ROOT / 'game').exists(), progress=account_update):
                     if not ready:
                         install(log)
-                    event('playing', 'Minecraft is running', 'You can close this window. Quit Minecraft to end your session.')
+                    event('playing', 'Minecraft',
+                          'The first launch can take a minute. Minecraft opens in a separate window.'
+                          if not ready else 'Minecraft opens in a separate window.')
                     run([sys.executable, script_path('standalone.py'), '--market', args.market, 'launch'], log,
                         'Minecraft stopped unexpectedly. Open the setup log for details, then try again.')
             except runtime.AccountError as error:
