@@ -46,6 +46,11 @@ signed download URL. Review logs before sharing excerpts.
   file and the signed header must agree on the content UUID before licensing.
   The signed content ID supports the normal
   Microsoft ownership check before polling further bulk download data.
+- For large packages, the helper can fetch four disjoint byte ranges after
+  authenticating the header and checking ownership. Every partial response
+  must match the requested interval, the catalog's total size and identity
+  encoding. Unsupported range transfers use the sequential download path.
+  Both paths pass the full verification below before parsing.
 - Before the existing XVD parser or extraction runs, the complete quarantine
   must pass signature, every hash-tree page, every stored data page and exact
   signed package-full-name checks against the authenticated catalog. The final

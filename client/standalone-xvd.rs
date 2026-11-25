@@ -324,19 +324,30 @@ impl<'a, R: Read + Seek> TreeVerifier<'a, R> {
             cancelled: None,
         }
     }
-    fn read_page(&mut self, offset: u64) -> Result<[u8; PAGE]> {
+    fn check_cancelled(&self) -> Result<()> {
         require(
             !self.cancelled.is_some_and(|flag| flag.load(Ordering::Relaxed)),
             "cancelled",
-        )?;
+        )
+    }
+    fn read_pages(&mut self, offset: u64, pages: &mut [u8]) -> Result<()> {
+        self.check_cancelled()?;
         require(
             offset >= self.layout.tree_start
-                && add(offset, PAGE as u64)? <= self.layout.expected_size,
+                && add(offset, pages.len() as u64)? <= self.layout.expected_size,
             "page_bounds",
         )?;
+        read_at(self.reader, offset, pages)
+    }
+    fn read_page(&mut self, offset: u64) -> Result<[u8; PAGE]> {
         let mut page = [0; PAGE];
-        read_at(self.reader, offset, &mut page)?;
+        self.read_pages(offset, &mut page)?;
         Ok(page)
+    }
+    fn check_data_hash(&self, page: &[u8], leaf: &[u8; PAGE], index: u64) -> Result<()> {
+        let slot = (index % FANOUT) as usize * 24;
+        let width = self.layout.leaf_digest_bytes;
+        require(hash(page)[..width] == leaf[slot..slot + width], "data_hash")
     }
     fn tree_page(&mut self, level: usize, index: u64) -> Result<[u8; PAGE]> {
         require(
@@ -369,13 +380,8 @@ impl<'a, R: Read + Seek> TreeVerifier<'a, R> {
     fn data_page(&mut self, index: u64) -> Result<[u8; PAGE]> {
         require(index < self.layout.data_pages, "data_index")?;
         let leaf = self.tree_page(self.layout.tree_counts.len() - 1, index / FANOUT)?;
-        let slot = (index % FANOUT) as usize * 24;
         let page = self.read_page(add(self.layout.data_start, mul(index, PAGE as u64)?)?)?;
-        let width = self.layout.leaf_digest_bytes;
-        require(
-            hash(&page)[..width] == leaf[slot..slot + width],
-            "data_hash",
-        )?;
+        self.check_data_hash(&page, &leaf, index)?;
         Ok(page)
     }
     fn verify_all(&mut self) -> Result<()> {
@@ -384,8 +390,19 @@ impl<'a, R: Read + Seek> TreeVerifier<'a, R> {
                 self.tree_page(level, index)?;
             }
         }
-        for index in 0..self.layout.data_pages {
-            self.data_page(index)?;
+        // During the full scan, read the contiguous pages covered by each
+        // authenticated leaf together. Check every page before accepting it.
+        let mut block = vec![0; FANOUT as usize * PAGE];
+        let level = self.layout.tree_counts.len() - 1;
+        for first in (0..self.layout.data_pages).step_by(FANOUT as usize) {
+            let leaf = self.tree_page(level, first / FANOUT)?;
+            let count = (self.layout.data_pages - first).min(FANOUT) as usize;
+            let bytes = &mut block[..count * PAGE];
+            self.read_pages(add(self.layout.data_start, mul(first, PAGE as u64)?)?, bytes)?;
+            for (offset, page) in bytes.chunks_exact(PAGE).enumerate() {
+                self.check_cancelled()?;
+                self.check_data_hash(page, &leaf, first + offset as u64)?;
+            }
         }
         Ok(())
     }
@@ -793,6 +810,7 @@ mod tests {
             layout.tree_starts[1] + 1,
             layout.tree_starts[1] + 20,
             layout.data_start + PAGE as u64 + 51,
+            layout.data_start + 170 * PAGE as u64 + 51,
         ] {
             let mut changed = file.clone();
             changed.get_mut()[offset as usize] ^= 1;
