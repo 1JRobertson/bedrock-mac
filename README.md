@@ -17,9 +17,9 @@ native launcher.
 
 | Status | Evidence and limits |
 | --- | --- |
-| **Working in development** | Local-world save/reopen and Xbox/PlayStation friend play recorded on an M4 Pro Mac mini, 24 GB RAM, macOS 15.3.1. These are [historical sessions](docs/history/GAMEPLAY.md#earlier-gameplay-results), not current-bundle qualification. |
+| **LAN and online multiplayer** | The maintainer reports repeated cross-play with multiple friends on Xbox and PS5. Two online sessions and local-world save/reopen were recorded on an M4 Pro Mac mini running macOS 15.3.1. [Gameplay evidence](docs/history/GAMEPLAY.md#repeated-cross-platform-play) |
 | **Experimental** | Opt-in [Mullion ray tracing](experiments/mullion/RESULTS.md) rendered a proof world on the M4 Pro. Limited feature support; no general DirectX 12 conformance or long-session guarantee. |
-| **Not verified** | Clean-Mac source setup, current packaged-candidate save/reopen and multiplayer, live update/recovery, and party creation/invites/joining with the compiled party fix. See [compatibility](docs/COMPATIBILITY.md) and [release gates](docs/RELEASE.md). |
+| **Pending release checks** | Clean-Mac source setup. The packaged app candidate still needs its own save/reopen, multiplayer, and live update/recovery checks. Party creation, invites, and joining with the compiled party fix also need verification. [Release readiness](docs/RELEASE.md) |
 
 Apple Silicon and macOS 15+ are the source target. An M1 Air, 16 GB, is
 [reported working](docs/COMPATIBILITY.md), without a recorded OS/revision or
@@ -77,11 +77,11 @@ new bundles need their own audit and gameplay qualification.
 
 ## What has been tested?
 
-The maintainer estimates **10+ total hours playing with Xbox and PlayStation
-friends** across multiple sessions. Development testing also verified local-world
-saving and reopening. The [gameplay evidence](docs/history/GAMEPLAY.md#repeated-cross-platform-play)
-includes two monitored friend sessions; the cumulative estimate is a maintainer
-report, not a continuous soak test or acceptance of the current app candidate.
+The maintainer reported **10+ cumulative hours of Xbox and PlayStation cross-play**
+in October and reported LAN and online play with friends in November.
+The [gameplay record](docs/history/GAMEPLAY.md#repeated-cross-platform-play)
+includes two monitored online sessions. The packaged app candidate has separate
+[acceptance checks](docs/RELEASE.md#current-gates).
 
 Performance work has reduced measured CPU cost in bounded development tests.
 It does **not** establish a cumulative FPS improvement, lower power use, or a

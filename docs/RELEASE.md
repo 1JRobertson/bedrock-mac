@@ -1,6 +1,6 @@
 # Release readiness
 
-Updated November 5, 2026. **The public project is a source preview.** There is
+Updated November 25, 2026. **The public project is a source preview.** There is
 no public notarized app/installer. Source PRs do not publish or qualify binaries.
 The intended player experience is open the app, complete required setup/sign-in,
 and reach vanilla Minecraft.
@@ -17,7 +17,7 @@ source publication and the next acceptance steps.
 | Ownership/download | Exact RC4 helper completed verified owner-account acquisition outside the app | New artifact's native first-run, retry and download cancellation |
 | App/DMG | Local RC4 resource, notice-copy, signature and complete minimum-OS audit passed | Rebuild/audit any changed app; verify its exact artifact |
 | Saves and updates | Historical development save/reopen and synthetic update/recovery checks | Candidate save/reopen/backup restore and actual game upgrade/recovery |
-| Multiplayer/stability | User reports and two monitored friend sessions in [gameplay history](history/GAMEPLAY.md#repeated-cross-platform-play); October 31 installed WinHTTP fix followed by a successful friend-world retry ([record](history/PARTY-WINHTTP-2026-10-25.md#october-31-installed-fix-and-friend-world-acceptance)) | Candidate join/disconnect/rejoin, party creation/invites, active Realm entry and extended session |
+| Multiplayer/stability | Maintainer reports LAN and online play with multiple friends on Xbox and PS5. [Gameplay history](history/GAMEPLAY.md#repeated-cross-platform-play) includes two monitored online sessions. The October 31 WinHTTP fix was followed by a [successful friend-world retry](history/PARTY-WINHTTP-2026-10-25.md#october-31-installed-fix-and-friend-world-acceptance). | Candidate join/disconnect/rejoin, party creation/invites, active Realm entry and extended session |
 | Clean-machine/M1 | Maintainer reports it working on an M1 Air, 16 GB; exact OS/revision/scenarios unrecorded | Fresh-machine setup and artifact-specific acceptance receipt |
 | Distribution | Source-built dependency receipts and collected notices exist | Final binary corresponding-source/build mapping; Developer ID/notarization and downloaded-app checks |
 

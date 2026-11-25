@@ -1,4 +1,4 @@
-# Gameplay and integration observations — September–October 2026
+# Gameplay and integration observations — September–November 2026
 
 Dated development evidence, not certification of a new app. Current runtime
 behavior is summarized in [stability notes](../STABILITY.md); release checks
@@ -36,6 +36,10 @@ bytes against the manifest. This preserves validation despite signature changes;
 it does not establish a new graphics or gameplay test result.
 
 ## Repeated cross-platform play
+
+On November 25, 2026, the maintainer reported playing over LAN and online with
+multiple friends on Xbox and PS5. The report did not identify the build or Mac
+for those sessions.
 
 On October 20, 2026, the maintainer reported an estimated **10+ cumulative hours
 playing with Xbox and PlayStation friends** across multiple sessions. This records
