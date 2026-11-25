@@ -26,7 +26,7 @@ if ! command -v rustup >/dev/null 2>&1; then
   missing+=(rustup)
 fi
 if [ "${#missing[@]}" -gt 0 ]; then
-  HOMEBREW_NO_AUTO_UPDATE=1 "/opt/homebrew/bin/brew" install "${missing[@]}"
+  "/opt/homebrew/bin/brew" install "${missing[@]}"
 fi
 if ! rustup run 1.98.0 rustc --version >/dev/null 2>&1; then
   rustup toolchain install 1.98.0 --profile minimal

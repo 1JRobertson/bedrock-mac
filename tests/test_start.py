@@ -443,13 +443,17 @@ sys.exit(start.cli())
                      'tests/test_start.py', 'patches/standalone-wine-xuser-z-device-auth.patch'):
             self.assertIn(name, exporter.ALLOWED_FILES)
 
-    def test_fresh_homebrew_rustup_is_found_in_its_keg_only_path(self):
+    def test_build_tool_install_uses_homebrew_defaults_and_finds_keg_only_rustup(self):
         source = Path(__file__).resolve().parents[1]
         brew_root = self.root / 'homebrew'
         (brew_root / 'bin').mkdir(parents=True)
         brew = brew_root / 'bin/brew'
         brew.write_text('''#!/bin/bash
 if [ "$1" = list ]; then exit 1; fi
+if [ -n "${HOMEBREW_NO_AUTO_UPDATE:-}" ]; then
+    printf 'Build tool setup disabled Homebrew updates.\\n' >&2
+    exit 1
+fi
 printf '%s\\n' "$@" > "$(dirname "$0")/../installed-formulae"
 mkdir -p "$(dirname "$0")/../opt/rustup/bin"
 printf '#!/bin/sh\\nexit 0\\n' > "$(dirname "$0")/../opt/rustup/bin/rustup"
@@ -460,8 +464,10 @@ chmod +x "$(dirname "$0")/../opt/rustup/bin/rustup"
         script.write_text((source / 'tools/install-build-tools.sh').read_text()
                           .replace('/opt/homebrew', str(brew_root))
                           .replace('/usr/bin/arch', '/usr/bin/true'))
+        environment = dict(os.environ, PATH='/usr/bin:/bin', CARGO_HOME=str(self.root / 'cargo'))
+        environment.pop('HOMEBREW_NO_AUTO_UPDATE', None)
         result = subprocess.run(['/bin/bash', str(script)],
-            env=dict(os.environ, PATH='/usr/bin:/bin', CARGO_HOME=str(self.root / 'cargo')),
+            env=environment,
             text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((brew_root / 'opt/rustup/bin/rustup').is_file())

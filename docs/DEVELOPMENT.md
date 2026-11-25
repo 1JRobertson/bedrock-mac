@@ -315,6 +315,7 @@ See [CLI reference](CLI.md),
 
 | Failure | Check |
 | --- | --- |
+| Homebrew reports `unknown install step` while installing build tools | Run `/opt/homebrew/bin/brew update`, then run `Start.command` again. |
 | Bootstrap destination exists | Run `python3 tools/bootstrap-sources.py --check`; preserve local changes before preparing a new source tree. Do not fetch a different branch into the pinned checkout to silence a mismatch. |
 | Cargo lock or source patch mismatch | Compare tracked patches, `patches/Cargo.lock`, and the pinned source check. Keep `--locked`; update provenance and checksums intentionally. |
 | Missing native dependency prefix | Build a fresh prefix with `tools/build-native-dependencies.py`, then set `STANDALONE_DEPENDENCY_PREFIX` to its `prefix/` directory. Homebrew dylibs or a binary-only archive do not satisfy the receipt check. |
