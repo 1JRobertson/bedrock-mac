@@ -343,9 +343,10 @@ It skips compiling Wine, its native dependencies, and the probes on the next
 Mac. Setup still builds the sign-in helper, acquires the pinned graphics files,
 checks graphics in the desktop session, and downloads the owned game.
 
-For preview 8, download `bedrock-wine-0.3.0-source.8.tar.gz` from the
-[release page](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.8).
-In a fresh preview 8 folder, run this from Terminal on the Mac desktop:
+Preview 9 reuses the Wine archive from preview 8. Download
+`bedrock-wine-0.3.0-source.8.tar.gz` from the
+[preview 9 release](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.9).
+In a fresh preview 9 folder, run this from Terminal on the Mac desktop:
 
 ```sh
 ./Start.command --prebuilt-wine "$HOME/Downloads/bedrock-wine-0.3.0-source.8.tar.gz" \
