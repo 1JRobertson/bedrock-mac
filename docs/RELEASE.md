@@ -1,6 +1,6 @@
 # Release readiness
 
-Updated November 25, 2026. **The public project is a source preview.** There is
+Updated November 26, 2026. **The public project is a source preview.** There is
 no public notarized app/installer. Source PRs do not publish or qualify binaries.
 The intended player experience is open the app, complete required setup/sign-in,
 and reach vanilla Minecraft.
@@ -14,8 +14,8 @@ source publication and the next acceptance steps.
 | --- | --- | --- |
 | Source checks | The source release and each PR record their final tested revision, Python/Rust results, source hashes and export checks | Tests appropriate to each new change; disclose unavailable hosted CI |
 | Runtime construction | Pinned-source v4 replay and exact-bridge graphics probes passed historically | Qualify the runtime selected for each new app |
-| Ownership/download | Exact RC4 helper completed verified owner-account acquisition outside the app | New artifact's native first-run, retry and download cancellation |
-| App/DMG | Local RC4 resource, notice-copy, signature and complete minimum-OS audit passed | Rebuild/audit any changed app; verify its exact artifact |
+| Ownership/download | [Packaged M1 first run](#m1-air-packaged-install-timing) completed ownership verification, full download, and launch | Live retry and download cancellation |
+| App/DMG | Private M1 app passed its signature, resource, and minimum-OS audit and opened Minecraft | Verify the exact artifact prepared for distribution |
 | Saves and updates | Historical development save/reopen and synthetic update/recovery checks | Candidate save/reopen/backup restore and actual game upgrade/recovery |
 | Multiplayer/stability | Maintainer reports LAN and online play with multiple friends on Xbox and PS5. [Gameplay history](history/GAMEPLAY.md#repeated-cross-platform-play) includes two monitored online sessions. The October 31 WinHTTP fix was followed by a [successful friend-world retry](history/PARTY-WINHTTP-2026-10-25.md#october-31-installed-fix-and-friend-world-acceptance). | Candidate join/disconnect/rejoin, party creation/invites, active Realm entry and extended session |
 | M1 source setup | [Preview 6 first install and local world play](#m1-air-source-install-and-first-play) on a 16 GB M1 Air with macOS 26.6.2. | Repeat from a Mac without the prerequisites and qualify the packaged app separately. |
@@ -27,8 +27,8 @@ Each later PR must record checks on its own final commit and disclose unavailabl
 jobs; an earlier pass cannot qualify changed source. Native test gaps remain
 visible even when a source change is ready for review.
 
-The current [source download](SOURCE_PREVIEW.md) is **0.3.0 source preview 8**.
-It adds first-run checks, download progress, and optional prebuilt Wine tools.
+The current [source download](SOURCE_PREVIEW.md) is **0.3.0 source preview 9**.
+It adds parallel downloads, faster unpacking, and clearer first-launch messages.
 The latest hosted run, on October 28, passed both Python
 jobs, account-helper and file-pickers; native-launcher was cancelled. It was not
 a complete passing run. Hosted checks are manual; local checks remain the
@@ -52,12 +52,23 @@ After the maintainer approved Keychain access, the helper verified Microsoft
 ownership, downloaded and verified the package, and prepared all 12,902 files
 for Minecraft `1.26.6501.0`. The launcher created a fresh game profile. The
 maintainer confirmed the main menu and successful play in a local world.
-Save/reopen, multiplayer on this M1 install, and the packaged app still need
-separate test results.
+
+## M1 Air packaged install timing
+
+On the same M1 Air, a private packaged build with the Preview 9 helper
+downloaded Minecraft `1.26.6501.0` in four parallel transfers, verified the
+full package, and unpacked 12,902 files into an empty game directory.
+Download and verification took **1m 42s**. Unpacking took **1m 16s**.
+
+Time from the start of setup to Minecraft process launch was **4m 43s**,
+including about 37 seconds for Keychain approval. The earlier private
+packaged run took **5m 43s**. The optimized run started the bundled setup
+worker in the desktop session, and the maintainer confirmed the main menu
+appeared. See [the speedup PR](https://github.com/1JRobertson/bedrock-mac/pull/32).
 
 ## Recorded local artifact
 
-The latest recorded local candidate is **0.3.0 RC4, build 6**, built October 7,
+The October candidate was **0.3.0 RC4, build 6**, built October 7,
 2026, ad-hoc signed and not notarized. Its complete binary audit found a
 **macOS 15.0** floor; later builds need their own audit.
 

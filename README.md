@@ -13,7 +13,7 @@ the session details.
 played in a local world on a 16 GB M1 MacBook Air running macOS 26.6.2. Setup
 required a Homebrew update. [M1 test](docs/RELEASE.md#m1-air-source-install-and-first-play)
 
-[Download source preview 8](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.8)
+[Download source preview 9](https://github.com/1JRobertson/bedrock-mac/releases/tag/v0.3.0-source.9)
 and follow the [setup steps](#start-from-source). The first run builds the
 tools needed to run the Windows game and downloads your owned copy.
 
